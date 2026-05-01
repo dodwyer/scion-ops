@@ -1,0 +1,7 @@
+schema_version: "1"
+description: "Implementer (Codex) — drafts changes to satisfy the task and tests."
+harness_config: codex
+system_prompt: file://system-prompt.md
+agent_instructions: file://agents.md
+max_turns: 60
+max_duration: 30m

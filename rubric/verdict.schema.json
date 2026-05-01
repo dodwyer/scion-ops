@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://livewyer.com/scion-ops/verdict.schema.json",
+  "title": "ReviewerVerdict",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["scores", "verdict"],
+  "properties": {
+    "scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["correctness", "completeness", "style"],
+      "properties": {
+        "correctness":  { "type": "integer", "minimum": 1, "maximum": 5 },
+        "completeness": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "style":        { "type": "integer", "minimum": 1, "maximum": 5 }
+      }
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["accept", "request_changes"]
+    },
+    "blocking_issues": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "nits": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "summary": {
+      "type": "string",
+      "description": "One-paragraph human-readable summary of the review."
+    }
+  }
+}

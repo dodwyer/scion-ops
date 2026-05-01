@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Build Scion container images natively with podman, single-arch.
+#
+# Requires the upstream scion source checked out (we read its image-build/
+# Dockerfiles). By default it expects the source at
+# $HOME/workspace/github/GoogleCloudPlatform/scion. Override with --src.
+#
+# Outputs images tagged as:
+#   localhost/core-base:latest
+#   localhost/scion-base:latest
+#   localhost/scion-<harness>:latest    (for each in HARNESSES)
+#
+# After running, configure scion with:
+#   scion config set --global image_registry localhost
+set -eo pipefail
+
+red()   { printf '\033[31m%s\033[0m\n' "$*"; }
+green() { printf '\033[32m%s\033[0m\n' "$*"; }
+log()   { printf '\033[36m==> %s\033[0m\n' "$*"; }
+
+SCION_SRC="${HOME}/workspace/github/GoogleCloudPlatform/scion"
+TAG="latest"
+REGISTRY="localhost"
+HARNESSES=(claude codex)   # v1: skip gemini + opencode to save time/disk
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --src)       SCION_SRC="$2"; shift 2 ;;
+    --tag)       TAG="$2"; shift 2 ;;
+    --registry)  REGISTRY="$2"; shift 2 ;;
+    --harness)   HARNESSES=("$2"); shift 2 ;;
+    --all-harnesses) HARNESSES=(claude codex gemini opencode); shift ;;
+    -h|--help)
+      cat <<EOF
+Usage: $(basename "$0") [options]
+  --src <path>       Path to scion source (default: $SCION_SRC)
+  --tag <tag>        Image tag (default: $TAG)
+  --registry <name>  Image prefix (default: $REGISTRY)
+  --harness <name>   Build only this harness (repeatable)
+  --all-harnesses    Build claude codex gemini opencode (default: claude codex)
+EOF
+      exit 0
+      ;;
+    *) red "Unknown option: $1"; exit 1 ;;
+  esac
+done
+
+[[ -d "$SCION_SRC/image-build" ]] || { red "scion source not found at $SCION_SRC"; exit 1; }
+command -v podman >/dev/null || { red "podman not on PATH"; exit 1; }
+
+IMG_BUILD="$SCION_SRC/image-build"
+
+build() {
+  local name="$1" dockerfile="$2" context="$3"; shift 3
+  local tag="${REGISTRY}/${name}:${TAG}"
+  log "build $tag"
+  podman build \
+    --tag "$tag" \
+    --file "$dockerfile" \
+    "$@" \
+    "$context"
+  green "    ok  $tag"
+}
+
+# 1. core-base
+build "core-base" \
+      "$IMG_BUILD/core-base/Dockerfile" \
+      "$IMG_BUILD/core-base"
+
+# 2. scion-base (needs scion source root as context to copy go.mod, cmd/, pkg/, web/)
+build "scion-base" \
+      "$IMG_BUILD/scion-base/Dockerfile" \
+      "$SCION_SRC" \
+      --build-arg "BASE_IMAGE=${REGISTRY}/core-base:${TAG}" \
+      --build-arg "GIT_COMMIT=$(git -C "$SCION_SRC" rev-parse HEAD 2>/dev/null || echo unknown)"
+
+# 3. harness images
+for h in "${HARNESSES[@]}"; do
+  build "scion-${h}" \
+        "$IMG_BUILD/${h}/Dockerfile" \
+        "$IMG_BUILD/${h}" \
+        --build-arg "BASE_IMAGE=${REGISTRY}/scion-base:${TAG}"
+done
+
+green ""
+green "All images built."
+echo  "Configure scion:  scion config set --global image_registry ${REGISTRY}"
+podman images --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}" | awk 'NR==1 || /scion|core-base/' | head -10

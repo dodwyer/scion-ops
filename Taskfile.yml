@@ -1,0 +1,66 @@
+version: '3'
+
+# We prepend ~/.local/bin (for the locally-built git 2.47+) and $GOPATH/bin
+# (for the scion CLI) so that every task inherits them regardless of the
+# invoking shell's profile.
+env:
+  PATH: '{{.HOME}}/.local/bin:{{.GOPATH}}/bin:{{.PATH}}'
+
+vars:
+  HUB_ENDPOINT: http://localhost:8080
+  HOME:
+    sh: echo "$HOME"
+  GOPATH:
+    sh: go env GOPATH
+  SCION_BIN: scion
+
+tasks:
+  install:
+    desc: Preflight host + go install scion CLI
+    cmds:
+      - bash scripts/bootstrap-host.sh
+      - go install github.com/GoogleCloudPlatform/scion/cmd/scion@latest
+      - '{{.SCION_BIN}} version || true'
+
+  init:
+    desc: One-time machine init + register this grove
+    cmds:
+      - '{{.SCION_BIN}} init --machine'
+      - '{{.SCION_BIN}} init'
+
+  hub:up:
+    desc: Start the local Scion Hub and link the CLI to it
+    cmds:
+      - '{{.SCION_BIN}} server start'
+      - '{{.SCION_BIN}} config set hub.endpoint {{.HUB_ENDPOINT}}'
+      - '{{.SCION_BIN}} hub enable'
+      - '{{.SCION_BIN}} hub link'
+
+  hub:down:
+    desc: Stop the local Scion Hub
+    cmds:
+      - '{{.SCION_BIN}} server stop || true'
+
+  hub:status:
+    desc: Show Hub status + registered agents
+    cmds:
+      - '{{.SCION_BIN}} hub status'
+      - '{{.SCION_BIN}} list'
+
+  round:
+    desc: Run one consensus round. Usage:  task round -- "<prompt>"
+    cmds:
+      - bash orchestrator/round.sh "{{.CLI_ARGS}}"
+
+  verify:
+    desc: Run tests + static analysis in CWD (used by orchestrator inside agent worktrees)
+    cmds:
+      - bash orchestrator/lib/verify.sh
+
+  smoke:
+    desc: Phase 1 smoke test — start a stock agent, list, attach to logs, delete
+    cmds:
+      - '{{.SCION_BIN}} start scratch "echo round trip" --detach'
+      - sleep 2
+      - '{{.SCION_BIN}} list'
+      - '{{.SCION_BIN}} delete scratch || true'

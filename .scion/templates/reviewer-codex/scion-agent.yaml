@@ -1,0 +1,7 @@
+schema_version: "1"
+description: "Reviewer (Codex) — peer-reviews the other implementer's diff and produces verdict.json."
+harness_config: codex
+system_prompt: file://system-prompt.md
+agent_instructions: file://agents.md
+max_turns: 30
+max_duration: 15m
