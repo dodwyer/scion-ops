@@ -3,12 +3,14 @@
 # requires-python = ">=3.11"
 # dependencies = [
 #   "mcp>=1.13,<2",
+#   "PyYAML>=6,<7",
 # ]
 # ///
 """MCP server for operating the local scion-ops consensus harness.
 
-The server intentionally wraps the existing Taskfile/orchestrator/scion CLI
-surface instead of becoming another orchestration layer.
+The server intentionally keeps local repo inspection close to the existing
+Taskfile/orchestrator workflow, while Hub-mode control and monitoring use the
+Scion Hub HTTP API.
 """
 
 from __future__ import annotations
@@ -18,12 +20,17 @@ import os
 import re
 import subprocess
 import time
-from hashlib import sha256
+import urllib.error
+import urllib.parse
+import urllib.request
 from base64 import urlsafe_b64decode, urlsafe_b64encode
 from collections import Counter
+from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
+import yaml
 from mcp.server.fastmcp import FastMCP
 
 
@@ -136,6 +143,477 @@ def _run(
     return payload
 
 
+def _classify_command_failure(args: list[str], output: str) -> str:
+    text = " ".join(args).lower() + "\n" + output.lower()
+    if args and args[0] == "git":
+        return "local_git_state"
+    if "unauthorized" in text or "authentication failed" in text or "forbidden" in text:
+        return "hub_auth"
+    if "broker_auth_failed" in text or "runtime broker" in text or "no provider" in text:
+        return "broker_dispatch"
+    if "kubernetes" in text or "pod" in text or "runtime" in text or "container" in text:
+        return "runtime"
+    return "command"
+
+
+def _command_result(result: dict[str, Any]) -> dict[str, Any]:
+    if result.get("ok"):
+        return result
+    return {
+        **result,
+        "source": "shell",
+        "error_kind": _classify_command_failure(result.get("command", []), result.get("output", "")),
+    }
+
+
+def _load_yaml(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        data = yaml.safe_load(path.read_text(errors="replace"))
+    except (OSError, yaml.YAMLError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _settings_paths() -> list[Path]:
+    paths: list[Path] = [Path.home() / ".scion" / "settings.yaml"]
+    explicit = os.environ.get("SCION_OPS_GROVE_SETTINGS")
+    if explicit:
+        paths.append(Path(explicit).expanduser())
+
+    root = _repo_root()
+    local_settings = root / ".scion" / "settings.yaml"
+    if local_settings.exists():
+        paths.append(local_settings)
+
+    grove_id_file = root / ".scion" / "grove-id"
+    if grove_id_file.exists():
+        grove_id = grove_id_file.read_text(errors="replace").strip()
+        short_id = grove_id[:8]
+        pattern = f"*__{short_id}/.scion/settings.yaml"
+        for path in sorted((Path.home() / ".scion" / "grove-configs").glob(pattern)):
+            paths.append(path)
+
+    deduped: list[Path] = []
+    seen: set[Path] = set()
+    for path in paths:
+        resolved = path.expanduser()
+        if resolved not in seen:
+            seen.add(resolved)
+            deduped.append(resolved)
+    return deduped
+
+
+def _effective_settings() -> tuple[dict[str, Any], list[str]]:
+    settings: dict[str, Any] = {}
+    sources: list[str] = []
+    for path in _settings_paths():
+        data = _load_yaml(path)
+        if data:
+            settings = _deep_merge(settings, data)
+            sources.append(str(path))
+    return settings, sources
+
+
+def _nested(data: dict[str, Any], *keys: str) -> Any:
+    current: Any = data
+    for key in keys:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current
+
+
+def _truthy(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _read_text_file(path: Path) -> str:
+    try:
+        return path.read_text(errors="replace").strip()
+    except OSError:
+        return ""
+
+
+@dataclass(frozen=True)
+class HubAuth:
+    header: str
+    token: str
+    method: str
+    source: str
+
+    def redacted(self) -> dict[str, str]:
+        return {"method": self.method, "source": self.source}
+
+
+@dataclass(frozen=True)
+class HubConfig:
+    endpoint: str
+    grove_id: str
+    enabled: bool
+    configured: bool
+    settings_sources: list[str]
+    auth: HubAuth | None
+
+    def redacted(self) -> dict[str, Any]:
+        return {
+            "endpoint": self.endpoint,
+            "grove_id": self.grove_id,
+            "enabled": self.enabled,
+            "configured": self.configured,
+            "settings_sources": self.settings_sources,
+            "auth": self.auth.redacted() if self.auth else {"method": "none", "source": ""},
+        }
+
+
+class HubAPIError(RuntimeError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        category: str,
+        status: int | None = None,
+        code: str = "",
+        path: str = "",
+        details: Any = None,
+    ) -> None:
+        super().__init__(message)
+        self.category = category
+        self.status = status
+        self.code = code
+        self.path = path
+        self.details = details
+
+    def payload(self) -> dict[str, Any]:
+        return {
+            "error_kind": self.category,
+            "error": str(self),
+            "status": self.status,
+            "code": self.code,
+            "path": self.path,
+            "details": self.details,
+        }
+
+
+def _oauth_token(endpoint: str) -> tuple[str, str]:
+    credentials = Path.home() / ".scion" / "credentials.json"
+    try:
+        data = json.loads(credentials.read_text(errors="replace"))
+    except (OSError, json.JSONDecodeError):
+        return "", ""
+    hubs = data.get("hubs")
+    if not isinstance(hubs, dict):
+        return "", ""
+    entry = hubs.get(endpoint) or hubs.get(endpoint.rstrip("/"))
+    if not isinstance(entry, dict):
+        return "", ""
+    token = str(entry.get("accessToken") or "").strip()
+    return token, str(credentials) if token else ""
+
+
+def _hub_auth(endpoint: str) -> HubAuth | None:
+    token = os.environ.get("SCION_OPS_HUB_TOKEN", "").strip()
+    if token:
+        return HubAuth("Authorization", token, "bearer", "SCION_OPS_HUB_TOKEN env")
+
+    token, source = _oauth_token(endpoint)
+    if token:
+        return HubAuth("Authorization", token, "oauth", source)
+
+    token = _read_text_file(Path.home() / ".scion" / "scion-token")
+    if token:
+        return HubAuth("X-Scion-Agent-Token", token, "agent_token", "~/.scion/scion-token")
+
+    token = os.environ.get("SCION_AUTH_TOKEN", "").strip()
+    if token:
+        return HubAuth("X-Scion-Agent-Token", token, "agent_token", "SCION_AUTH_TOKEN env")
+
+    token = os.environ.get("SCION_HUB_TOKEN", "").strip()
+    if token:
+        return HubAuth("Authorization", token, "bearer", "SCION_HUB_TOKEN env")
+
+    token = os.environ.get("SCION_DEV_TOKEN", "").strip()
+    if token:
+        return HubAuth("Authorization", token, "devauth", "SCION_DEV_TOKEN env")
+
+    token_file = os.environ.get("SCION_DEV_TOKEN_FILE", "").strip()
+    if token_file:
+        token = _read_text_file(Path(token_file).expanduser())
+        if token:
+            return HubAuth("Authorization", token, "devauth", f"SCION_DEV_TOKEN_FILE: {token_file}")
+
+    token = _read_text_file(Path.home() / ".scion" / "dev-token")
+    if token:
+        return HubAuth("Authorization", token, "devauth", "~/.scion/dev-token")
+
+    return None
+
+
+def _hub_config() -> HubConfig:
+    settings, sources = _effective_settings()
+    endpoint = (
+        os.environ.get("SCION_OPS_HUB_ENDPOINT")
+        or os.environ.get("SCION_HUB_ENDPOINT")
+        or _nested(settings, "hub", "endpoint")
+        or "http://127.0.0.1:8090"
+    )
+    endpoint = str(endpoint).rstrip("/")
+    configured = bool(
+        os.environ.get("SCION_OPS_HUB_ENDPOINT")
+        or os.environ.get("SCION_HUB_ENDPOINT")
+        or _nested(settings, "hub", "endpoint")
+    )
+
+    grove_id = (
+        os.environ.get("SCION_OPS_GROVE_ID")
+        or os.environ.get("SCION_HUB_GROVE_ID")
+        or _nested(settings, "hub", "grove_id")
+        or _nested(settings, "hub", "groveId")
+        or settings.get("grove_id")
+        or settings.get("groveId")
+        or _read_text_file(_repo_root() / ".scion" / "grove-id")
+    )
+    grove_id = str(grove_id or "").strip()
+    enabled = _truthy(_nested(settings, "hub", "enabled")) or bool(
+        os.environ.get("SCION_OPS_HUB_ENDPOINT") or os.environ.get("SCION_HUB_ENDPOINT")
+    )
+    return HubConfig(
+        endpoint=endpoint,
+        grove_id=grove_id,
+        enabled=enabled,
+        configured=configured,
+        settings_sources=sources,
+        auth=_hub_auth(endpoint),
+    )
+
+
+def _hub_error_payload(error: HubAPIError, operation: str, cfg: HubConfig | None = None) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "source": "hub_api",
+        "operation": operation,
+        "hub": (cfg or _hub_config()).redacted(),
+        **error.payload(),
+    }
+
+
+class HubClient:
+    def __init__(self) -> None:
+        self.cfg = _hub_config()
+
+    def _require_ready(self) -> None:
+        if not self.cfg.enabled:
+            raise HubAPIError(
+                "Hub integration is disabled for this workspace",
+                category="hub_state",
+                details={"next": "run task hub:up, export the dev token, then task hub:link"},
+            )
+        if not self.cfg.endpoint:
+            raise HubAPIError("Hub endpoint is not configured", category="hub_state")
+        if not self.cfg.grove_id:
+            raise HubAPIError("Hub grove id is not configured", category="hub_state")
+        if not self.cfg.auth:
+            raise HubAPIError(
+                "No Hub auth token found",
+                category="hub_auth",
+                details={
+                    "checked": [
+                        "OAuth credentials",
+                        "agent token",
+                        "SCION_HUB_TOKEN",
+                        "SCION_DEV_TOKEN",
+                        "~/.scion/dev-token",
+                    ]
+                },
+            )
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        query: dict[str, str] | None = None,
+        body: Any = None,
+        timeout: int = 15,
+        require_grove: bool = True,
+    ) -> Any:
+        if require_grove:
+            self._require_ready()
+        elif not self.cfg.endpoint:
+            raise HubAPIError("Hub endpoint is not configured", category="hub_state")
+
+        url = self.cfg.endpoint + path
+        if query:
+            url += "?" + urllib.parse.urlencode(
+                {key: value for key, value in query.items() if value is not None}
+            )
+
+        data: bytes | None = None
+        headers = {"Accept": "application/json"}
+        if body is not None:
+            data = json.dumps(body).encode()
+            headers["Content-Type"] = "application/json"
+        if self.cfg.auth:
+            if self.cfg.auth.header == "Authorization":
+                headers["Authorization"] = f"Bearer {self.cfg.auth.token}"
+            else:
+                headers[self.cfg.auth.header] = self.cfg.auth.token
+
+        req = urllib.request.Request(url, data=data, headers=headers, method=method.upper())
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                raw = resp.read()
+                if resp.status == 204 or not raw:
+                    return None
+                return json.loads(raw.decode())
+        except urllib.error.HTTPError as exc:
+            raw = exc.read().decode(errors="replace")
+            code = ""
+            message = raw or exc.reason
+            details: Any = None
+            try:
+                parsed = json.loads(raw)
+                err = parsed.get("error", {}) if isinstance(parsed, dict) else {}
+                if isinstance(err, dict):
+                    code = str(err.get("code") or "")
+                    message = str(err.get("message") or message)
+                    details = err.get("details")
+            except json.JSONDecodeError:
+                pass
+            raise HubAPIError(
+                message,
+                category=_classify_hub_error(exc.code, code, message),
+                status=exc.code,
+                code=code,
+                path=path,
+                details=details,
+            ) from exc
+        except (TimeoutError, urllib.error.URLError, OSError) as exc:
+            raise HubAPIError(
+                f"Hub request failed: {exc}",
+                category="hub_unavailable",
+                path=path,
+            ) from exc
+        except json.JSONDecodeError as exc:
+            raise HubAPIError(
+                f"Hub returned non-JSON response: {exc}",
+                category="hub_api",
+                path=path,
+            ) from exc
+
+    def health(self) -> Any:
+        return self.request("GET", "/healthz", require_grove=False)
+
+    def grove(self) -> dict[str, Any]:
+        return self.request("GET", f"/api/v1/groves/{urllib.parse.quote(self.cfg.grove_id)}")
+
+    def providers(self) -> list[dict[str, Any]]:
+        data = self.request(
+            "GET",
+            f"/api/v1/groves/{urllib.parse.quote(self.cfg.grove_id)}/providers",
+        )
+        providers = data.get("providers", []) if isinstance(data, dict) else []
+        return [item for item in providers if isinstance(item, dict)]
+
+    def brokers(self) -> list[dict[str, Any]]:
+        data = self.request("GET", "/api/v1/runtime-brokers", query={"groveId": self.cfg.grove_id})
+        brokers = data.get("brokers", []) if isinstance(data, dict) else []
+        return [item for item in brokers if isinstance(item, dict)]
+
+    def agents(self, round_filter: str = "", include_deleted: bool = False) -> list[dict[str, Any]]:
+        query: dict[str, str] = {}
+        if include_deleted:
+            query["includeDeleted"] = "true"
+        data = self.request(
+            "GET",
+            f"/api/v1/groves/{urllib.parse.quote(self.cfg.grove_id)}/agents",
+            query=query,
+        )
+        agents = data.get("agents", []) if isinstance(data, dict) else []
+        result = [item for item in agents if isinstance(item, dict)]
+        if round_filter:
+            result = [
+                agent
+                for agent in result
+                if round_filter in str(agent.get("name", ""))
+                or round_filter in str(agent.get("slug", ""))
+            ]
+        return result
+
+    def messages(self, round_id: str = "", limit: int = 200) -> list[dict[str, Any]]:
+        data = self.request(
+            "GET",
+            "/api/v1/messages",
+            query={"grove": self.cfg.grove_id, "limit": str(limit)},
+        )
+        messages = data.get("items", []) if isinstance(data, dict) else []
+        result = [item for item in messages if isinstance(item, dict)]
+        if round_id:
+            result = [item for item in result if _round_text_match(item, round_id)]
+        return result
+
+    def notifications(self, round_id: str = "") -> list[dict[str, Any]]:
+        data = self.request("GET", "/api/v1/notifications", query={"acknowledged": "true"})
+        notifications = data if isinstance(data, list) else []
+        result = [
+            item
+            for item in notifications
+            if isinstance(item, dict)
+            and (not item.get("groveId") or item.get("groveId") == self.cfg.grove_id)
+        ]
+        if round_id:
+            result = [item for item in result if _round_text_match(item, round_id)]
+        return result
+
+    def stop_agent(self, agent: dict[str, Any]) -> dict[str, Any]:
+        agent_id = str(agent.get("slug") or agent.get("name") or agent.get("id"))
+        self.request(
+            "POST",
+            f"/api/v1/groves/{urllib.parse.quote(self.cfg.grove_id)}/agents/"
+            f"{urllib.parse.quote(agent_id)}/stop",
+        )
+        return {"agent": agent_id, "action": "stop", "ok": True}
+
+    def delete_agent(self, agent: dict[str, Any]) -> dict[str, Any]:
+        agent_id = str(agent.get("slug") or agent.get("name") or agent.get("id"))
+        self.request(
+            "DELETE",
+            f"/api/v1/groves/{urllib.parse.quote(self.cfg.grove_id)}/agents/{urllib.parse.quote(agent_id)}",
+            query={"deleteFiles": "true", "removeBranch": "true"},
+        )
+        return {"agent": agent_id, "action": "delete", "ok": True}
+
+
+def _classify_hub_error(status: int | None, code: str, message: str) -> str:
+    text = f"{code} {message}".lower()
+    if status in {401, 403} or "unauthorized" in text or "forbidden" in text:
+        return "hub_auth"
+    if "broker" in text or "dispatch" in text or "provider" in text:
+        return "broker_dispatch"
+    if "runtime" in text or "kubernetes" in text or "pod" in text or "container" in text:
+        return "runtime"
+    if status == 404:
+        return "hub_state"
+    if status and status >= 500:
+        return "hub_unavailable"
+    return "hub_api"
+
+
 def _clean_name(value: str, label: str) -> str:
     value = value.strip()
     if not value:
@@ -149,58 +627,21 @@ def _clamp(value: int, minimum: int, maximum: int) -> int:
     return max(minimum, min(maximum, int(value)))
 
 
-def _extract_json_array(output: str) -> list[dict[str, Any]]:
-    data = _extract_json_value(output)
-    if not isinstance(data, list):
-        return []
-    return [item for item in data if isinstance(item, dict)]
-
-
-def _extract_json_value(output: str) -> Any | None:
-    candidates = [match.start() for match in re.finditer(r"(?m)^\s*\[", output)]
-    candidates.extend(match.start() for match in re.finditer(r"(?m)^\s*\{", output))
-    candidates = sorted(set(candidates))
-    for start in candidates:
-        chunk = output[start:]
-        stripped = chunk.lstrip()
-        if not stripped:
-            continue
-        opener = stripped[0]
-        if opener not in "[{":
-            continue
-        start = start + len(chunk) - len(stripped)
-        closer = "]" if opener == "[" else "}"
-        end = output.rfind(closer)
-        if end == -1 or end < start:
-            continue
-        try:
-            return json.loads(output[start : end + 1])
-        except json.JSONDecodeError:
-            continue
-    return None
-
-
-def _json_items(output: str) -> list[dict[str, Any]]:
-    data = _extract_json_value(output)
-    if isinstance(data, list):
-        return [item for item in data if isinstance(item, dict)]
-    if isinstance(data, dict):
-        items = data.get("items")
-        if isinstance(items, list):
-            return [item for item in items if isinstance(item, dict)]
-    return []
-
-
 def _agent_summary(agent: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": agent.get("name") or agent.get("slug"),
         "slug": agent.get("slug"),
+        "id": agent.get("id"),
         "template": agent.get("template"),
         "harnessConfig": agent.get("harnessConfig"),
         "harnessAuth": agent.get("harnessAuth"),
+        "groveId": agent.get("groveId"),
         "phase": agent.get("phase"),
         "activity": agent.get("activity"),
         "containerStatus": agent.get("containerStatus"),
+        "runtime": agent.get("runtime"),
+        "runtimeBrokerId": agent.get("runtimeBrokerId"),
+        "runtimeBrokerName": agent.get("runtimeBrokerName"),
         "taskSummary": agent.get("taskSummary"),
         "created": agent.get("created"),
         "updated": agent.get("updated"),
@@ -208,24 +649,25 @@ def _agent_summary(agent: dict[str, Any]) -> dict[str, Any]:
 
 
 def _list_agents(round_filter: str = "") -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    result = _run(["scion", "list", "--format", "json"], timeout=25)
-    agents = _extract_json_array(result["output"])
-    if round_filter:
-        agents = [
-            agent
-            for agent in agents
-            if round_filter in str(agent.get("name", ""))
-            or round_filter in str(agent.get("slug", ""))
-        ]
-    return agents, result
+    client = HubClient()
+    agents = client.agents(round_filter)
+    return agents, {
+        "ok": True,
+        "source": "hub_api",
+        "hub": client.cfg.redacted(),
+        "count": len(agents),
+    }
 
 
 def _round_text_match(item: dict[str, Any], round_id: str) -> bool:
     needle = round_id.lower()
     fields = [
+        item.get("id"),
         item.get("name"),
         item.get("slug"),
+        item.get("agentId"),
         item.get("sender"),
+        item.get("senderId"),
         item.get("msg"),
         item.get("message"),
         item.get("status"),
@@ -235,15 +677,25 @@ def _round_text_match(item: dict[str, Any], round_id: str) -> bool:
 
 
 def _list_round_messages(round_id: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    result = _run(["scion", "messages", "--all", "--json", "--non-interactive"], timeout=25)
-    messages = [item for item in _json_items(result["output"]) if _round_text_match(item, round_id)]
-    return messages, result
+    client = HubClient()
+    messages = client.messages(round_id)
+    return messages, {
+        "ok": True,
+        "source": "hub_api",
+        "hub": client.cfg.redacted(),
+        "count": len(messages),
+    }
 
 
 def _list_round_notifications(round_id: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    result = _run(["scion", "notifications", "--all", "--json", "--non-interactive"], timeout=25)
-    notifications = [item for item in _json_items(result["output"]) if _round_text_match(item, round_id)]
-    return notifications, result
+    client = HubClient()
+    notifications = client.notifications(round_id)
+    return notifications, {
+        "ok": True,
+        "source": "hub_api",
+        "hub": client.cfg.redacted(),
+        "count": len(notifications),
+    }
 
 
 def _event_id(prefix: str, item: dict[str, Any]) -> str:
@@ -290,6 +742,8 @@ def _round_event_snapshot(round_id: str) -> dict[str, Any]:
             "messages": message_result["ok"],
             "notifications": notification_result["ok"],
         },
+        "source": "hub_api",
+        "hub": agent_result.get("hub") or message_result.get("hub") or notification_result.get("hub"),
     }
 
 
@@ -338,7 +792,14 @@ def _round_events_since(
                 event_type = "agent_changed"
             else:
                 continue
-            agent = next((item for item in snapshot["agents"] if item.get("name") == name or item.get("slug") == name), {})
+            agent = next(
+                (
+                    item
+                    for item in snapshot["agents"]
+                    if item.get("name") == name or item.get("slug") == name
+                ),
+                {},
+            )
             events.append({"type": event_type, "agent": agent})
         for name in sorted(set(previous_agents) - set(current_agents)):
             events.append({"type": "agent_removed", "agent": {"name": name}})
@@ -385,25 +846,46 @@ def _default_base_branch() -> str:
 
 @mcp.tool()
 def scion_ops_hub_status() -> dict[str, Any]:
-    """Show Scion Hub status and a compact agent summary."""
-    hub = _run(["scion", "hub", "status"], timeout=25)
-    agents, list_result = _list_agents()
+    """Show Scion Hub API health, grove, broker providers, and agents."""
+    client = HubClient()
+    try:
+        health = client.health()
+        grove = client.grove()
+        providers = client.providers()
+        brokers = client.brokers()
+        agents = client.agents()
+    except HubAPIError as exc:
+        return _hub_error_payload(exc, "hub_status", client.cfg)
+    summaries = [_agent_summary(agent) for agent in agents]
     return {
-        "hub_status": hub,
-        "agent_list_ok": list_result["ok"],
-        "agents": [_agent_summary(agent) for agent in agents],
+        "ok": True,
+        "source": "hub_api",
+        "hub": client.cfg.redacted(),
+        "health": health,
+        "grove": grove,
+        "providers": providers,
+        "brokers": brokers,
+        "agent_count": len(summaries),
+        "phase_counts": dict(Counter(str(item.get("phase")) for item in summaries)),
+        "activity_counts": dict(Counter(str(item.get("activity")) for item in summaries)),
+        "agents": summaries,
     }
 
 
 @mcp.tool()
 def scion_ops_list_agents(round_filter: str = "") -> dict[str, Any]:
-    """List Scion agents, optionally filtered by a round id substring."""
+    """List Scion agents from Hub API state, optionally filtered by a round id substring."""
     if round_filter:
         _clean_name(round_filter, "round_filter")
-    agents, result = _list_agents(round_filter)
+    try:
+        agents, result = _list_agents(round_filter)
+    except HubAPIError as exc:
+        return _hub_error_payload(exc, "list_agents")
     summaries = [_agent_summary(agent) for agent in agents]
     return {
         "ok": result["ok"],
+        "source": "hub_api",
+        "hub": result.get("hub"),
         "round_filter": round_filter,
         "count": len(summaries),
         "phase_counts": dict(Counter(str(item.get("phase")) for item in summaries)),
@@ -417,7 +899,7 @@ def scion_ops_look(agent_name: str, num_lines: int = 160) -> dict[str, Any]:
     """Read terminal output for a Scion agent with `scion look`."""
     agent_name = _clean_name(agent_name, "agent_name")
     num_lines = _clamp(num_lines, 20, 600)
-    return _run(
+    return _command_result(_run(
         [
             "scion",
             "look",
@@ -428,16 +910,23 @@ def scion_ops_look(agent_name: str, num_lines: int = 160) -> dict[str, Any]:
             str(num_lines),
         ],
         timeout=35,
-    )
+    ))
 
 
 @mcp.tool()
-def scion_ops_round_status(round_id: str = "", include_transcript: bool = True, num_lines: int = 120) -> dict[str, Any]:
-    """Summarize a consensus round and optionally include the consensus runner tail."""
+def scion_ops_round_status(
+    round_id: str = "",
+    include_transcript: bool = True,
+    num_lines: int = 120,
+) -> dict[str, Any]:
+    """Summarize a consensus round from Hub API state and optionally include the runner tail."""
     if round_id:
         _clean_name(round_id, "round_id")
     num_lines = _clamp(num_lines, 20, 400)
-    agents, result = _list_agents(round_id)
+    try:
+        agents, result = _list_agents(round_id)
+    except HubAPIError as exc:
+        return _hub_error_payload(exc, "round_status")
     summaries = [_agent_summary(agent) for agent in agents]
     consensus = next(
         (
@@ -453,6 +942,8 @@ def scion_ops_round_status(round_id: str = "", include_transcript: bool = True, 
         transcript = scion_ops_look(consensus, num_lines=num_lines)
     return {
         "ok": result["ok"],
+        "source": "hub_api",
+        "hub": result.get("hub"),
         "round_id": round_id,
         "agents": summaries,
         "phase_counts": dict(Counter(str(item.get("phase")) for item in summaries)),
@@ -467,10 +958,15 @@ def scion_ops_round_events(round_id: str, cursor: str = "", include_existing: bo
     """Read Hub messages/notifications and agent-state changes for a round."""
     round_id = _clean_name(round_id, "round_id")
     previous = _decode_cursor(cursor, round_id)
-    snapshot = _round_event_snapshot(round_id)
+    try:
+        snapshot = _round_event_snapshot(round_id)
+    except HubAPIError as exc:
+        return _hub_error_payload(exc, "round_events")
     events = _round_events_since(snapshot, previous, include_existing=include_existing)
     return {
         "ok": all(snapshot["commands_ok"].values()),
+        "source": "hub_api",
+        "hub": snapshot.get("hub"),
         "round_id": round_id,
         "changed": bool(events),
         "events": events,
@@ -504,7 +1000,10 @@ def scion_ops_watch_round_events(
 
     previous = _decode_cursor(cursor, round_id)
     if previous is None and not include_existing:
-        snapshot = _round_event_snapshot(round_id)
+        try:
+            snapshot = _round_event_snapshot(round_id)
+        except HubAPIError as exc:
+            return _hub_error_payload(exc, "watch_round_events")
         previous = {
             "round_id": round_id,
             "agent_fingerprints": snapshot["agent_fingerprints"],
@@ -515,13 +1014,18 @@ def scion_ops_watch_round_events(
     deadline = time.monotonic() + timeout_seconds
     last_snapshot: dict[str, Any] | None = None
     while time.monotonic() <= deadline:
-        snapshot = _round_event_snapshot(round_id)
+        try:
+            snapshot = _round_event_snapshot(round_id)
+        except HubAPIError as exc:
+            return _hub_error_payload(exc, "watch_round_events")
         last_snapshot = snapshot
         events = _round_events_since(snapshot, previous, include_existing=include_existing)
         terminal = _round_terminal_status(snapshot)
         if events or terminal:
             return {
                 "ok": all(snapshot["commands_ok"].values()),
+                "source": "hub_api",
+                "hub": snapshot.get("hub"),
                 "round_id": round_id,
                 "changed": bool(events),
                 "events": events,
@@ -535,9 +1039,14 @@ def scion_ops_watch_round_events(
             }
         time.sleep(poll_interval_seconds)
 
-    snapshot = last_snapshot or _round_event_snapshot(round_id)
+    try:
+        snapshot = last_snapshot or _round_event_snapshot(round_id)
+    except HubAPIError as exc:
+        return _hub_error_payload(exc, "watch_round_events")
     return {
         "ok": all(snapshot["commands_ok"].values()),
+        "source": "hub_api",
+        "hub": snapshot.get("hub"),
         "round_id": round_id,
         "changed": False,
         "events": [],
@@ -583,13 +1092,18 @@ def scion_ops_start_round(
     parsed_round_id = match.group(1) if match else env.get("ROUND_ID", "")
     runner = f"round-{parsed_round_id.lower()}-consensus" if parsed_round_id else ""
     event_cursor = ""
+    event_cursor_error: dict[str, Any] | None = None
     if parsed_round_id:
-        event_cursor = _encode_cursor(_round_event_snapshot(parsed_round_id))
+        try:
+            event_cursor = _encode_cursor(_round_event_snapshot(parsed_round_id))
+        except HubAPIError as exc:
+            event_cursor_error = _hub_error_payload(exc, "start_round_event_cursor")
     return {
-        **result,
+        **_command_result(result),
         "round_id": parsed_round_id,
         "consensus_agent": runner,
         "event_cursor": event_cursor,
+        "event_cursor_error": event_cursor_error,
         "next": {
             "watch_tool": "scion_ops_watch_round_events",
             "events_tool": "scion_ops_round_events",
@@ -600,19 +1114,39 @@ def scion_ops_start_round(
 
 @mcp.tool()
 def scion_ops_abort_round(round_id: str, confirm: bool = False) -> dict[str, Any]:
-    """Stop and delete all agents matching a round id. Requires confirm=true."""
+    """Stop and delete Hub agents matching a round id. Requires confirm=true."""
     round_id = _clean_name(round_id, "round_id")
-    agents, _ = _list_agents(round_id)
+    client = HubClient()
+    try:
+        agents = client.agents(round_id)
+    except HubAPIError as exc:
+        return _hub_error_payload(exc, "abort_round", client.cfg)
     matching = [_agent_summary(agent) for agent in agents]
     if not confirm:
         return {
             "ok": False,
+            "source": "hub_api",
+            "hub": client.cfg.redacted(),
             "dry_run": True,
             "message": "Set confirm=true to stop and delete these agents.",
             "matching_agents": matching,
         }
-    result = _run(["bash", "orchestrator/abort.sh", round_id], timeout=90)
-    return {**result, "matching_agents_before_abort": matching}
+    results: list[dict[str, Any]] = []
+    for agent in agents:
+        summary = _agent_summary(agent)
+        try:
+            if str(agent.get("phase") or "").lower() not in {"stopped", "deleted"}:
+                results.append({**client.stop_agent(agent), "summary": summary})
+            results.append({**client.delete_agent(agent), "summary": summary})
+        except HubAPIError as exc:
+            results.append({"ok": False, "summary": summary, **exc.payload()})
+    return {
+        "ok": all(item.get("ok") for item in results),
+        "source": "hub_api",
+        "hub": client.cfg.redacted(),
+        "matching_agents_before_abort": matching,
+        "results": results,
+    }
 
 
 @mcp.tool()
@@ -633,9 +1167,11 @@ def scion_ops_round_artifacts(round_id: str) -> dict[str, Any]:
             if prompt.exists():
                 prompts.append(str(prompt))
     return {
+        "source": "local_git",
         "branches": [line.strip(" *+") for line in branch_result["output"].splitlines() if line.strip()],
         "workspaces": workspaces,
         "prompts": prompts,
+        "branch_result": _command_result(branch_result),
     }
 
 
@@ -644,7 +1180,12 @@ def scion_ops_git_status() -> dict[str, Any]:
     """Show repo status and local round branches."""
     status = _run(["git", "status", "--short", "--branch"], timeout=15)
     branches = _run(["git", "branch", "--list", "round-*"], timeout=15)
-    return {"status": status, "round_branches": branches["output"].splitlines()}
+    return {
+        "source": "local_git",
+        "status": _command_result(status),
+        "round_branches": branches["output"].splitlines(),
+        "round_branch_result": _command_result(branches),
+    }
 
 
 @mcp.tool()
@@ -668,13 +1209,18 @@ def scion_ops_git_diff(
     result = _run(args, timeout=25)
     output = result["output"]
     truncated = len(output) > max_output_chars
-    return {**result, "output": output[:max_output_chars], "truncated": truncated}
+    return {
+        **_command_result(result),
+        "source": "local_git",
+        "output": output[:max_output_chars],
+        "truncated": truncated,
+    }
 
 
 @mcp.tool()
 def scion_ops_verify() -> dict[str, Any]:
     """Run the repository verification gate via `task verify`."""
-    return _run(["task", "verify"], timeout=120)
+    return _command_result(_run(["task", "verify"], timeout=120))
 
 
 @mcp.tool()
@@ -683,9 +1229,20 @@ def scion_ops_tail_round_log(num_lines: int = 160) -> dict[str, Any]:
     num_lines = _clamp(num_lines, 20, 600)
     log_path = Path("/tmp/scion-round.log")
     if not log_path.exists():
-        return {"ok": False, "path": str(log_path), "output": "log file does not exist"}
+        return {
+            "ok": False,
+            "source": "local_file",
+            "error_kind": "local_state",
+            "path": str(log_path),
+            "output": "log file does not exist",
+        }
     lines = log_path.read_text(errors="replace").splitlines()
-    return {"ok": True, "path": str(log_path), "output": "\n".join(lines[-num_lines:])}
+    return {
+        "ok": True,
+        "source": "local_file",
+        "path": str(log_path),
+        "output": "\n".join(lines[-num_lines:]),
+    }
 
 
 @mcp.resource("scion-ops://readme")

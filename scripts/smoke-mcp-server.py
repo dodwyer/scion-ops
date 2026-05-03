@@ -45,9 +45,11 @@ async def _exercise_session(session: ClientSession) -> set[str]:
         raise SystemExit(f"missing tools: {', '.join(missing)}")
 
     result = await session.call_tool("scion_ops_git_status", {})
+    hub = await session.call_tool("scion_ops_hub_status", {})
     agents = await session.call_tool("scion_ops_list_agents", {})
     print(f"tools={len(names)}")
     print(_text(result)[:1000])
+    print(_text(hub)[:1000])
     print(_text(agents)[:1000])
     return names
 
