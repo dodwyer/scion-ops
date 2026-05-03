@@ -8,6 +8,7 @@ Two implementer agents (Claude + Codex) draft the same prompt in isolated worktr
 ```bash
 task install      # bootstrap host: scion CLI, runtime checks, PATH
 task init         # scion init --machine + scion init for this grove
+task kind:up      # create/reuse local kind cluster for Scion K8s runtime tests
 task hub:up       # start local Scion Hub on :8090
 eval "$(task hub:auth-export)"
 task hub:link     # link grove, register auth files/configs, sync templates
@@ -28,12 +29,18 @@ the Claude, Codex, and Gemini harness configs.
 Set `FINAL_REVIEWER=codex` when starting a round if you want to skip Gemini for
 that run.
 
+For local Kubernetes runtime testing, use `task kind:up`, then
+`task kind:configure-scion` and `task kind:doctor`. See
+`docs/kind-scion-runtime.md`.
+
 ## Layout
 
 - `.scion/templates/` — agent role definitions, including `consensus-runner`
+- `deploy/kind/` — native Kubernetes resources for the local kind runtime
 - `orchestrator/round.sh` — thin launcher for the consensus runner
 - `mcp_servers/scion_ops.py` — stdio MCP server for Zed external agents
 - `rubric/` — reviewer prompt + verdict JSON schema
+- `scripts/kind-scion-runtime.sh` — local kind orchestration helper
 - `scripts/bootstrap-host.sh` — one-shot host preflight
 
 ## Zed MCP

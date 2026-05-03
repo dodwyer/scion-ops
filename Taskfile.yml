@@ -11,6 +11,12 @@ vars:
   # workstation-mode web port if you pass --web-port=8090 below.
   HUB_ENDPOINT: http://127.0.0.1:8090
   HUB_WEB_PORT: 8090
+  KIND_CLUSTER_NAME:
+    sh: printf '%s' "${KIND_CLUSTER_NAME:-scion-ops}"
+  KIND_CONTEXT:
+    sh: printf 'kind-%s' "${KIND_CLUSTER_NAME:-scion-ops}"
+  SCION_K8S_NAMESPACE:
+    sh: printf '%s' "${SCION_K8S_NAMESPACE:-scion-agents}"
   HOME:
     sh: echo "$HOME"
   GOPATH:
@@ -30,6 +36,46 @@ tasks:
     cmds:
       - '{{.SCION_BIN}} init --machine'
       - '{{.SCION_BIN}} init'
+
+  images:build:
+    desc: 'Build Scion container images with podman. Usage: task images:build -- [scripts/build-images.sh options]'
+    cmds:
+      - bash scripts/build-images.sh {{.CLI_ARGS}}
+
+  kind:up:
+    desc: Create/reuse the local kind cluster and apply deploy/kind resources.
+    cmds:
+      - bash scripts/kind-scion-runtime.sh up
+
+  kind:down:
+    desc: Delete the local kind cluster.
+    cmds:
+      - bash scripts/kind-scion-runtime.sh down
+
+  kind:status:
+    desc: Show kind cluster, deployed runtime resources, and node status.
+    cmds:
+      - bash scripts/kind-scion-runtime.sh status
+
+  kind:load-images:
+    desc: 'Load local images into kind. Usage: task kind:load-images -- localhost/scion-claude:latest'
+    cmds:
+      - bash scripts/kind-scion-runtime.sh load-images {{.CLI_ARGS}}
+
+  kind:load-archive:
+    desc: 'Load image archives into kind. Usage: task kind:load-archive -- /tmp/scion-claude.tar'
+    cmds:
+      - bash scripts/kind-scion-runtime.sh load-archive {{.CLI_ARGS}}
+
+  kind:configure-scion:
+    desc: Configure global Scion profile "kind" for the local kind cluster.
+    cmds:
+      - bash scripts/kind-scion-runtime.sh configure-scion
+
+  kind:doctor:
+    desc: Run Scion diagnostics against the local kind runtime profile.
+    cmds:
+      - '{{.SCION_BIN}} doctor --profile kind'
 
   hub:up:
     desc: Start local Scion Hub (workstation mode). Run hub:link after exporting SCION_DEV_TOKEN.

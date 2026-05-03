@@ -55,8 +55,12 @@ require "tmux"        command -v tmux
 require "git"         command -v git
 require "claude CLI"  command -v claude
 require "codex CLI"   command -v codex
+# shellcheck disable=SC2016 # Intentionally expand $HOME in the bash -lc child.
 require "gemini CLI"  bash -lc 'command -v gemini >/dev/null 2>&1 || test -x "$HOME/.npm-global/bin/gemini"'
 require "task"        command -v task
+require "kind"        command -v kind
+require "kubectl"     command -v kubectl
+require "yq"          command -v yq
 
 # GOPATH/bin must be on PATH so `scion` is findable after install
 gobin="$(go env GOPATH 2>/dev/null)/bin"
