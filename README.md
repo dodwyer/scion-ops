@@ -33,14 +33,20 @@ For local Kubernetes runtime testing, use `task kind:up`, then
 `task kind:configure-scion` and `task kind:doctor`. See
 `docs/kind-scion-runtime.md`.
 
+For local Hub mode, use `task hub:up`, authenticate with
+`eval "$(task hub:auth-export)"`, then run `task hub:link`. See
+`docs/local-hub-mode.md`.
+
 ## Layout
 
 - `.scion/templates/` — agent role definitions, including `consensus-runner`
 - `deploy/kind/` — native Kubernetes resources for the local kind runtime
+- `docs/local-hub-mode.md` — local Hub/Web/Broker workstation workflow
 - `orchestrator/round.sh` — thin launcher for the consensus runner
 - `mcp_servers/scion_ops.py` — stdio MCP server for Zed external agents
 - `rubric/` — reviewer prompt + verdict JSON schema
 - `scripts/kind-scion-runtime.sh` — local kind orchestration helper
+- `scripts/hub-mode.sh` — local Scion Hub workstation helper
 - `scripts/bootstrap-host.sh` — one-shot host preflight
 
 ## Zed MCP
