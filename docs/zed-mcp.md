@@ -1,14 +1,98 @@
 # Zed MCP Setup
 
-This repo includes a local stdio MCP server for Zed external agents. It exposes
-the existing `task`, `scion`, and git workflow through narrow tools for starting
+This repo includes an MCP server for Zed external agents. It exposes the
+existing `task`, `scion`, and git workflow through narrow tools for starting
 rounds, monitoring agents, reading transcripts, checking result branches, and
 aborting a round with explicit confirmation.
 
-## Option A: Local Command
+For Hub mode, prefer streamable HTTP. It keeps one long-lived service attached
+to the `scion-ops` workspace and lets Zed, Claude, Codex, or a local tunnel
+connect by URL.
 
-Use this when Zed can run the MCP server on the same machine as the
-`scion-ops` workspace:
+## Preferred: Streamable HTTP
+
+Start the server from the repo root:
+
+```bash
+task mcp:http
+```
+
+Defaults:
+
+| Setting | Value |
+|---|---|
+| host | `127.0.0.1` |
+| port | `8765` |
+| path | `/mcp` |
+| URL | `http://127.0.0.1:8765/mcp` |
+
+Override the bind address with environment variables:
+
+```bash
+SCION_OPS_MCP_HOST=127.0.0.1 \
+SCION_OPS_MCP_PORT=8765 \
+SCION_OPS_MCP_PATH=/mcp \
+task mcp:http
+```
+
+Configure Zed with the URL:
+
+```json
+{
+  "context_servers": {
+    "scion-ops": {
+      "url": "http://127.0.0.1:8765/mcp"
+    }
+  }
+}
+```
+
+Keep the default `127.0.0.1` bind unless the server is behind an authenticated
+reverse proxy or an SSH tunnel. Do not expose this service directly to the
+public internet: the tools can start, stop, inspect, and delete local Scion
+agents.
+
+Smoke test the HTTP transport:
+
+```bash
+task mcp:http:smoke
+```
+
+The smoke task connects to the documented URL first. If no MCP server responds,
+it starts a temporary local server, lists tools, and shuts it down.
+
+## Remote HTTP By SSH Tunnel
+
+When `scion-ops`, `scion`, and the agent workspaces live on a remote host,
+start the HTTP MCP server on that remote host with the default local bind:
+
+```bash
+cd /home/david/workspace/github/livewyer-ops/scion-ops
+task mcp:http
+```
+
+Tunnel it from your local machine:
+
+```bash
+ssh -N -L 8765:127.0.0.1:8765 david@192.168.122.103
+```
+
+Then configure Zed locally with:
+
+```json
+{
+  "context_servers": {
+    "scion-ops": {
+      "url": "http://127.0.0.1:8765/mcp"
+    }
+  }
+}
+```
+
+## Stdio: Local Command
+
+Use stdio when Zed can run the MCP server on the same machine as the
+`scion-ops` workspace and you want Zed to manage the process lifetime:
 
 ```json
 {
@@ -28,13 +112,13 @@ Use this when Zed can run the MCP server on the same machine as the
 ```
 
 Zed forwards `context_servers` to Claude Agent and Codex external agents via
-ACP. Local stdio MCP servers are the reliable path for those external agents.
+ACP. Stdio remains useful for local command setups and SSH command wrappers.
 
-## Option B: Local Command Over SSH
+## Stdio: Local Command Over SSH
 
-Use this when Zed is local but `scion-ops`, `scion`, and the agent workspaces
-live on a remote host. Zed still sees a local command, but that command is
-`ssh`, and the MCP stdio stream runs on the remote machine.
+Use this when Zed is local but you prefer not to run a long-lived HTTP service
+on the remote host. Zed still sees a local command, but that command is `ssh`,
+and the MCP stdio stream runs on the remote machine.
 
 This repo includes a generated project config at `.zed/settings.json` for:
 
@@ -66,44 +150,6 @@ export SCION_OPS_SSH_KEY="$HOME/.ssh/your-key"
 
 This is usually the least moving parts if SSH is already configured. Keep the
 remote shell quiet: any login banner printed to stdout can break stdio MCP.
-
-## Option C: Remote HTTP
-
-Use this when Zed's custom server UI requires a remote URL, or when you want a
-long-running MCP service on the remote host.
-
-Start the server on the remote host:
-
-```bash
-cd /home/david/workspace/github/livewyer-ops/scion-ops
-SCION_OPS_ROOT="$PWD" \
-SCION_OPS_MCP_TRANSPORT=streamable-http \
-SCION_OPS_MCP_HOST=127.0.0.1 \
-SCION_OPS_MCP_PORT=8765 \
-uv run mcp_servers/scion_ops.py
-```
-
-Tunnel it from your local machine:
-
-```bash
-ssh -N -L 8765:127.0.0.1:8765 user@remote-host
-```
-
-Then configure Zed locally:
-
-```json
-{
-  "context_servers": {
-    "scion-ops": {
-      "url": "http://127.0.0.1:8765/mcp"
-    }
-  }
-}
-```
-
-Do not expose this server directly to the public internet without an
-authenticated reverse proxy. The tools can start, stop, and inspect local
-Scion agents.
 
 ## Useful Prompts
 
@@ -137,12 +183,13 @@ blocker.
 - `scion_ops_verify` - run `task verify`.
 - `scion_ops_tail_round_log` - read `/tmp/scion-round.log`.
 
-## Local Smoke Test
+## Local Smoke Tests
 
 From the repo root:
 
 ```bash
 task mcp:smoke
+task mcp:http:smoke
 ```
 
 For interactive debugging:

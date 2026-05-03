@@ -48,7 +48,7 @@ To advertise the kind Kubernetes runtime through the local broker, run
 - `docs/kind-broker-runtime.md` — broker registration and kind profile workflow
 - `docs/local-hub-mode.md` — local Hub/Web/Broker workstation workflow
 - `orchestrator/round.sh` — thin launcher for the consensus runner
-- `mcp_servers/scion_ops.py` — stdio MCP server for Zed external agents
+- `mcp_servers/scion_ops.py` — streamable HTTP and stdio MCP server for Zed external agents
 - `rubric/` — reviewer prompt + verdict JSON schema
 - `scripts/kind-scion-runtime.sh` — local kind orchestration helper
 - `scripts/hub-mode.sh` — local Scion Hub workstation helper
@@ -57,9 +57,9 @@ To advertise the kind Kubernetes runtime through the local broker, run
 
 ## Zed MCP
 
-Use `task mcp:smoke` to verify the local MCP server. Add the server to Zed's
-`context_servers` so Claude Agent or Codex can start, monitor, inspect, and
-abort Scion rounds from the Agent Panel. See `docs/zed-mcp.md`.
+Use `task mcp:http` to run the MCP server at `http://127.0.0.1:8765/mcp` for
+Hub-mode external agents. Verify it with `task mcp:http:smoke`. Stdio remains
+available with `task mcp:stdio` and `task mcp:smoke`. See `docs/zed-mcp.md`.
 
 ## Testing
 
