@@ -9,6 +9,28 @@ For Hub mode, prefer streamable HTTP. It keeps one long-lived service attached
 to the `scion-ops` workspace and lets Zed, Claude, Codex, or a local tunnel
 connect by URL.
 
+## Hub API Operation
+
+In Hub mode, the MCP tools read Scion state through the Hub HTTP API instead of
+using `scion list`, `scion messages`, or `scion notifications` as the primary
+control path. The local shell is still used for repo/git inspection, `task
+round`, `task verify`, and terminal transcript compatibility via `scion look`.
+
+The MCP server resolves Hub configuration from the current workspace and Scion
+settings:
+
+- endpoint: `SCION_OPS_HUB_ENDPOINT`, `SCION_HUB_ENDPOINT`, then
+  `hub.endpoint`
+- grove: `SCION_OPS_GROVE_ID`, `SCION_HUB_GROVE_ID`, `hub.grove_id`, then
+  `.scion/grove-id`
+- auth: `SCION_OPS_HUB_TOKEN`, OAuth credentials, agent token, `SCION_HUB_TOKEN`,
+  `SCION_DEV_TOKEN`, then `~/.scion/dev-token`
+
+Tool responses include `source` and, for Hub calls, redacted `hub` metadata. If
+an operation fails, `error_kind` identifies the failing layer: `hub_auth`,
+`hub_unavailable`, `hub_state`, `broker_dispatch`, `runtime`, `local_git_state`,
+or `command`.
+
 ## Preferred: Streamable HTTP
 
 Start the server from the repo root:

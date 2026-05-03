@@ -59,7 +59,8 @@ To advertise the kind Kubernetes runtime through the local broker, run
 
 Use `task mcp:http` to run the MCP server at `http://127.0.0.1:8765/mcp` for
 Hub-mode external agents. Verify it with `task mcp:http:smoke`. Stdio remains
-available with `task mcp:stdio` and `task mcp:smoke`. See `docs/zed-mcp.md`.
+available with `task mcp:stdio` and `task mcp:smoke`. The MCP agent/status
+tools read Hub state through the Hub HTTP API. See `docs/zed-mcp.md`.
 
 ## Testing
 
