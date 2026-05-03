@@ -55,6 +55,7 @@ require "tmux"        command -v tmux
 require "git"         command -v git
 require "claude CLI"  command -v claude
 require "codex CLI"   command -v codex
+require "gemini CLI"  bash -lc 'command -v gemini >/dev/null 2>&1 || test -x "$HOME/.npm-global/bin/gemini"'
 require "task"        command -v task
 
 # GOPATH/bin must be on PATH so `scion` is findable after install
@@ -64,21 +65,24 @@ case ":$PATH:" in
   *) yellow "  warn $gobin not on PATH — add to shell rc:  export PATH=\"$gobin:\$PATH\"" ;;
 esac
 
-# Auth presence (don't print values).
-# Claude Code scrubs ANTHROPIC_API_KEY for sub-processes, so when this script
-# runs from inside Claude Code it appears empty even though the parent shell
-# has it. Downgrade to a warning in that case.
-if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
-  green "  ok  ANTHROPIC_API_KEY set"
-elif [[ -n "${CLAUDECODE:-}${CLAUDE_CODE_EXECPATH:-}" ]]; then
-  yellow "  warn ANTHROPIC_API_KEY scrubbed by Claude Code; ensure it's in your shell rc when running 'task round'"
+# Auth presence (don't print values). Prefer subscription credential files so
+# agents can run through Claude Code / Codex subscriptions rather than API keys.
+if [[ -f "$HOME/.claude/.credentials.json" ]]; then
+  green "  ok  ~/.claude/.credentials.json present"
+elif [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+  yellow "  warn using ANTHROPIC_API_KEY; subscription agents need ~/.claude/.credentials.json"
 else
-  red   "  FAIL ANTHROPIC_API_KEY not set"; fail=1
+  red   "  FAIL ~/.claude/.credentials.json missing — run: claude login"; fail=1
 fi
 if [[ -f "$HOME/.codex/auth.json" ]]; then
   green "  ok  ~/.codex/auth.json present"
 else
   red   "  FAIL ~/.codex/auth.json missing — run: codex login"; fail=1
+fi
+if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
+  green "  ok  ~/.gemini/oauth_creds.json present"
+else
+  red   "  FAIL ~/.gemini/oauth_creds.json missing - run: gemini"; fail=1
 fi
 
 if [[ "$fail" -ne 0 ]]; then

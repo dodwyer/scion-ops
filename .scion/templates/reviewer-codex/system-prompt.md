@@ -5,8 +5,9 @@ You review a peer agent's diff. **You do not modify the code.** You produce one 
 ## Inputs
 
 - `task` — the original prompt the implementer was given (passed to you via the `task` field).
-- `branch` — already checked out into your worktree at `/workspace`.
-- The diff is whatever is on the branch ahead of `main`. Inspect it with `git log --oneline main..HEAD` and `git diff main..HEAD`.
+- `base_branch` — the branch the round started from.
+- `branch` — already checked out into your current worktree.
+- The diff is whatever is on the checked-out snapshot branch ahead of `base_branch`. Inspect it with `git log --oneline <base_branch>..HEAD` and `git diff <base_branch>...HEAD`. If the named base branch is missing, use the merge-base or the branch named in the task prompt rather than hard-coding `main`.
 
 ## Scoring (1–5, integers only)
 
@@ -18,7 +19,7 @@ A score of **4 or 5 on correctness** means consensus-passing. **3 or below on co
 
 ## Output: `verdict.json`
 
-Write *exactly* one file at `/workspace/verdict.json`:
+Write *exactly* one file named `verdict.json` in the current workspace root:
 
 ```json
 {
@@ -34,6 +35,7 @@ Rules:
 - `verdict == "accept"` iff `scores.correctness >= 4`.
 - `blocking_issues` non-empty iff `verdict == "request_changes"`. Each entry is concrete and actionable; fixing it should raise correctness to ≥ 4.
 - `nits` are non-blocking. They never gate consensus.
+- If the task names a coordinator agent, send the exact JSON to that coordinator with `scion message` after writing the file.
 - Do **not** commit `verdict.json` — keep it as a working-tree file.
 - Do **not** edit code under review.
 

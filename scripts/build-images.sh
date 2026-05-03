@@ -21,7 +21,10 @@ log()   { printf '\033[36m==> %s\033[0m\n' "$*"; }
 SCION_SRC="${HOME}/workspace/github/GoogleCloudPlatform/scion"
 TAG="latest"
 REGISTRY="localhost"
-HARNESSES=(claude codex)   # v1: skip gemini + opencode to save time/disk
+HARNESSES=(claude codex gemini)   # skip opencode by default to save time/disk
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+LOCAL_IMG_BUILD="$REPO_ROOT/image-build"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -37,7 +40,7 @@ Usage: $(basename "$0") [options]
   --tag <tag>        Image tag (default: $TAG)
   --registry <name>  Image prefix (default: $REGISTRY)
   --harness <name>   Build only this harness (repeatable)
-  --all-harnesses    Build claude codex gemini opencode (default: claude codex)
+  --all-harnesses    Build claude codex gemini opencode (default: claude codex gemini)
 EOF
       exit 0
       ;;
@@ -76,9 +79,13 @@ build "scion-base" \
 
 # 3. harness images
 for h in "${HARNESSES[@]}"; do
+  harness_dir="$IMG_BUILD/${h}"
+  if [[ -d "$LOCAL_IMG_BUILD/${h}" ]]; then
+    harness_dir="$LOCAL_IMG_BUILD/${h}"
+  fi
   build "scion-${h}" \
-        "$IMG_BUILD/${h}/Dockerfile" \
-        "$IMG_BUILD/${h}" \
+        "$harness_dir/Dockerfile" \
+        "$harness_dir" \
         --build-arg "BASE_IMAGE=${REGISTRY}/scion-base:${TAG}"
 done
 

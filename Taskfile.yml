@@ -4,10 +4,13 @@ version: '3'
 # (for the scion CLI) so that every task inherits them regardless of the
 # invoking shell's profile.
 env:
-  PATH: '{{.HOME}}/.local/bin:{{.GOPATH}}/bin:{{.PATH}}'
+  PATH: '{{.HOME}}/.local/bin:{{.HOME}}/.npm-global/bin:{{.GOPATH}}/bin:{{.PATH}}'
 
 vars:
-  HUB_ENDPOINT: http://localhost:8080
+  # 8080 is commonly taken by other dev servers (e.g. uvicorn). 8090 is Scion's
+  # workstation-mode web port if you pass --web-port=8090 below.
+  HUB_ENDPOINT: http://127.0.0.1:8090
+  HUB_WEB_PORT: 8090
   HOME:
     sh: echo "$HOME"
   GOPATH:
@@ -29,12 +32,120 @@ tasks:
       - '{{.SCION_BIN}} init'
 
   hub:up:
-    desc: Start the local Scion Hub and link the CLI to it
+    desc: Start local Scion Hub (workstation mode). Run hub:link after exporting SCION_DEV_TOKEN.
     cmds:
-      - '{{.SCION_BIN}} server start'
+      - '{{.SCION_BIN}} server start --host 0.0.0.0 --web-port {{.HUB_WEB_PORT}}'
+      - sleep 2
+      - 'echo ""'
+      - 'echo "Web UI:  {{.HUB_ENDPOINT}}"'
+      - 'echo "Authenticate this shell:  eval $(task hub:auth-export)"'
+      - 'echo "Then complete setup:      task hub:link"'
+
+  hub:auth-export:
+    desc: Print the SCION_DEV_TOKEN export line from server.log (use with `eval $(task hub:auth-export)`).
+    cmds:
+      - 'grep -oE "export SCION_DEV_TOKEN=scion_dev_[[:alnum:]]+" ~/.scion/server.log | tail -1'
+    silent: true
+
+  hub:link:
+    desc: Wire current grove to the running Hub — endpoint, enable, link, register harness auth/config, sync templates.
+    preconditions:
+      - sh: '[ -n "$SCION_DEV_TOKEN" ]'
+        msg: 'SCION_DEV_TOKEN not set. Run:  eval $(task hub:auth-export)'
+    cmds:
       - '{{.SCION_BIN}} config set hub.endpoint {{.HUB_ENDPOINT}}'
       - '{{.SCION_BIN}} hub enable'
-      - '{{.SCION_BIN}} hub link'
+      - '{{.SCION_BIN}} hub link --non-interactive --yes'
+      - task: hub:register-claude-auth
+      - task: hub:register-codex-auth
+      - task: hub:register-gemini-auth
+      - task: hub:prepare-claude-harness
+      - task: hub:prepare-codex-harness
+      - task: hub:prepare-gemini-harness
+      - task: hub:sync-harness-configs
+      - '{{.SCION_BIN}} templates sync --all --non-interactive --yes'
+
+  hub:register-claude-auth:
+    desc: Upload host ~/.claude/.credentials.json to the Hub as a grove-scoped file secret.
+    cmds:
+      - test -f "$HOME/.claude/.credentials.json" || (echo "no ~/.claude/.credentials.json — run 'claude login' first" && exit 1)
+      - '{{.SCION_BIN}} hub secret set --grove --type file --target /home/scion/.claude/.credentials.json CLAUDE_AUTH "@$HOME/.claude/.credentials.json" --non-interactive --yes'
+
+  hub:register-codex-auth:
+    desc: Upload host ~/.codex/auth.json to the Hub as a grove-scoped file secret.
+    cmds:
+      - test -f "$HOME/.codex/auth.json" || (echo "no ~/.codex/auth.json — run 'codex login' first" && exit 1)
+      - '{{.SCION_BIN}} hub secret set --grove --type file --target /home/scion/.codex/auth.json CODEX_AUTH "@$HOME/.codex/auth.json" --non-interactive --yes'
+
+  hub:register-gemini-auth:
+    desc: Upload host ~/.gemini/oauth_creds.json to the Hub as a grove-scoped file secret.
+    cmds:
+      - test -f "$HOME/.gemini/oauth_creds.json" || (echo "no ~/.gemini/oauth_creds.json - run 'gemini' and choose Login with Google first" && exit 1)
+      - '{{.SCION_BIN}} hub secret set --grove --type file --target /home/scion/.gemini/oauth_creds.json GEMINI_OAUTH_CREDS "@$HOME/.gemini/oauth_creds.json" --non-interactive --yes'
+
+  hub:prepare-claude-harness:
+    desc: Trust Scion's container workspace paths in the local Claude harness config.
+    cmds:
+      - |
+        cfg="$HOME/.scion/harness-configs/claude/home/.claude.json"
+        test -f "$cfg" || (echo "no Claude harness state at $cfg — run 'scion init --machine' first" && exit 1)
+        tmp="$(mktemp)"
+        jq '
+          def trusted_project: {
+            allowedTools: [],
+            mcpContextUris: [],
+            mcpServers: {},
+            enabledMcpjsonServers: [],
+            disabledMcpjsonServers: [],
+            hasTrustDialogAccepted: true,
+            projectOnboardingSeenCount: 1,
+            hasClaudeMdExternalIncludesApproved: false,
+            hasClaudeMdExternalIncludesWarningShown: false,
+            exampleFiles: []
+          };
+          .projects = (.projects // {})
+          | .projects["/workspace"] = ((.projects["/workspace"] // trusted_project) + {hasTrustDialogAccepted: true})
+          | .projects["/repo-root"] = ((.projects["/repo-root"] // trusted_project) + {hasTrustDialogAccepted: true})
+        ' "$cfg" > "$tmp"
+        mv "$tmp" "$cfg"
+
+  hub:prepare-codex-harness:
+    desc: Trust Scion's container repo root in the local Codex harness config.
+    cmds:
+      - |
+        cfg="$HOME/.scion/harness-configs/codex/home/.codex/config.toml"
+        test -f "$cfg" || (echo "no Codex harness config at $cfg — run 'scion init --machine' first" && exit 1)
+        if ! grep -Fq '[projects."/repo-root"]' "$cfg"; then
+          {
+            printf '\n[projects."/repo-root"]\n'
+            printf 'trust_level = "trusted"\n'
+          } >> "$cfg"
+        fi
+
+  hub:prepare-gemini-harness:
+    desc: Configure Gemini harness for personal OAuth and predictable Flash usage.
+    cmds:
+      - |
+        cfg="$HOME/.scion/harness-configs/gemini/home/.gemini/settings.json"
+        test -f "$cfg" || (echo "no Gemini harness state at $cfg - run 'scion init --machine' first" && exit 1)
+        tmp="$(mktemp)"
+        jq '
+          .security = (.security // {})
+          | .security.auth = (.security.auth // {})
+          | .security.auth.selectedType = "oauth-personal"
+          | .general = (.general // {})
+          | .general.previewFeatures = true
+          | .model = (.model // {})
+          | .model.name = "gemini-2.5-flash"
+        ' "$cfg" > "$tmp"
+        mv "$tmp" "$cfg"
+
+  hub:sync-harness-configs:
+    desc: Sync local Claude, Codex, and Gemini harness configs to Hub.
+    cmds:
+      - '{{.SCION_BIN}} harness-config sync claude --non-interactive --yes'
+      - '{{.SCION_BIN}} harness-config sync codex --non-interactive --yes'
+      - '{{.SCION_BIN}} harness-config sync gemini --non-interactive --yes'
 
   hub:down:
     desc: Stop the local Scion Hub
@@ -48,12 +159,37 @@ tasks:
       - '{{.SCION_BIN}} list'
 
   round:
-    desc: Run one consensus round. Usage:  task round -- "<prompt>"
+    desc: 'Detached round + watchdog. Usage: task round -- "<prompt>".  Env: MAX_MINUTES (default 30).'
+    cmds:
+      - bash orchestrator/run-round.sh "{{.CLI_ARGS}}"
+
+  round:fg:
+    desc: 'Run a round in the foreground (no detach, no watchdog). Usage: task round:fg -- "<prompt>"'
     cmds:
       - bash orchestrator/round.sh "{{.CLI_ARGS}}"
 
+  watch:
+    desc: 'Live status board. Usage: task watch  or  task watch -- <round_id>'
+    cmds:
+      - bash orchestrator/watch.sh "{{.CLI_ARGS}}"
+
+  abort:
+    desc: 'Stop+delete agents in current grove. Usage: task abort  or  task abort -- <round_id>'
+    cmds:
+      - bash orchestrator/abort.sh "{{.CLI_ARGS}}"
+
+  look:
+    desc: 'Tail a runner''s terminal. Usage: task look -- <agent-name>'
+    cmds:
+      - '{{.SCION_BIN}} look "{{.CLI_ARGS}}"'
+
+  tail:
+    desc: 'Tail the round.sh log file (use Ctrl-C to stop).'
+    cmds:
+      - tail -F /tmp/scion-round.log
+
   verify:
-    desc: Run tests + static analysis in CWD (used by orchestrator inside agent worktrees)
+    desc: Run tests + static analysis in CWD (used by Scion agents)
     cmds:
       - bash orchestrator/lib/verify.sh
 
@@ -64,3 +200,13 @@ tasks:
       - sleep 2
       - '{{.SCION_BIN}} list'
       - '{{.SCION_BIN}} delete scratch || true'
+
+  mcp:stdio:
+    desc: Run the scion-ops MCP server over stdio for Zed/Claude/Codex.
+    cmds:
+      - uv run mcp_servers/scion_ops.py
+
+  mcp:smoke:
+    desc: Smoke test the scion-ops MCP server by listing tools over stdio.
+    cmds:
+      - uv run scripts/smoke-mcp-server.py

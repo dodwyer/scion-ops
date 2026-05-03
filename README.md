@@ -1,24 +1,49 @@
 # scion-ops
 
 Dueling-agents consensus loop on top of [GoogleCloudPlatform/scion](https://github.com/GoogleCloudPlatform/scion).
-Two implementer agents (Claude + Codex) draft the same prompt in isolated worktrees; cross-review with a 1–5 rubric; the highest-scoring draft is promoted to integrator; tests are the binding gate.
+Two implementer agents (Claude + Codex) draft the same prompt in isolated worktrees; cross-review with a 1-5 rubric; the highest-scoring draft is promoted to integrator; Gemini performs the default final independent smoke review; tests are the binding gate.
 
 ## Quickstart
 
 ```bash
 task install      # bootstrap host: scion CLI, runtime checks, PATH
 task init         # scion init --machine + scion init for this grove
-task hub:up       # start local Scion Hub on :8080
+task hub:up       # start local Scion Hub on :8090
+eval "$(task hub:auth-export)"
+task hub:link     # link grove, register auth files/configs, sync templates
 task round -- "your prompt here"
 ```
 
-Audit trail lands in `state/<round-id>.json`; agents are visible at <http://localhost:8080>.
+`task round` starts a `consensus-runner` agent. That runner coordinates the
+implementers, reviewers, integrator, and final reviewer through Scion messages
+and agent status rather than host-side worktree polling. Agents are visible at
+<http://127.0.0.1:8090>.
+
+Claude agents use the Claude subscription credential file from
+`~/.claude/.credentials.json`; Codex agents use `~/.codex/auth.json`; Gemini
+agents use the personal OAuth credential file from `~/.gemini/oauth_creds.json`.
+`task hub:link` uploads all three as grove-scoped Hub file secrets and syncs
+the Claude, Codex, and Gemini harness configs.
+
+Set `FINAL_REVIEWER=codex` when starting a round if you want to skip Gemini for
+that run.
 
 ## Layout
 
-- `.scion/templates/` — agent role definitions (impl/reviewer × {claude,codex} + final-reviewer-codex)
-- `orchestrator/round.sh` — consensus state machine
+- `.scion/templates/` — agent role definitions, including `consensus-runner`
+- `orchestrator/round.sh` — thin launcher for the consensus runner
+- `mcp_servers/scion_ops.py` — stdio MCP server for Zed external agents
 - `rubric/` — reviewer prompt + verdict JSON schema
 - `scripts/bootstrap-host.sh` — one-shot host preflight
+
+## Zed MCP
+
+Use `task mcp:smoke` to verify the local MCP server. Add the server to Zed's
+`context_servers` so Claude Agent or Codex can start, monitor, inspect, and
+abort Scion rounds from the Agent Panel. See `docs/zed-mcp.md`.
+
+## Testing
+
+The project testing plan is in `docs/testing-plan.md`.
 
 See `/home/david/.claude/plans/https-claude-ai-share-a56e403d-3326-4857-staged-rocket.md` for the full design.

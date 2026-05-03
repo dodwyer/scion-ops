@@ -1,4 +1,5 @@
 .scion/agents/
+.scion/state.yaml
 # .scion/grove-id IS committed — it's the canonical grove identifier.
 state/
 *.local.json

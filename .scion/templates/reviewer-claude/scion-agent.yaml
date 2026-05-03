@@ -1,8 +1,8 @@
 schema_version: "1"
 description: "Reviewer (Claude Sonnet) — peer-reviews the other implementer's diff and produces verdict.json."
-harness_config: claude
+default_harness_config: claude
 model: claude-sonnet-4-6
-system_prompt: file://system-prompt.md
-agent_instructions: file://agents.md
+system_prompt: system-prompt.md
+agent_instructions: agents.md
 max_turns: 30
-max_duration: 15m
+max_duration: 5m
