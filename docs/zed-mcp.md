@@ -1,13 +1,44 @@
 # Zed MCP Setup
 
 This repo includes an MCP server for Zed external agents. It exposes the
-existing `task`, `scion`, and git workflow through narrow tools for starting
-rounds, monitoring agents, reading transcripts, checking result branches, and
-aborting a round with explicit confirmation.
+existing `task`, `scion`, Hub, and git workflow through narrow tools for
+starting rounds, monitoring agents, reading transcripts, checking result
+branches, and aborting a round with explicit confirmation.
 
-For Hub mode, prefer streamable HTTP. It keeps one long-lived service attached
-to the `scion-ops` workspace and lets Zed, Claude, Codex, or a local tunnel
+For Hub mode, prefer streamable HTTP. It keeps one long-lived MCP service
+attached to the `scion-ops` workspace and lets Zed, Claude, Codex, or a tunnel
 connect by URL.
+
+## Choose A Mode
+
+| Mode | Zed config | Who starts the MCP server | Best fit |
+|---|---|---|---|
+| HTTP URL | `url` | You, systemd, tmux, or another supervisor | Hub-mode default |
+| HTTP URL over SSH tunnel | `url` | Remote shell starts MCP; local SSH forwards the port | Zed local, Scion remote |
+| Remote HTTP URL | `url` | Remote supervisor starts MCP behind network controls | Shared or always-on remote setup |
+| Local stdio | `command` and `args` | Zed launches `uv run .../scion_ops.py` | Everything runs on one machine |
+| SSH stdio | `command` and `args` running `ssh` | Zed launches local `ssh`; SSH launches remote MCP | No long-lived HTTP service |
+
+In all modes, the external agent does not independently discover or start this
+MCP server. Zed reads `context_servers`, connects to the configured MCP server,
+and forwards the tool surface to Claude Agent or Codex through ACP.
+
+## Workspace Binding
+
+The MCP server operates on the workspace where it is started. For this project
+that is:
+
+```text
+/home/david/workspace/github/livewyer-ops/scion-ops
+```
+
+For stdio configs, set `SCION_OPS_ROOT` to that path. For HTTP configs, start
+the server from that repo root or set `SCION_OPS_ROOT` in the process
+environment. Zed does not pass the current buffer's directory to an already
+running HTTP MCP server.
+
+For multiple work directories, run one MCP server per workspace and give each
+server a distinct port or path.
 
 ## Hub API Operation
 
@@ -16,7 +47,7 @@ using `scion list`, `scion messages`, or `scion notifications` as the primary
 control path. The local shell is still used for repo/git inspection, `task
 round`, `task verify`, and terminal transcript compatibility via `scion look`.
 
-The MCP server resolves Hub configuration from the current workspace and Scion
+The MCP server resolves Hub configuration from the workspace and Scion
 settings:
 
 - endpoint: `SCION_OPS_HUB_ENDPOINT`, `SCION_HUB_ENDPOINT`, then
@@ -31,9 +62,27 @@ an operation fails, `error_kind` identifies the failing layer: `hub_auth`,
 `hub_unavailable`, `hub_state`, `broker_dispatch`, `runtime`, `local_git_state`,
 or `command`.
 
-## Preferred: Streamable HTTP
+## Hub Preflight
 
-Start the server from the repo root:
+Run these on the machine that owns the `scion-ops` workspace:
+
+```bash
+task hub:up
+eval "$(task hub:auth-export)"
+task hub:link
+task hub:status
+```
+
+`task hub:status` should show a running local Hub, linked grove, broker state,
+and current agents. If the kind runtime is part of the test, also check:
+
+```bash
+task broker:kind-status
+```
+
+## Preferred: HTTP URL
+
+Start the MCP server from the repo root:
 
 ```bash
 task mcp:http
@@ -57,7 +106,7 @@ SCION_OPS_MCP_PATH=/mcp \
 task mcp:http
 ```
 
-Configure Zed with the URL:
+Configure Zed with the URL in `.zed/settings.json` or user settings:
 
 ```json
 {
@@ -69,10 +118,8 @@ Configure Zed with the URL:
 }
 ```
 
-Keep the default `127.0.0.1` bind unless the server is behind an authenticated
-reverse proxy or an SSH tunnel. Do not expose this service directly to the
-public internet: the tools can start, stop, inspect, and delete local Scion
-agents.
+In this mode Zed opens HTTP requests to an already-running MCP server. Zed does
+not run `task mcp:http`, and the external agent does not run the MCP command.
 
 Smoke test the HTTP transport:
 
@@ -80,26 +127,30 @@ Smoke test the HTTP transport:
 task mcp:http:smoke
 ```
 
-The smoke task connects to the documented URL first. If no MCP server responds,
-it starts a temporary local server, lists tools, and shuts it down.
+The smoke task connects to the configured URL first. If no MCP server responds,
+it starts a temporary local server, lists tools, calls Hub status and agent
+listing, then shuts it down.
 
 ## Remote HTTP By SSH Tunnel
 
-When `scion-ops`, `scion`, and the agent workspaces live on a remote host,
-start the HTTP MCP server on that remote host with the default local bind:
+Use this when `scion-ops`, `scion`, Hub, and agent workspaces live on a remote
+host, but Zed runs locally.
+
+On the remote host:
 
 ```bash
 cd /home/david/workspace/github/livewyer-ops/scion-ops
+task hub:status
 task mcp:http
 ```
 
-Tunnel it from your local machine:
+On the local machine:
 
 ```bash
 ssh -N -L 8765:127.0.0.1:8765 david@192.168.122.103
 ```
 
-Then configure Zed locally with:
+Then configure Zed locally with the tunneled URL:
 
 ```json
 {
@@ -111,10 +162,41 @@ Then configure Zed locally with:
 }
 ```
 
+Zed connects to `127.0.0.1:8765` on the local machine. SSH carries that traffic
+to the remote MCP server. The remote MCP server still operates from the remote
+`SCION_OPS_ROOT`.
+
+## Remote HTTP Deployment
+
+For an always-on remote MCP service, keep the MCP server bound to the remote
+host's loopback interface and place an authenticated reverse proxy, VPN, or
+firewall-controlled private network in front of it:
+
+```bash
+cd /home/david/workspace/github/livewyer-ops/scion-ops
+SCION_OPS_MCP_HOST=127.0.0.1 SCION_OPS_MCP_PORT=8765 task mcp:http
+```
+
+Configure Zed with the protected external URL:
+
+```json
+{
+  "context_servers": {
+    "scion-ops": {
+      "url": "https://scion-ops.example.com/mcp"
+    }
+  }
+}
+```
+
+Only bind `SCION_OPS_MCP_HOST=0.0.0.0` on a trusted private network or behind
+controls that enforce authentication. The MCP HTTP transport itself should be
+treated as a privileged project-control interface.
+
 ## Stdio: Local Command
 
 Use stdio when Zed can run the MCP server on the same machine as the
-`scion-ops` workspace and you want Zed to manage the process lifetime:
+`scion-ops` workspace and you want Zed to manage the process lifetime.
 
 ```json
 {
@@ -133,8 +215,8 @@ Use stdio when Zed can run the MCP server on the same machine as the
 }
 ```
 
-Zed forwards `context_servers` to Claude Agent and Codex external agents via
-ACP. Stdio remains useful for local command setups and SSH command wrappers.
+In this mode Zed starts the local command and owns the MCP process lifetime.
+This is different from HTTP URL mode, where the server must already be running.
 
 ## Stdio: Local Command Over SSH
 
@@ -170,8 +252,41 @@ export SCION_OPS_SSH_KEY="$HOME/.ssh/your-key"
 }
 ```
 
-This is usually the least moving parts if SSH is already configured. Keep the
-remote shell quiet: any login banner printed to stdout can break stdio MCP.
+Keep the remote shell quiet: any login banner printed to stdout can break stdio
+MCP.
+
+## Security Notes
+
+The MCP tools can start rounds, inspect transcripts and branches, stop/delete
+agents, and read Hub state for this grove. Treat access to the MCP endpoint as
+access to operate this project.
+
+Keep the default `127.0.0.1` bind for local and SSH-tunnel setups. For remote
+HTTP, use an SSH tunnel, VPN, firewall, or authenticated reverse proxy with TLS.
+Do not expose the MCP server directly on the public internet.
+
+Hub credentials stay on the machine running the MCP server. Zed URL
+configuration does not need the Scion dev token or subscription credential
+files.
+
+## Operational Checks
+
+From the machine running the MCP server:
+
+```bash
+task hub:status
+task mcp:smoke
+task mcp:http:smoke
+```
+
+From an external agent in Zed, check the live tool path:
+
+```text
+Use the scion-ops MCP server to run scion_ops_hub_status and scion_ops_list_agents.
+```
+
+Healthy Hub-mode tool responses include `source: "hub_api"` and redacted `hub`
+metadata with the expected endpoint and grove id.
 
 ## Useful Prompts
 
