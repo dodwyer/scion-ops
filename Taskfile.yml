@@ -9,8 +9,12 @@ env:
 vars:
   # 8080 is commonly taken by other dev servers (e.g. uvicorn). 8090 is Scion's
   # workstation-mode web port if you pass --web-port=8090 below.
-  HUB_ENDPOINT: http://127.0.0.1:8090
-  HUB_WEB_PORT: 8090
+  HUB_BIND_HOST:
+    sh: printf '%s' "${HUB_BIND_HOST:-127.0.0.1}"
+  HUB_WEB_PORT:
+    sh: printf '%s' "${HUB_WEB_PORT:-8090}"
+  HUB_ENDPOINT:
+    sh: printf '%s' "${HUB_ENDPOINT:-${SCION_HUB_ENDPOINT:-http://127.0.0.1:${HUB_WEB_PORT:-8090}}}"
   KIND_CLUSTER_NAME:
     sh: printf '%s' "${KIND_CLUSTER_NAME:-scion-ops}"
   KIND_CONTEXT:
@@ -78,19 +82,14 @@ tasks:
       - '{{.SCION_BIN}} doctor --profile kind'
 
   hub:up:
-    desc: Start local Scion Hub (workstation mode). Run hub:link after exporting SCION_DEV_TOKEN.
+    desc: Start/reuse local Scion Hub workstation server and wait for Hub/Broker/Web readiness.
     cmds:
-      - '{{.SCION_BIN}} server start --host 0.0.0.0 --web-port {{.HUB_WEB_PORT}}'
-      - sleep 2
-      - 'echo ""'
-      - 'echo "Web UI:  {{.HUB_ENDPOINT}}"'
-      - 'echo "Authenticate this shell:  eval $(task hub:auth-export)"'
-      - 'echo "Then complete setup:      task hub:link"'
+      - SCION_BIN='{{.SCION_BIN}}' HUB_BIND_HOST='{{.HUB_BIND_HOST}}' HUB_WEB_PORT='{{.HUB_WEB_PORT}}' HUB_ENDPOINT='{{.HUB_ENDPOINT}}' bash scripts/hub-mode.sh up
 
   hub:auth-export:
     desc: Print the SCION_DEV_TOKEN export line from server.log (use with `eval $(task hub:auth-export)`).
     cmds:
-      - 'grep -oE "export SCION_DEV_TOKEN=scion_dev_[[:alnum:]]+" ~/.scion/server.log | tail -1'
+      - SCION_BIN='{{.SCION_BIN}}' HUB_ENDPOINT='{{.HUB_ENDPOINT}}' bash scripts/hub-mode.sh auth-export
     silent: true
 
   hub:link:
@@ -99,9 +98,7 @@ tasks:
       - sh: '[ -n "$SCION_DEV_TOKEN" ]'
         msg: 'SCION_DEV_TOKEN not set. Run:  eval $(task hub:auth-export)'
     cmds:
-      - '{{.SCION_BIN}} config set hub.endpoint {{.HUB_ENDPOINT}}'
-      - '{{.SCION_BIN}} hub enable'
-      - '{{.SCION_BIN}} hub link --non-interactive --yes'
+      - SCION_BIN='{{.SCION_BIN}}' HUB_ENDPOINT='{{.HUB_ENDPOINT}}' bash scripts/hub-mode.sh link
       - task: hub:register-claude-auth
       - task: hub:register-codex-auth
       - task: hub:register-gemini-auth
@@ -194,15 +191,24 @@ tasks:
       - '{{.SCION_BIN}} harness-config sync gemini --non-interactive --yes'
 
   hub:down:
-    desc: Stop the local Scion Hub
+    desc: Stop the local Scion workstation server.
     cmds:
-      - '{{.SCION_BIN}} server stop || true'
+      - SCION_BIN='{{.SCION_BIN}}' bash scripts/hub-mode.sh down
 
   hub:status:
-    desc: Show Hub status + registered agents
+    desc: Show server, Hub, and registered agent status.
     cmds:
-      - '{{.SCION_BIN}} hub status'
-      - '{{.SCION_BIN}} list'
+      - SCION_BIN='{{.SCION_BIN}}' HUB_ENDPOINT='{{.HUB_ENDPOINT}}' bash scripts/hub-mode.sh status
+
+  hub:disable:
+    desc: Disable Hub integration for this grove.
+    cmds:
+      - SCION_BIN='{{.SCION_BIN}}' bash scripts/hub-mode.sh disable
+
+  hub:logs:
+    desc: Tail the local Scion server log.
+    cmds:
+      - bash scripts/hub-mode.sh logs
 
   round:
     desc: 'Detached round + watchdog. Usage: task round -- "<prompt>".  Env: MAX_MINUTES (default 30).'
@@ -246,6 +252,13 @@ tasks:
       - sleep 2
       - '{{.SCION_BIN}} list'
       - '{{.SCION_BIN}} delete scratch || true'
+
+  smoke:local:
+    desc: Local-only smoke test using Scion with Hub integration disabled for each command.
+    cmds:
+      - '{{.SCION_BIN}} start scratch-local "echo local round trip" --detach --no-hub'
+      - '{{.SCION_BIN}} list --no-hub'
+      - '{{.SCION_BIN}} delete scratch-local --no-hub || true'
 
   mcp:stdio:
     desc: Run the scion-ops MCP server over stdio for Zed/Claude/Codex.
