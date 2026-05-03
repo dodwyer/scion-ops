@@ -56,6 +56,12 @@ server_ready() {
     && grep -Eq 'Web Frontend:[[:space:]]+running' <<<"$status"
 }
 
+server_running() {
+  local status
+  status="$(server_status || true)"
+  grep -Eq 'Daemon:[[:space:]]+running' <<<"$status"
+}
+
 wait_until_ready() {
   local deadline
   deadline=$((SECONDS + READY_TIMEOUT_SECONDS))
@@ -80,6 +86,9 @@ cmd_up() {
 
   if server_ready; then
     log "reuse running Scion workstation server"
+  elif server_running; then
+    log "wait for running Scion server components"
+    wait_until_ready
   else
     log "start Scion workstation server on ${HUB_BIND_HOST}:${HUB_WEB_PORT}"
     "$SCION_BIN" server start --host "$HUB_BIND_HOST" --web-port "$HUB_WEB_PORT"

@@ -5,6 +5,9 @@ set -euo pipefail
 CLUSTER_NAME="${KIND_CLUSTER_NAME:-scion-ops}"
 NAMESPACE="${SCION_K8S_NAMESPACE:-scion-agents}"
 SERVICE_ACCOUNT="${SCION_K8S_SERVICE_ACCOUNT:-scion-agent-manager}"
+PROFILE_NAME="${SCION_K8S_PROFILE:-kind}"
+RUNTIME_NAME="${SCION_K8S_RUNTIME:-kubernetes}"
+IMAGE_REGISTRY="${SCION_IMAGE_REGISTRY:-localhost}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 MANIFEST_DIR="${SCION_K8S_MANIFEST_DIR:-${REPO_ROOT}/deploy/kind}"
@@ -27,6 +30,9 @@ Environment:
   SCION_K8S_MANIFEST_DIR     Kustomize manifest directory (default: deploy/kind)
   SCION_K8S_NAMESPACE        Agent namespace (default: scion-agents)
   SCION_K8S_SERVICE_ACCOUNT  Runtime service account (default: scion-agent-manager)
+  SCION_K8S_PROFILE          Scion profile name (default: kind)
+  SCION_K8S_RUNTIME          Scion runtime name (default: kubernetes)
+  SCION_IMAGE_REGISTRY       Agent image registry/prefix (default: localhost)
 EOF
 }
 
@@ -157,21 +163,29 @@ cmd_configure_scion() {
 
   local tmp
   tmp="$(mktemp)"
-  KIND_CONTEXT="$CONTEXT" SCION_K8S_NAMESPACE="$NAMESPACE" yq eval '
+  KIND_CONTEXT="$CONTEXT" \
+    SCION_K8S_NAMESPACE="$NAMESPACE" \
+    SCION_K8S_PROFILE="$PROFILE_NAME" \
+    SCION_K8S_RUNTIME="$RUNTIME_NAME" \
+    SCION_IMAGE_REGISTRY="$IMAGE_REGISTRY" \
+    yq eval '
     .schema_version = (.schema_version // "1") |
-    .runtimes.kind.type = "kubernetes" |
-    .runtimes.kind.context = strenv(KIND_CONTEXT) |
-    .runtimes.kind.namespace = strenv(SCION_K8S_NAMESPACE) |
-    .profiles.kind.runtime = "kind"
+    .runtimes[strenv(SCION_K8S_RUNTIME)].type = "kubernetes" |
+    .runtimes[strenv(SCION_K8S_RUNTIME)].context = strenv(KIND_CONTEXT) |
+    .runtimes[strenv(SCION_K8S_RUNTIME)].namespace = strenv(SCION_K8S_NAMESPACE) |
+    .profiles[strenv(SCION_K8S_PROFILE)].runtime = strenv(SCION_K8S_RUNTIME) |
+    .image_registry = strenv(SCION_IMAGE_REGISTRY)
   ' "$settings_file" > "$tmp"
   mv "$tmp" "$settings_file"
 
   cat <<EOF
 Configured Scion profile:
   file:      ${settings_file}
-  profile:   kind
+  profile:   ${PROFILE_NAME}
+  runtime:   ${RUNTIME_NAME}
   context:   ${CONTEXT}
   namespace: ${NAMESPACE}
+  registry:  ${IMAGE_REGISTRY}
 EOF
 }
 
