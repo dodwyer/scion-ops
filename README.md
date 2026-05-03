@@ -47,6 +47,7 @@ To advertise the kind Kubernetes runtime through the local broker, run
 - `deploy/kind/` — native Kubernetes resources for the local kind runtime
 - `docs/kind-broker-runtime.md` — broker registration and kind profile workflow
 - `docs/local-hub-mode.md` — local Hub/Web/Broker workstation workflow
+- `docs/testing-plan.md` — layer checks and end-to-end smoke workflow
 - `orchestrator/round.sh` — thin launcher for the consensus runner
 - `mcp_servers/scion_ops.py` — streamable HTTP and stdio MCP server for Zed external agents
 - `rubric/` — reviewer prompt + verdict JSON schema
@@ -64,6 +65,7 @@ tools read Hub state through the Hub HTTP API. See `docs/zed-mcp.md`.
 
 ## Testing
 
-The project testing plan is in `docs/testing-plan.md`.
+Use `task smoke:e2e` to validate the local Hub + kind + HTTP MCP stack in one
+run. The project testing plan is in `docs/testing-plan.md`.
 
 See `/home/david/.claude/plans/https-claude-ai-share-a56e403d-3326-4857-staged-rocket.md` for the full design.

@@ -294,6 +294,19 @@ tasks:
       - '{{.SCION_BIN}} list --no-hub'
       - '{{.SCION_BIN}} delete scratch-local --no-hub || true'
 
+  smoke:e2e:
+    desc: End-to-end Hub + kind + HTTP MCP smoke test.
+    cmds:
+      - |
+        PYTHONDONTWRITEBYTECODE=1 \
+        SCION_BIN='{{.SCION_BIN}}' \
+        HUB_ENDPOINT='{{.HUB_ENDPOINT}}' \
+        SCION_OPS_MCP_URL='{{.SCION_OPS_MCP_URL}}' \
+        SCION_OPS_MCP_HOST='{{.SCION_OPS_MCP_HOST}}' \
+        SCION_OPS_MCP_PORT='{{.SCION_OPS_MCP_PORT}}' \
+        SCION_OPS_MCP_PATH='{{.SCION_OPS_MCP_PATH}}' \
+        uv run scripts/e2e-hub-kind-mcp-smoke.py {{.CLI_ARGS}}
+
   mcp:stdio:
     desc: Run the scion-ops MCP server over stdio for Zed/Claude/Codex.
     cmds:
