@@ -81,6 +81,26 @@ tasks:
     cmds:
       - '{{.SCION_BIN}} doctor --profile kind'
 
+  broker:kind-configure:
+    desc: Configure the Scion kind profile and verify Kubernetes runtime diagnostics.
+    cmds:
+      - SCION_BIN='{{.SCION_BIN}}' bash scripts/kind-broker-runtime.sh configure
+
+  broker:kind-provide:
+    desc: Refresh broker registration, provide this grove, and make the broker default.
+    cmds:
+      - SCION_BIN='{{.SCION_BIN}}' HUB_ENDPOINT='{{.HUB_ENDPOINT}}' bash scripts/kind-broker-runtime.sh provide
+
+  broker:kind-status:
+    desc: Show Scion kind profile, local broker, and Hub broker profile status.
+    cmds:
+      - SCION_BIN='{{.SCION_BIN}}' HUB_ENDPOINT='{{.HUB_ENDPOINT}}' bash scripts/kind-broker-runtime.sh status
+
+  broker:kind-smoke:
+    desc: Dispatch a minimal Hub agent with --profile kind and verify a pod appears in kind.
+    cmds:
+      - SCION_BIN='{{.SCION_BIN}}' HUB_ENDPOINT='{{.HUB_ENDPOINT}}' bash scripts/kind-broker-runtime.sh smoke
+
   hub:up:
     desc: Start/reuse local Scion Hub workstation server and wait for Hub/Broker/Web readiness.
     cmds:
@@ -248,7 +268,7 @@ tasks:
   smoke:
     desc: Phase 1 smoke test — start a stock agent, list, attach to logs, delete
     cmds:
-      - '{{.SCION_BIN}} start scratch "echo round trip" --detach'
+      - '{{.SCION_BIN}} start scratch "echo round trip"'
       - sleep 2
       - '{{.SCION_BIN}} list'
       - '{{.SCION_BIN}} delete scratch || true'
@@ -256,7 +276,7 @@ tasks:
   smoke:local:
     desc: Local-only smoke test using Scion with Hub integration disabled for each command.
     cmds:
-      - '{{.SCION_BIN}} start scratch-local "echo local round trip" --detach --no-hub'
+      - '{{.SCION_BIN}} start scratch-local "echo local round trip" --no-hub'
       - '{{.SCION_BIN}} list --no-hub'
       - '{{.SCION_BIN}} delete scratch-local --no-hub || true'
 

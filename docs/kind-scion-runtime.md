@@ -30,6 +30,8 @@ kustomization. The helper script should not contain embedded Kubernetes YAML.
 | agent namespace | `scion-agents` |
 | RBAC service account | `scion-agent-manager` |
 | Scion profile | `kind` |
+| Scion runtime | `kubernetes` |
+| image registry | `localhost` |
 
 Override the cluster name with an environment variable:
 
@@ -77,14 +79,15 @@ task kind:configure-scion
 This writes:
 
 ```yaml
+image_registry: localhost
 runtimes:
-  kind:
+  kubernetes:
     type: kubernetes
     context: kind-scion-ops
     namespace: scion-agents
 profiles:
   kind:
-    runtime: kind
+    runtime: kubernetes
 ```
 
 Run Scion's Kubernetes diagnostics:

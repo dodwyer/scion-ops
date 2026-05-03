@@ -37,16 +37,22 @@ For local Hub mode, use `task hub:up`, authenticate with
 `eval "$(task hub:auth-export)"`, then run `task hub:link`. See
 `docs/local-hub-mode.md`.
 
+To advertise the kind Kubernetes runtime through the local broker, run
+`task broker:kind-configure`, then `task broker:kind-provide`. See
+`docs/kind-broker-runtime.md`.
+
 ## Layout
 
 - `.scion/templates/` — agent role definitions, including `consensus-runner`
 - `deploy/kind/` — native Kubernetes resources for the local kind runtime
+- `docs/kind-broker-runtime.md` — broker registration and kind profile workflow
 - `docs/local-hub-mode.md` — local Hub/Web/Broker workstation workflow
 - `orchestrator/round.sh` — thin launcher for the consensus runner
 - `mcp_servers/scion_ops.py` — stdio MCP server for Zed external agents
 - `rubric/` — reviewer prompt + verdict JSON schema
 - `scripts/kind-scion-runtime.sh` — local kind orchestration helper
 - `scripts/hub-mode.sh` — local Scion Hub workstation helper
+- `scripts/kind-broker-runtime.sh` — local broker/kind profile helper
 - `scripts/bootstrap-host.sh` — one-shot host preflight
 
 ## Zed MCP
