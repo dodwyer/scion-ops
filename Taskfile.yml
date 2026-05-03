@@ -21,6 +21,20 @@ vars:
     sh: printf 'kind-%s' "${KIND_CLUSTER_NAME:-scion-ops}"
   SCION_K8S_NAMESPACE:
     sh: printf '%s' "${SCION_K8S_NAMESPACE:-scion-agents}"
+  SCION_OPS_MCP_HOST:
+    sh: printf '%s' "${SCION_OPS_MCP_HOST:-127.0.0.1}"
+  SCION_OPS_MCP_PORT:
+    sh: printf '%s' "${SCION_OPS_MCP_PORT:-8765}"
+  SCION_OPS_MCP_PATH:
+    sh: printf '%s' "${SCION_OPS_MCP_PATH:-/mcp}"
+  SCION_OPS_MCP_URL:
+    sh: |
+      path="${SCION_OPS_MCP_PATH:-/mcp}"
+      case "$path" in
+        /*) ;;
+        *) path="/$path" ;;
+      esac
+      printf 'http://%s:%s%s' "${SCION_OPS_MCP_HOST:-127.0.0.1}" "${SCION_OPS_MCP_PORT:-8765}" "$path"
   HOME:
     sh: echo "$HOME"
   GOPATH:
@@ -283,9 +297,19 @@ tasks:
   mcp:stdio:
     desc: Run the scion-ops MCP server over stdio for Zed/Claude/Codex.
     cmds:
-      - uv run mcp_servers/scion_ops.py
+      - PYTHONDONTWRITEBYTECODE=1 uv run mcp_servers/scion_ops.py
+
+  mcp:http:
+    desc: Run the scion-ops MCP server over streamable HTTP at the local MCP URL.
+    cmds:
+      - PYTHONDONTWRITEBYTECODE=1 SCION_OPS_MCP_TRANSPORT=streamable-http SCION_OPS_MCP_HOST='{{.SCION_OPS_MCP_HOST}}' SCION_OPS_MCP_PORT='{{.SCION_OPS_MCP_PORT}}' SCION_OPS_MCP_PATH='{{.SCION_OPS_MCP_PATH}}' uv run mcp_servers/scion_ops.py
 
   mcp:smoke:
     desc: Smoke test the scion-ops MCP server by listing tools over stdio.
     cmds:
-      - uv run scripts/smoke-mcp-server.py
+      - PYTHONDONTWRITEBYTECODE=1 uv run scripts/smoke-mcp-server.py
+
+  mcp:http:smoke:
+    desc: Smoke test the HTTP MCP server by listing tools at the local MCP URL.
+    cmds:
+      - PYTHONDONTWRITEBYTECODE=1 uv run scripts/smoke-mcp-server.py --transport http --url '{{.SCION_OPS_MCP_URL}}' --host '{{.SCION_OPS_MCP_HOST}}' --port '{{.SCION_OPS_MCP_PORT}}' --path '{{.SCION_OPS_MCP_PATH}}' --start-server

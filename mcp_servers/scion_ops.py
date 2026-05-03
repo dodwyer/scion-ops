@@ -716,12 +716,15 @@ def monitor_scion_round(round_id: str) -> str:
 
 def main() -> None:
     transport = os.environ.get("SCION_OPS_MCP_TRANSPORT", "stdio").strip().lower()
-    if transport in {"http", "streamable-http", "streamable_http"}:
-        mcp.run(transport="streamable-http")
+    try:
+        if transport in {"http", "streamable-http", "streamable_http"}:
+            mcp.run(transport="streamable-http")
+            return
+        if transport != "stdio":
+            raise SystemExit(f"unsupported SCION_OPS_MCP_TRANSPORT={transport!r}")
+        mcp.run(transport="stdio")
+    except KeyboardInterrupt:
         return
-    if transport != "stdio":
-        raise SystemExit(f"unsupported SCION_OPS_MCP_TRANSPORT={transport!r}")
-    mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":
