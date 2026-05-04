@@ -21,6 +21,7 @@ directly deployable.
 | Setting | Value |
 |---|---|
 | kind cluster | `scion-ops` |
+| kind provider | `podman` |
 | kubectl context | `kind-scion-ops` |
 | namespace | `scion-agents` |
 | runtime service account | `scion-agent-manager` |
@@ -34,6 +35,12 @@ Override the cluster name with:
 
 ```bash
 KIND_CLUSTER_NAME=scion-dev task up
+```
+
+Override the kind provider only when needed:
+
+```bash
+SCION_OPS_KIND_PROVIDER=docker task up
 ```
 
 ## Workspace Mount

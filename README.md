@@ -4,8 +4,9 @@ Kubernetes-only operating layer for running dueling Scion agents against a
 Scion Hub, co-located Runtime Broker, HTTP MCP server, and agent pods.
 
 The supported deployment target is Kubernetes. For local development this repo
-uses `kind`; host workstation Hub, host broker, local-only Scion, and stdio MCP
-workflows are no longer supported project modes.
+uses `kind` with Podman as the default provider; host workstation Hub, host
+broker, local-only Scion, and stdio MCP workflows are no longer supported
+project modes.
 
 ## Quickstart
 

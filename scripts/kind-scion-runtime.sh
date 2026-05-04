@@ -13,6 +13,7 @@ IMAGE_REGISTRY="${SCION_IMAGE_REGISTRY:-localhost}"
 MANIFEST_DIR="${SCION_K8S_MANIFEST_DIR:-${REPO_ROOT}/deploy/kind}"
 WORKSPACE_HOST_PATH="${SCION_OPS_WORKSPACE_HOST_PATH:-$REPO_ROOT}"
 WORKSPACE_NODE_PATH="${SCION_OPS_WORKSPACE_NODE_PATH:-/workspace/scion-ops}"
+KIND_PROVIDER="${KIND_EXPERIMENTAL_PROVIDER:-${SCION_OPS_KIND_PROVIDER:-podman}}"
 KIND_CLUSTER_CONFIG_TEMPLATE="${SCION_OPS_KIND_CLUSTER_CONFIG_TEMPLATE:-${REPO_ROOT}/deploy/kind/cluster.yaml.tpl}"
 KIND_LISTEN_ADDRESS="${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}"
 HUB_HOST_PORT="${SCION_OPS_KIND_HUB_PORT:-18090}"
@@ -21,6 +22,7 @@ HUB_NODE_PORT="30090"
 MCP_NODE_PORT="30876"
 CONTEXT="kind-${CLUSTER_NAME}"
 SCION_SETTINGS_TEMPLATE="${SCION_SETTINGS_TEMPLATE:-${REPO_ROOT}/deploy/kind/scion-settings.base.yaml}"
+export KIND_EXPERIMENTAL_PROVIDER="$KIND_PROVIDER"
 
 usage() {
   cat <<EOF
@@ -47,6 +49,8 @@ Environment:
                                  (default: this repo)
   SCION_OPS_WORKSPACE_NODE_PATH  Node path used by future MCP hostPath mounts
                                  (default: /workspace/scion-ops)
+  SCION_OPS_KIND_PROVIDER        kind provider when KIND_EXPERIMENTAL_PROVIDER
+                                 is unset (default: podman)
   SCION_OPS_KIND_CLUSTER_CONFIG_TEMPLATE
                                  kind cluster template (default: deploy/kind/cluster.yaml.tpl)
   SCION_OPS_KIND_LISTEN_ADDRESS  Host listen address for kind port mappings
@@ -256,6 +260,7 @@ cmd_status() {
   printf 'cluster:   %s\n' "$CLUSTER_NAME"
   printf 'context:   %s\n' "$CONTEXT"
   printf 'namespace: %s\n' "$NAMESPACE"
+  printf 'provider:  %s\n' "$KIND_PROVIDER"
   printf 'workspace host: %s\n' "$WORKSPACE_HOST_PATH"
   printf 'workspace node: %s\n\n' "$WORKSPACE_NODE_PATH"
   printf 'Hub host URL: http://%s:%s\n' "$KIND_LISTEN_ADDRESS" "$HUB_HOST_PORT"
