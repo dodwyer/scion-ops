@@ -2,6 +2,8 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: scion-agents
 resources:
+  - broker-rbac.yaml
+  - broker-kubeconfig.yaml
   - hub-config.yaml
   - hub-pvc.yaml
   - hub-service.yaml

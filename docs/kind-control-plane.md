@@ -1,7 +1,7 @@
 # kind Control Plane Deployment
 
-Status: Hub and MCP slices implemented for local kind. Broker Kubernetes
-resources are still pending.
+Status: Hub, co-located Runtime Broker, and MCP slices implemented for local
+kind. A separate broker Deployment remains a future bootstrap task.
 
 This is the path for running the Scion control plane inside the local kind
 cluster. The current default remains host-managed Hub, broker, and MCP with kind
@@ -16,8 +16,7 @@ The target shape is:
 
 ```text
 kind cluster:
-  Scion Hub/API/Web
-  Runtime Broker
+  Scion Hub/API/Web with co-located Runtime Broker
   scion-ops HTTP MCP server
   Scion agent pods
 
@@ -27,12 +26,12 @@ host:
   optional restore/bootstrap scripts
 ```
 
-## Implemented Hub And MCP Slices
+## Implemented Control-Plane Slices
 
 The control-plane slices add a separate Kustomize target under
-`deploy/kind/control-plane` for Hub/Web and the scion-ops HTTP MCP server. It
-is not included by `task kind:up`, so the existing host-managed Hub workflow
-stays the default.
+`deploy/kind/control-plane` for Hub/Web, a co-located Runtime Broker, and the
+scion-ops HTTP MCP server. It is not included by `task kind:up`, so the
+existing host-managed Hub workflow stays the default.
 
 Resources:
 
@@ -40,6 +39,8 @@ Resources:
 - `deploy/kind/control-plane/hub-config.yaml`
 - `deploy/kind/control-plane/hub-service.yaml`
 - `deploy/kind/control-plane/hub-pvc.yaml`
+- `deploy/kind/control-plane/broker-rbac.yaml`
+- `deploy/kind/control-plane/broker-kubeconfig.yaml`
 - `deploy/kind/control-plane/mcp-deployment.yaml`
 - `deploy/kind/control-plane/mcp-service.yaml`
 
@@ -51,17 +52,20 @@ task kind:workspace:status
 task kind:load-images -- localhost/scion-base:latest localhost/scion-ops-mcp:latest
 task kind:control-plane:apply
 task kind:control-plane:status
+task kind:broker:status
 ```
 
 If the images have not been built locally, build them first with
 `task images:build` and then load them into kind.
 
-The Hub-specific task names remain available as narrow aliases:
+The Hub/broker-specific task names remain available as narrow aliases:
 
 ```bash
 task kind:hub:apply
 task kind:hub:status
 task kind:hub:logs
+task kind:broker:status
+task kind:broker:logs
 ```
 
 MCP-specific status, logs, and port-forward helpers are also available:
@@ -98,14 +102,21 @@ minimal `settings.yaml` comes from the `scion-hub-settings` ConfigMap so the
 required `image_registry: localhost` setting is reproducible from this repo.
 Deleting the kind cluster deletes the PVC-backed state.
 
-This first slice intentionally runs `scion --global server start` in explicit
-component mode with `--production --enable-hub --enable-web --dev-auth`:
-production mode prevents workstation defaults from starting the broker
-automatically, while dev auth keeps the local kind deployment usable without
-OAuth setup. The Deployment overrides the `scion-base` agent entrypoint and
-runs the Hub process directly as UID/GID 1000 because `sciontool init` is for
-agent containers. The web session secret is still auto-generated per pod start
-and is not production-ready.
+The Hub slice intentionally runs `scion --global server start` in explicit
+component mode with `--production --enable-hub --enable-web
+--enable-runtime-broker --dev-auth`. Production mode avoids workstation
+defaults, while the explicit Runtime Broker flag uses Scion's built-in
+co-located Hub+broker path. That path creates the broker record and HMAC secret
+inside Hub state, so the local kind deployment does not need a custom broker
+registration sidecar.
+
+The broker binds to `127.0.0.1` inside the Hub pod and is not exposed as a
+Service. It uses the `kind` profile from `scion-hub-settings`, an in-cluster
+kubeconfig ConfigMap, and the `scion-control-plane` service account to create
+agent pods in `scion-agents`. The Deployment overrides the `scion-base` agent
+entrypoint and runs the Hub process directly as UID/GID 1000 because
+`sciontool init` is for agent containers. The web session secret is still
+auto-generated per pod start and is not production-ready.
 
 ## MCP Workspace Mount Substrate
 
@@ -191,7 +202,7 @@ restore model.
 |---|---|---|
 | Hub database/state | PersistentVolumeClaim or external DB | Contains groves, agents, messages, broker registrations, templates, and Hub state. |
 | Hub signing/session material | Kubernetes Secret restored from host or sealed/external secret | Rotating this invalidates sessions/tokens. |
-| Broker credentials | Kubernetes Secret or re-register on bootstrap | Broker must keep or reacquire trust with Hub. |
+| Broker credentials | Co-located broker secret in Hub state for the current kind slice; Kubernetes Secret or registration bootstrap for a future separate broker | Broker must keep or reacquire trust with Hub. |
 | Grove identity | Host repo `.scion/grove-id` plus Hub state | Recreating either side incorrectly can create duplicate grove identity. |
 | Subscription credentials | Kubernetes Secret sourced from host files or external secret store | Claude, Codex, and Gemini auth should not be baked into images. |
 | MCP workspace | HostPath mount through the kind node for local kind, or cloned persistent workspace outside kind | MCP tools need repo access for git/task/artifact inspection. The local kind MCP mount is read-write. |
@@ -212,21 +223,21 @@ deploy/kind/
   namespace.yaml
   rbac.yaml
   control-plane/
+    broker-kubeconfig.yaml
+    broker-rbac.yaml
     hub-config.yaml
     hub-deployment.yaml
     hub-service.yaml
     hub-pvc.yaml
     mcp-deployment.yaml
     mcp-service.yaml
-    broker-deployment.yaml
-    broker-rbac.yaml
     kustomization.yaml
   kustomization.yaml
 ```
 
-Implemented resources are Hub and MCP only. The workspace mount substrate is
-part of kind cluster creation, not a Kubernetes manifest. Avoid placeholder
-manifests that are not applied by tests.
+Implemented resources are Hub, co-located broker RBAC/kubeconfig, and MCP. The
+workspace mount substrate is part of kind cluster creation, not a Kubernetes
+manifest. Avoid placeholder manifests that are not applied by tests.
 
 ## Networking
 
@@ -252,27 +263,30 @@ task kind:mcp:smoke
 
 Containerizing the broker is the riskiest part. The broker needs enough access
 to create agent pods and manage their lifecycle, but should not receive host
-Podman socket access for this path. The first all-in-kind broker should support
-only the Kubernetes runtime.
+Podman socket access for this path. The first all-in-kind broker runs
+co-located in the Hub pod and supports only the Kubernetes runtime.
 
 Key requirements:
 
 - in-cluster Kubernetes API access through a service account
 - namespace/RBAC for agent pods, `pods/exec`, `pods/log`, and secrets
-- mounted or restored broker credentials
+- co-located broker HMAC secret in Hub state
 - image registry access for Scion agent images
 - stable workspace strategy for agents and MCP
 
+A separate broker Deployment remains out of scope until there is an explicit
+broker credential restore or registration bootstrap flow.
+
 ## Phased Implementation
 
-1. Add Kustomize resources for Hub and its persistent state. Done for the
-   Hub-only slice.
+1. Add Kustomize resources for Hub and its persistent state. Done.
 2. Add local kind workspace mount substrate for MCP repo access. Done.
 3. Add MCP deployment with repo/workspace access and HTTP service. Done for the
    local kind slice.
-4. Add broker deployment using in-cluster Kubernetes auth.
+4. Add co-located broker support using in-cluster Kubernetes auth. Done for the
+   local kind slice.
 5. Add bootstrap/restore tasks for secrets, grove identity, templates, and
-   broker provide.
+   future separate broker provide.
 6. Extend `task smoke:e2e` or add a sibling smoke task that validates the
    kind-hosted control plane.
 7. Consider Helm packaging only after the manifests pass local kind smoke tests
@@ -288,3 +302,5 @@ Key requirements:
   recreation?
 - How should the in-kind path restore a stable session/JWT secret before it is
   used beyond local development?
+- Should a future separate Runtime Broker be bootstrapped from a restored
+  Kubernetes Secret or from a registration job once Scion supports that flow?
