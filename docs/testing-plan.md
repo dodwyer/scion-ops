@@ -55,11 +55,14 @@ task kind:workspace:status
 task kind:control-plane:apply
 task kind:control-plane:status
 task kind:broker:status
+task kind:hub:port-forward
+eval "$(task kind:hub:auth-export)"
 task kind:mcp:port-forward
 task kind:mcp:smoke
 ```
 
-Run `task kind:mcp:smoke` in a second terminal while the port-forward is active.
+Run `task kind:hub:port-forward` and `task kind:mcp:port-forward` in separate
+terminals while using the exported host CLI environment and MCP smoke.
 The kind control plane now starts a co-located Runtime Broker in the Hub pod.
 A kind-hosted dispatch smoke remains a follow-up because it needs a dedicated
 bootstrap flow for grove linking, templates, and restored agent credentials.
