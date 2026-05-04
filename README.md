@@ -52,7 +52,9 @@ locally with `task kind:hub:port-forward` and `task kind:mcp:port-forward`.
 Use `eval "$(task kind:hub:auth-export)"` for host CLI auth against the
 port-forwarded kind Hub. New kind clusters mount this repo into the kind node
 for the MCP Deployment; verify that substrate with
-`task kind:workspace:status`.
+`task kind:workspace:status`. Use `task kind:control-plane:smoke` to link the
+current grove to the kind Hub, verify MCP Hub status, and dispatch a no-auth
+generic agent pod through the co-located broker.
 
 ## Layout
 
@@ -81,7 +83,8 @@ tools read Hub state through the Hub HTTP API. See `docs/zed-mcp.md`.
 
 ## Testing
 
-Use `task smoke:e2e` to validate the local Hub + kind + HTTP MCP stack in one
-run. The project testing plan is in `docs/testing-plan.md`.
+Use `task smoke:e2e` to validate the host-managed Hub + kind + HTTP MCP stack
+in one run. Use `task kind:control-plane:smoke` for the experimental all-in-kind
+Hub/broker/MCP path. The project testing plan is in `docs/testing-plan.md`.
 
 See `/home/david/.claude/plans/https-claude-ai-share-a56e403d-3326-4857-staged-rocket.md` for the full design.

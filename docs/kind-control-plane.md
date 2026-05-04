@@ -79,6 +79,53 @@ task kind:mcp:port-forward
 task kind:mcp:smoke
 ```
 
+Run the end-to-end kind control-plane smoke with:
+
+```bash
+task kind:control-plane:smoke
+```
+
+The smoke creates or reuses the kind runtime substrate, applies the
+control-plane Kustomize target, reads the dev-auth token from the Hub pod,
+starts temporary local port-forwards for Hub and MCP if needed, links the
+current grove to the kind Hub, makes the co-located broker the current grove's
+default provider, checks the kind-hosted MCP Hub status, dispatches a no-auth
+generic smoke agent, verifies that a pod appears in kind, and deletes the smoke
+agent after a successful run.
+
+The bootstrap is intentionally one-off. It passes `--hub` or
+`SCION_HUB_ENDPOINT` to Scion commands and does not run `task hub:link` or
+`scion config set hub.endpoint`, so the host's global Scion Hub endpoint is not
+rewritten. It does create or update current-grove state inside the kind Hub PVC.
+By default it uses Scion's inline config support with the `generic` harness and
+does not upload templates or harness configs. Pass `--template` to use an
+existing Hub template, `--sync-template` to upload that template first, and
+`--sync-harness-config` only when you explicitly want to test Hub
+harness-config upload as well. Template and harness uploads require a Hub
+storage backend that supports remote uploads; local kind Hub state uses local
+storage and is not a reliable target for host-side upload sync.
+
+Useful overrides:
+
+| Variable | Default |
+|---|---|
+| `SCION_KIND_CP_SMOKE_TEMPLATE` | unset, uses inline generic config |
+| `SCION_KIND_CP_SMOKE_AGENT` | generated `kind-cp-smoke-*` name |
+| `SCION_KIND_CP_SMOKE_KEEP_AGENT` | unset, deletes on success |
+| `SCION_KIND_CP_SMOKE_SKIP_SETUP` | unset, applies kind resources |
+| `SCION_KIND_CP_SMOKE_SYNC_TEMPLATE` | unset, no template upload |
+| `SCION_KIND_CP_SMOKE_SYNC_HARNESS_CONFIG` | unset, no harness-config upload |
+| `SCION_KIND_CP_SMOKE_TIMEOUT` | `90` |
+| `SCION_OPS_KIND_HUB_PORT` | `18090` |
+| `SCION_OPS_MCP_URL` | `http://127.0.0.1:8765/mcp` |
+
+Pass `--skip-setup` when the kind cluster and control plane are already applied,
+`--no-port-forward` when you want to manage the Hub and MCP port-forwards in
+separate terminals, or `--skip-bootstrap` when the current grove and broker
+provider already exist in the kind Hub. Pass `--skip-mcp` to verify only the Hub
+and co-located broker dispatch path; in that mode the script uses the Hub-only
+apply/status tasks and does not require the kind workspace mount.
+
 To inspect the Hub HTTP endpoint from the host, use a local-only port-forward:
 
 ```bash

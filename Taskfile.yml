@@ -118,6 +118,18 @@ tasks:
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' logs -f -l app.kubernetes.io/part-of=scion-control-plane --all-containers=true --max-log-requests=4
 
+  kind:control-plane:smoke:
+    desc: Bootstrap the kind Hub and dispatch a no-auth smoke agent through the co-located broker.
+    cmds:
+      - |
+        PYTHONDONTWRITEBYTECODE=1 \
+        SCION_BIN='{{.SCION_BIN}}' \
+        HUB_ENDPOINT='{{.SCION_OPS_KIND_HUB_URL}}' \
+        SCION_OPS_KIND_HUB_PORT='{{.SCION_OPS_KIND_HUB_PORT}}' \
+        SCION_OPS_KIND_HUB_URL='{{.SCION_OPS_KIND_HUB_URL}}' \
+        SCION_OPS_MCP_URL='{{.SCION_OPS_MCP_URL}}' \
+        uv run scripts/kind-control-plane-smoke.py {{.CLI_ARGS}}
+
   kind:control-plane:delete:
     desc: Delete the experimental kind control-plane resources.
     prompt: This deletes experimental kind control-plane resources from {{.KIND_CONTEXT}}. Continue?

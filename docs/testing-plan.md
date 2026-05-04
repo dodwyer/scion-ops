@@ -63,9 +63,18 @@ task kind:mcp:smoke
 
 Run `task kind:hub:port-forward` and `task kind:mcp:port-forward` in separate
 terminals while using the exported host CLI environment and MCP smoke.
-The kind control plane now starts a co-located Runtime Broker in the Hub pod.
-A kind-hosted dispatch smoke remains a follow-up because it needs a dedicated
-bootstrap flow for grove linking, templates, and restored agent credentials.
+For the full all-in-kind dispatch path, use:
+
+```bash
+task kind:control-plane:smoke
+```
+
+That smoke links the current grove to the port-forwarded kind Hub without
+rewriting host global Scion config, makes `kind-control-plane` the grove's
+default provider, checks the kind-hosted MCP Hub status, dispatches an inline
+generic no-auth smoke agent through the co-located Runtime Broker, verifies that
+a kind pod appears, and deletes the smoke agent after success unless
+`SCION_KIND_CP_SMOKE_KEEP_AGENT=1` is set.
 
 ## End-To-End Smoke
 
@@ -115,15 +124,42 @@ Useful overrides:
 | `SCION_E2E_MCP_WATCH_SECONDS` | `90` |
 | `SCION_OPS_MCP_URL` | `http://127.0.0.1:8765/mcp` |
 
+## kind Control-Plane Smoke
+
+Run the experimental all-in-kind path with:
+
+```bash
+task kind:control-plane:smoke
+```
+
+Use `--skip-setup` when the kind cluster and control plane already exist:
+
+```bash
+task kind:control-plane:smoke -- --skip-setup
+```
+
+Use `--no-port-forward` when `task kind:hub:port-forward` and
+`task kind:mcp:port-forward` are already running in separate terminals. The
+smoke defaults to an inline `generic` harness config with `--no-auth`, so it
+proves dispatch and pod creation without requiring subscription credentials,
+custom template upload, or harness-config upload in the kind Hub. Use
+`--skip-mcp` for a Hub/broker-only dispatch check on an existing kind cluster
+that was created before the workspace mount was added.
+
 ## Images
 
-The default smoke template uses the Claude harness image. Build and load it
-before running the end-to-end smoke if the kind node does not already have it:
+The host-managed end-to-end smoke default template uses the Claude harness
+image. Build and load it before running `task smoke:e2e` if the kind node does
+not already have it:
 
 ```bash
 task images:build -- --harness claude
 task kind:load-images -- localhost/scion-base:latest localhost/scion-claude:latest
 ```
+
+The kind control-plane smoke uses `localhost/scion-base:latest` for Hub and the
+inline generic smoke pod, plus `localhost/scion-ops-mcp:latest` for the
+kind-hosted MCP service.
 
 If the kind provider cannot see Podman images directly, use an archive:
 
