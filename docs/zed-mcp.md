@@ -1,8 +1,7 @@
 # Zed MCP Setup
 
 scion-ops supports Zed through the Kubernetes-hosted streamable HTTP MCP
-service. Stdio MCP and host-launched MCP servers are not supported project
-modes.
+service.
 
 ## Start The Service
 
@@ -64,11 +63,17 @@ Then use the same remote-host URL in Zed:
 ```
 
 The MCP server operates from the workspace mounted in the Kubernetes
-Deployment, which defaults to:
+Deployment. The default kind mount is the host workspace tree at:
 
 ```text
-/workspace/scion-ops
+/workspace
 ```
+
+The MCP server auto-discovers the scion-ops checkout inside that tree and maps
+host project paths under `/home/david/workspace` to their in-pod `/workspace`
+paths. If a target repo is outside the mounted tree, recreate kind with
+`SCION_OPS_WORKSPACE_HOST_PATH` set to a parent directory that contains both
+scion-ops and the target repo.
 
 ## Tool State
 
@@ -79,6 +84,14 @@ trusted local tunnel, VPN, or authenticated ingress.
 
 ## Rounds
 
-The MCP tool `scion_ops_start_round` calls `task round`. Full
-subscription-backed Kubernetes rounds require issue #29 so credentials,
-templates, and harness configs are restored into the Kubernetes-hosted Hub.
+Use one shape for every project:
+
+```text
+Use scion-ops to start a round on project_root=/home/david/workspace/github/example/project:
+"improve README.md"
+```
+
+The external agent should call `scion_ops_project_status` first, then
+`scion_ops_start_round` with the same `project_root`. The target repo should be
+on a clean branch with any important local work committed or pushed; Kubernetes
+agents work from git branches, not uncommitted editor state.

@@ -16,12 +16,18 @@ PROMPT="${*:-}"
 SCION_BIN="${SCION_BIN:-scion}"
 command -v "$SCION_BIN" >/dev/null || die "scion not on PATH"
 
+SCION_OPS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT_ROOT_INPUT="${SCION_OPS_PROJECT_ROOT:-$SCION_OPS_ROOT}"
+PROJECT_ROOT="$(cd "$PROJECT_ROOT_INPUT" && pwd -P)"
+PROJECT_ROOT="$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null)" || die "target project is not a git repo: $PROJECT_ROOT"
+
 ROUND_ID="${ROUND_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$(printf '%04x' "$RANDOM")}"
 MAX_REVIEW_ROUNDS="${MAX_REVIEW_ROUNDS:-${MAX_ROUNDS:-3}}"
 FINAL_REVIEWER="${FINAL_REVIEWER:-gemini}"
-BASE_BRANCH="${BASE_BRANCH:-$(git branch --show-current 2>/dev/null || true)}"
+BASE_BRANCH="${BASE_BRANCH:-$(git -C "$PROJECT_ROOT" branch --show-current 2>/dev/null || true)}"
+BROKER="${SCION_KIND_CP_BROKER:-kind-control-plane}"
 if [[ -z "$BASE_BRANCH" ]]; then
-  BASE_BRANCH="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || true)"
+  BASE_BRANCH="$(git -C "$PROJECT_ROOT" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || true)"
 fi
 BASE_BRANCH="${BASE_BRANCH:-main}"
 RUNNER_NAME="round-${ROUND_ID}-consensus"
@@ -32,6 +38,7 @@ round_id: $ROUND_ID
 max_review_rounds: $MAX_REVIEW_ROUNDS
 base_branch: $BASE_BRANCH
 final_reviewer: $FINAL_REVIEWER
+project_root: $PROJECT_ROOT
 
 original_task:
 $PROMPT
@@ -45,12 +52,15 @@ printf 'Starting consensus runner: %s\n' "$RUNNER_NAME"
 printf 'Round id: %s\n' "$ROUND_ID"
 printf 'Base branch: %s\n' "$BASE_BRANCH"
 printf 'Final reviewer: %s\n' "$FINAL_REVIEWER"
+printf 'Broker: %s\n' "$BROKER"
+printf 'Project root: %s\n' "$PROJECT_ROOT"
 
-"$SCION_BIN" start "$RUNNER_NAME" \
+"$SCION_BIN" --grove "$PROJECT_ROOT" start "$RUNNER_NAME" \
   --type consensus-runner \
   --branch "$RUNNER_BRANCH" \
-  --harness-auth auth-file \
-  --upload-template \
+  --broker "$BROKER" \
+  --no-auth \
+  --no-upload \
   --non-interactive \
   --yes \
   --notify \

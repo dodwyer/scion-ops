@@ -297,8 +297,8 @@ def bootstrap_grove(
             env=env,
             category="hub_state",
             hint=(
-                "Remote-safe harness bootstrap is not implemented yet; "
-                "use the checked-in generic smoke config or complete issue #29."
+                "The smoke path does not sync harness configs from the host. "
+                "Run task bootstrap, or keep using the checked-in generic smoke config."
             ),
             timeout=120,
         )
@@ -601,7 +601,7 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         default=os.environ.get("SCION_KIND_CP_SMOKE_SYNC_HARNESS_CONFIG", "").lower()
         in {"1", "true", "yes", "on"},
-        help="also sync the selected template's default harness config; requires a remote-safe Hub storage path",
+        help="also sync the selected template's default harness config; task bootstrap is preferred",
     )
     parser.add_argument("--skip-harness-sync", action="store_false", dest="sync_harness_config")
     parser.add_argument(
@@ -609,7 +609,7 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         default=os.environ.get("SCION_KIND_CP_SMOKE_SYNC_TEMPLATE", "").lower()
         in {"1", "true", "yes", "on"},
-        help="sync --template before dispatching; requires a Hub storage backend that supports remote uploads",
+        help="sync --template before dispatching; task bootstrap is preferred",
     )
     parser.add_argument("--skip-template-sync", action="store_false", dest="sync_template")
     parser.add_argument("--skip-mcp", action="store_true")

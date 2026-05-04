@@ -103,9 +103,9 @@ explicit broker credential restore or registration bootstrap flow.
 
 Issue: #29
 
-Decision: the kind control-plane smoke uses an inline `generic` harness config
-for its no-auth agent instead of uploading grove templates or harness configs by
-default.
+Decision: keep the kind control-plane smoke on an inline `generic` harness
+config, but use `task bootstrap` as the normal template and harness restore
+path for rounds.
 
 Reason: the current kind Hub uses Scion local storage on the Hub PVC. When a
 host CLI talks to that Hub through a port-forward, template and harness-config
@@ -113,32 +113,30 @@ sync can receive pod-local upload paths such as `/home/scion/.scion/storage/...`
 that are not writable or meaningful from the host. That is not a supported
 Kubernetes bootstrap pattern.
 
-Constraint: custom grove templates and harness configs are opt-in in the kind
-smoke via `--sync-template` and `--sync-harness-config`; use those only with a
-Hub storage backend that supports remote uploads, or with a future in-cluster
-bootstrap/restore task.
+Constraint: do not sync scion-ops templates or harness configs to the kind Hub
+from the host CLI. `task bootstrap` copies the files into the Hub pod and runs
+Scion sync commands there, where `/home/scion/.scion/storage` is meaningful.
 
-Exit criteria: replace the inline generic smoke fallback with normal template
-and harness-config bootstrap after kind Hub state uses a remote-upload-capable
-storage path or Scion exposes an in-cluster bootstrap workflow.
+Exit criteria: remove the inline generic smoke fallback only after spending
+subscription model usage in smoke tests is acceptable.
 
 ## Subscription-Backed Kubernetes Rounds
 
 Issue: #29
 
-Decision: keep `task test` on an inline no-auth generic smoke agent until
-Claude, Codex, Gemini credentials, templates, and harness configs have a
-remote-safe Kubernetes bootstrap path.
+Decision: `task bootstrap` restores shared Hub-scoped credentials, Hub harness
+configs, and Hub global scion-ops templates before subscription-backed rounds.
+`task test` remains a no-auth smoke to avoid spending model usage in the normal
+health check.
 
 Reason: the product goal is a one-line Scion consensus round through the
 Kubernetes-hosted Hub and MCP server, but baking subscription credentials into
 images or relying on host-local upload paths would create hidden state and a
 non-reproducible setup.
 
-Constraint: `task round` remains the intended product operation, but it should
-not be treated as a complete subscription-backed Kubernetes flow until issue
-#29 is closed.
+Constraint: target projects must be visible inside the MCP pod workspace mount
+and should have important local work committed or pushed before a round starts.
+Hub/Kubernetes agents work from git branches, not uncommitted editor buffers.
 
-Exit criteria: credentials are restored as Kubernetes/Hub state from explicit
-inputs, templates and harness configs sync without host-local storage paths,
-and a Claude/Codex/Gemini consensus round passes through the Kubernetes Hub.
+Exit criteria: a Claude/Codex/Gemini consensus round passes through the
+Kubernetes Hub from a Zed MCP request against the selected target project.

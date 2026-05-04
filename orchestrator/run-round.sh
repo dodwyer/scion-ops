@@ -24,6 +24,28 @@ ROUND_ID="${ROUND_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$(printf '%04x' "$RANDOM")}"
 RUNNER_NAME="round-${ROUND_ID,,}-consensus"   # scion lowercases agent slugs
 
 SCION_OPS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT_ROOT_INPUT="${SCION_OPS_PROJECT_ROOT:-$SCION_OPS_ROOT}"
+PROJECT_ROOT="$(cd "$PROJECT_ROOT_INPUT" && pwd -P)"
+if git -C "$PROJECT_ROOT" rev-parse --show-toplevel >/dev/null 2>&1; then
+  PROJECT_ROOT="$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel)"
+fi
+export SCION_OPS_PROJECT_ROOT="$PROJECT_ROOT"
+
+if [[ -z "${SCION_HUB_ENDPOINT:-}" ]]; then
+  SCION_HUB_ENDPOINT="${SCION_OPS_KIND_HUB_URL:-http://${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}:${SCION_OPS_KIND_HUB_PORT:-18090}}"
+  export SCION_HUB_ENDPOINT
+fi
+export HUB_ENDPOINT="${HUB_ENDPOINT:-$SCION_HUB_ENDPOINT}"
+
+if [[ -z "${SCION_DEV_TOKEN:-}" && -z "${SCION_DEV_TOKEN_FILE:-}" ]] && command -v task >/dev/null 2>&1; then
+  if hub_auth="$(task kind:hub:auth-export 2>/dev/null)"; then
+    eval "$hub_auth"
+  fi
+fi
+
+if [[ "${SCION_OPS_ROUND_PREFLIGHT:-1}" != "0" ]]; then
+  bash "$SCION_OPS_ROOT/scripts/kind-round-preflight.sh"
+fi
 
 # 1. Truncate log, launch round.sh detached.
 : > "$LOG_FILE"
@@ -31,6 +53,7 @@ round_env=(
   "ROUND_ID=$ROUND_ID"
   "MAX_REVIEW_ROUNDS=$MAX_REVIEW_ROUNDS"
   "FINAL_REVIEWER=$FINAL_REVIEWER"
+  "SCION_OPS_PROJECT_ROOT=$PROJECT_ROOT"
 )
 if [[ -n "$BASE_BRANCH" ]]; then
   round_env+=("BASE_BRANCH=$BASE_BRANCH")

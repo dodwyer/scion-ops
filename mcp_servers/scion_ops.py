@@ -37,6 +37,8 @@ from mcp.server.fastmcp import FastMCP
 ROOT = Path(os.environ.get("SCION_OPS_ROOT", Path(__file__).resolve().parents[1])).resolve()
 DEFAULT_TIMEOUT_SECONDS = 45
 NAME_RE = re.compile(r"^[A-Za-z0-9._:/@+-]+$")
+DEFAULT_HOST_WORKSPACE_ROOT = "/home/david/workspace"
+DEFAULT_CONTAINER_WORKSPACE_ROOT = "/workspace"
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -50,7 +52,9 @@ mcp = FastMCP(
     "scion-ops",
     instructions=(
         "Use these tools to start and monitor scion-ops consensus rounds, "
-        "inspect Scion agents, and review the resulting git branches."
+        "inspect Scion agents, and review the resulting git branches. "
+        "Pass project_root for the project being changed; if omitted, the "
+        "server uses its current working checkout."
     ),
     host=os.environ.get("SCION_OPS_MCP_HOST", "127.0.0.1"),
     port=int(os.environ.get("SCION_OPS_MCP_PORT", "8765")),
@@ -103,9 +107,10 @@ def _run(
     *,
     timeout: int = DEFAULT_TIMEOUT_SECONDS,
     env: dict[str, str] | None = None,
+    cwd: Path | None = None,
     check: bool = False,
 ) -> dict[str, Any]:
-    root = _repo_root()
+    root = cwd or _repo_root()
     try:
         result = subprocess.run(
             args,
@@ -186,13 +191,13 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return merged
 
 
-def _settings_paths() -> list[Path]:
+def _settings_paths(project_root: Path | None = None) -> list[Path]:
     paths: list[Path] = [Path.home() / ".scion" / "settings.yaml"]
     explicit = os.environ.get("SCION_OPS_GROVE_SETTINGS")
     if explicit:
         paths.append(Path(explicit).expanduser())
 
-    root = _repo_root()
+    root = project_root or _repo_root()
     local_settings = root / ".scion" / "settings.yaml"
     if local_settings.exists():
         paths.append(local_settings)
@@ -215,10 +220,10 @@ def _settings_paths() -> list[Path]:
     return deduped
 
 
-def _effective_settings() -> tuple[dict[str, Any], list[str]]:
+def _effective_settings(project_root: Path | None = None) -> tuple[dict[str, Any], list[str]]:
     settings: dict[str, Any] = {}
     sources: list[str] = []
-    for path in _settings_paths():
+    for path in _settings_paths(project_root):
         data = _load_yaml(path)
         if data:
             settings = _deep_merge(settings, data)
@@ -248,6 +253,61 @@ def _read_text_file(path: Path) -> str:
         return path.read_text(errors="replace").strip()
     except OSError:
         return ""
+
+
+def _path_mappings() -> list[tuple[Path, Path]]:
+    mappings: list[tuple[Path, Path]] = []
+    raw = os.environ.get("SCION_OPS_PROJECT_PATH_MAP", "")
+    for item in re.split(r"[;,\n]", raw):
+        if not item.strip() or "=" not in item:
+            continue
+        host, container = item.split("=", 1)
+        mappings.append((Path(host).expanduser(), Path(container).expanduser()))
+
+    host_root = Path(os.environ.get("SCION_OPS_HOST_WORKSPACE_ROOT", DEFAULT_HOST_WORKSPACE_ROOT)).expanduser()
+    container_root = Path(
+        os.environ.get("SCION_OPS_CONTAINER_WORKSPACE_ROOT", DEFAULT_CONTAINER_WORKSPACE_ROOT)
+    ).expanduser()
+    mappings.append((host_root, container_root))
+    return mappings
+
+
+def _map_project_path(path: Path) -> Path:
+    if path.exists():
+        return path
+    path_str = str(path)
+    for host_root, container_root in _path_mappings():
+        host = str(host_root)
+        if path_str == host:
+            candidate = container_root
+        elif path_str.startswith(host.rstrip("/") + "/"):
+            candidate = container_root / path_str[len(host.rstrip("/")) + 1 :]
+        else:
+            continue
+        if candidate.exists():
+            return candidate
+    return path
+
+
+def _project_root(project_root: str = "", *, require_git: bool = True) -> Path:
+    raw = project_root.strip() if project_root else ""
+    path = Path(raw).expanduser() if raw else _repo_root()
+    path = _map_project_path(path)
+    if not path.is_absolute():
+        path = (_repo_root() / path).resolve()
+    else:
+        path = path.resolve()
+    if require_git:
+        if not path.exists():
+            raise ValueError(f"project_root is not visible to MCP: {path}")
+        _run(["git", "config", "--global", "--add", "safe.directory", str(path)], timeout=10, cwd=_repo_root())
+        result = _run(["git", "rev-parse", "--show-toplevel"], timeout=10, cwd=path)
+        if not result["ok"]:
+            raise ValueError(f"project_root is not a git repository visible to MCP: {path}")
+        return Path(result["output"].strip()).resolve()
+    if not path.exists():
+        raise ValueError(f"project_root is not visible to MCP: {path}")
+    return path
 
 
 @dataclass(frozen=True)
@@ -364,8 +424,8 @@ def _hub_auth(endpoint: str) -> HubAuth | None:
     return None
 
 
-def _hub_config() -> HubConfig:
-    settings, sources = _effective_settings()
+def _hub_config(project_root: Path | None = None) -> HubConfig:
+    settings, sources = _effective_settings(project_root)
     endpoint = (
         os.environ.get("SCION_OPS_HUB_ENDPOINT")
         or os.environ.get("SCION_HUB_ENDPOINT")
@@ -379,8 +439,10 @@ def _hub_config() -> HubConfig:
         or _nested(settings, "hub", "endpoint")
     )
 
+    project_grove_id = _read_text_file(project_root / ".scion" / "grove-id") if project_root else ""
     grove_id = (
-        os.environ.get("SCION_OPS_GROVE_ID")
+        project_grove_id
+        or os.environ.get("SCION_OPS_GROVE_ID")
         or os.environ.get("SCION_HUB_GROVE_ID")
         or _nested(settings, "hub", "grove_id")
         or _nested(settings, "hub", "groveId")
@@ -413,8 +475,9 @@ def _hub_error_payload(error: HubAPIError, operation: str, cfg: HubConfig | None
 
 
 class HubClient:
-    def __init__(self) -> None:
-        self.cfg = _hub_config()
+    def __init__(self, project_root: str = "") -> None:
+        self.project_root = _project_root(project_root, require_git=False) if project_root else None
+        self.cfg = _hub_config(self.project_root)
 
     def _require_ready(self) -> None:
         if not self.cfg.enabled:
@@ -648,8 +711,8 @@ def _agent_summary(agent: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _list_agents(round_filter: str = "") -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    client = HubClient()
+def _list_agents(round_filter: str = "", project_root: str = "") -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    client = HubClient(project_root)
     agents = client.agents(round_filter)
     return agents, {
         "ok": True,
@@ -676,8 +739,8 @@ def _round_text_match(item: dict[str, Any], round_id: str) -> bool:
     return any(needle in str(value).lower() for value in fields if value is not None)
 
 
-def _list_round_messages(round_id: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    client = HubClient()
+def _list_round_messages(round_id: str, project_root: str = "") -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    client = HubClient(project_root)
     messages = client.messages(round_id)
     return messages, {
         "ok": True,
@@ -687,8 +750,8 @@ def _list_round_messages(round_id: str) -> tuple[list[dict[str, Any]], dict[str,
     }
 
 
-def _list_round_notifications(round_id: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    client = HubClient()
+def _list_round_notifications(round_id: str, project_root: str = "") -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    client = HubClient(project_root)
     notifications = client.notifications(round_id)
     return notifications, {
         "ok": True,
@@ -720,10 +783,10 @@ def _agent_fingerprint(agent: dict[str, Any]) -> str:
     return json.dumps(tracked, sort_keys=True, default=str)
 
 
-def _round_event_snapshot(round_id: str) -> dict[str, Any]:
-    agents, agent_result = _list_agents(round_id)
-    messages, message_result = _list_round_messages(round_id)
-    notifications, notification_result = _list_round_notifications(round_id)
+def _round_event_snapshot(round_id: str, project_root: str = "") -> dict[str, Any]:
+    agents, agent_result = _list_agents(round_id, project_root)
+    messages, message_result = _list_round_messages(round_id, project_root)
+    notifications, notification_result = _list_round_notifications(round_id, project_root)
     summaries = [_agent_summary(agent) for agent in agents]
     return {
         "round_id": round_id,
@@ -838,16 +901,17 @@ def _round_terminal_status(snapshot: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
-def _default_base_branch() -> str:
-    result = _run(["git", "branch", "--show-current"], timeout=10)
+def _default_base_branch(project_root: str = "") -> str:
+    root = _project_root(project_root) if project_root else _repo_root()
+    result = _run(["git", "branch", "--show-current"], timeout=10, cwd=root)
     current = result["output"].strip()
     return current or "HEAD"
 
 
 @mcp.tool()
-def scion_ops_hub_status() -> dict[str, Any]:
+def scion_ops_hub_status(project_root: str = "") -> dict[str, Any]:
     """Show Scion Hub API health, grove, broker providers, and agents."""
-    client = HubClient()
+    client = HubClient(project_root)
     try:
         health = client.health()
         grove = client.grove()
@@ -873,12 +937,12 @@ def scion_ops_hub_status() -> dict[str, Any]:
 
 
 @mcp.tool()
-def scion_ops_list_agents(round_filter: str = "") -> dict[str, Any]:
+def scion_ops_list_agents(round_filter: str = "", project_root: str = "") -> dict[str, Any]:
     """List Scion agents from Hub API state, optionally filtered by a round id substring."""
     if round_filter:
         _clean_name(round_filter, "round_filter")
     try:
-        agents, result = _list_agents(round_filter)
+        agents, result = _list_agents(round_filter, project_root)
     except HubAPIError as exc:
         return _hub_error_payload(exc, "list_agents")
     summaries = [_agent_summary(agent) for agent in agents]
@@ -895,21 +959,28 @@ def scion_ops_list_agents(round_filter: str = "") -> dict[str, Any]:
 
 
 @mcp.tool()
-def scion_ops_look(agent_name: str, num_lines: int = 160) -> dict[str, Any]:
+def scion_ops_look(agent_name: str, num_lines: int = 160, project_root: str = "") -> dict[str, Any]:
     """Read terminal output for a Scion agent with `scion look`."""
     agent_name = _clean_name(agent_name, "agent_name")
     num_lines = _clamp(num_lines, 20, 600)
-    return _command_result(_run(
+    args = ["scion"]
+    root = _project_root(project_root) if project_root else None
+    if root:
+        args.extend(["--grove", str(root)])
+    args.extend(
         [
-            "scion",
             "look",
             agent_name,
             "--non-interactive",
             "--plain",
             "--num-lines",
             str(num_lines),
-        ],
+        ]
+    )
+    return _command_result(_run(
+        args,
         timeout=35,
+        cwd=root,
     ))
 
 
@@ -918,13 +989,14 @@ def scion_ops_round_status(
     round_id: str = "",
     include_transcript: bool = True,
     num_lines: int = 120,
+    project_root: str = "",
 ) -> dict[str, Any]:
     """Summarize a consensus round from Hub API state and optionally include the runner tail."""
     if round_id:
         _clean_name(round_id, "round_id")
     num_lines = _clamp(num_lines, 20, 400)
     try:
-        agents, result = _list_agents(round_id)
+        agents, result = _list_agents(round_id, project_root)
     except HubAPIError as exc:
         return _hub_error_payload(exc, "round_status")
     summaries = [_agent_summary(agent) for agent in agents]
@@ -939,7 +1011,7 @@ def scion_ops_round_status(
     )
     transcript: dict[str, Any] | None = None
     if include_transcript and consensus:
-        transcript = scion_ops_look(consensus, num_lines=num_lines)
+        transcript = scion_ops_look(consensus, num_lines=num_lines, project_root=project_root)
     return {
         "ok": result["ok"],
         "source": "hub_api",
@@ -954,12 +1026,17 @@ def scion_ops_round_status(
 
 
 @mcp.tool()
-def scion_ops_round_events(round_id: str, cursor: str = "", include_existing: bool = False) -> dict[str, Any]:
+def scion_ops_round_events(
+    round_id: str,
+    cursor: str = "",
+    include_existing: bool = False,
+    project_root: str = "",
+) -> dict[str, Any]:
     """Read Hub messages/notifications and agent-state changes for a round."""
     round_id = _clean_name(round_id, "round_id")
     previous = _decode_cursor(cursor, round_id)
     try:
-        snapshot = _round_event_snapshot(round_id)
+        snapshot = _round_event_snapshot(round_id, project_root)
     except HubAPIError as exc:
         return _hub_error_payload(exc, "round_events")
     events = _round_events_since(snapshot, previous, include_existing=include_existing)
@@ -986,6 +1063,7 @@ def scion_ops_watch_round_events(
     timeout_seconds: int = 90,
     poll_interval_seconds: int = 2,
     include_existing: bool = False,
+    project_root: str = "",
 ) -> dict[str, Any]:
     """Wait inside the MCP server until a round has new state to report.
 
@@ -1001,7 +1079,7 @@ def scion_ops_watch_round_events(
     previous = _decode_cursor(cursor, round_id)
     if previous is None and not include_existing:
         try:
-            snapshot = _round_event_snapshot(round_id)
+            snapshot = _round_event_snapshot(round_id, project_root)
         except HubAPIError as exc:
             return _hub_error_payload(exc, "watch_round_events")
         previous = {
@@ -1015,7 +1093,7 @@ def scion_ops_watch_round_events(
     last_snapshot: dict[str, Any] | None = None
     while time.monotonic() <= deadline:
         try:
-            snapshot = _round_event_snapshot(round_id)
+            snapshot = _round_event_snapshot(round_id, project_root)
         except HubAPIError as exc:
             return _hub_error_payload(exc, "watch_round_events")
         last_snapshot = snapshot
@@ -1040,7 +1118,7 @@ def scion_ops_watch_round_events(
         time.sleep(poll_interval_seconds)
 
     try:
-        snapshot = last_snapshot or _round_event_snapshot(round_id)
+        snapshot = last_snapshot or _round_event_snapshot(round_id, project_root)
     except HubAPIError as exc:
         return _hub_error_payload(exc, "watch_round_events")
     return {
@@ -1068,19 +1146,24 @@ def scion_ops_start_round(
     max_review_rounds: int = 3,
     base_branch: str = "",
     final_reviewer: str = "",
+    project_root: str = "",
 ) -> dict[str, Any]:
     """Start a detached scion-ops consensus round via `task round`."""
     prompt = prompt.strip()
     if not prompt:
         raise ValueError("prompt is required")
+    target_root = _project_root(project_root) if project_root else _repo_root()
     env: dict[str, str] = {
         "MAX_MINUTES": str(_clamp(max_minutes, 1, 240)),
         "MAX_REVIEW_ROUNDS": str(_clamp(max_review_rounds, 1, 10)),
+        "SCION_OPS_PROJECT_ROOT": str(target_root),
     }
     if round_id:
         env["ROUND_ID"] = _clean_name(round_id, "round_id")
     if base_branch:
         env["BASE_BRANCH"] = _clean_name(base_branch, "base_branch")
+    else:
+        env["BASE_BRANCH"] = _default_base_branch(str(target_root))
     if final_reviewer:
         final_reviewer = final_reviewer.strip().lower()
         if final_reviewer not in {"gemini", "codex"}:
@@ -1095,11 +1178,12 @@ def scion_ops_start_round(
     event_cursor_error: dict[str, Any] | None = None
     if parsed_round_id:
         try:
-            event_cursor = _encode_cursor(_round_event_snapshot(parsed_round_id))
+            event_cursor = _encode_cursor(_round_event_snapshot(parsed_round_id, str(target_root)))
         except HubAPIError as exc:
             event_cursor_error = _hub_error_payload(exc, "start_round_event_cursor")
     return {
         **_command_result(result),
+        "project_root": str(target_root),
         "round_id": parsed_round_id,
         "consensus_agent": runner,
         "event_cursor": event_cursor,
@@ -1113,10 +1197,10 @@ def scion_ops_start_round(
 
 
 @mcp.tool()
-def scion_ops_abort_round(round_id: str, confirm: bool = False) -> dict[str, Any]:
+def scion_ops_abort_round(round_id: str, confirm: bool = False, project_root: str = "") -> dict[str, Any]:
     """Stop and delete Hub agents matching a round id. Requires confirm=true."""
     round_id = _clean_name(round_id, "round_id")
-    client = HubClient()
+    client = HubClient(project_root)
     try:
         agents = client.agents(round_id)
     except HubAPIError as exc:
@@ -1150,12 +1234,13 @@ def scion_ops_abort_round(round_id: str, confirm: bool = False) -> dict[str, Any
 
 
 @mcp.tool()
-def scion_ops_round_artifacts(round_id: str) -> dict[str, Any]:
+def scion_ops_round_artifacts(round_id: str, project_root: str = "") -> dict[str, Any]:
     """Find local branches and agent workspaces associated with a round id."""
     round_id = _clean_name(round_id, "round_id")
+    root = _project_root(project_root) if project_root else _repo_root()
     branch_patterns = sorted({f"*{round_id}*", f"*{round_id.lower()}*"})
-    branch_result = _run(["git", "branch", "--list", *branch_patterns], timeout=15)
-    agents_dir = _repo_root() / ".scion" / "agents"
+    branch_result = _run(["git", "branch", "--list", *branch_patterns], timeout=15, cwd=root)
+    agents_dir = root / ".scion" / "agents"
     workspaces: list[str] = []
     prompts: list[str] = []
     if agents_dir.exists():
@@ -1168,6 +1253,7 @@ def scion_ops_round_artifacts(round_id: str) -> dict[str, Any]:
                 prompts.append(str(prompt))
     return {
         "source": "local_git",
+        "project_root": str(root),
         "branches": [line.strip(" *+") for line in branch_result["output"].splitlines() if line.strip()],
         "workspaces": workspaces,
         "prompts": prompts,
@@ -1176,12 +1262,39 @@ def scion_ops_round_artifacts(round_id: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-def scion_ops_git_status() -> dict[str, Any]:
+def scion_ops_project_status(project_root: str) -> dict[str, Any]:
+    """Resolve a target project path and show its git, grove, and Hub context."""
+    root = _project_root(project_root)
+    status = _run(["git", "status", "--short", "--branch"], timeout=15, cwd=root)
+    branch = _run(["git", "branch", "--show-current"], timeout=10, cwd=root)
+    remote = _run(["git", "remote", "get-url", "origin"], timeout=10, cwd=root)
+    grove_id = _read_text_file(root / ".scion" / "grove-id")
+    hub = _hub_config(root).redacted()
+    return {
+        "ok": status["ok"],
+        "source": "local_git",
+        "project_root": str(root),
+        "branch": branch["output"].strip(),
+        "origin": remote["output"].strip(),
+        "grove_id": grove_id,
+        "hub": hub,
+        "status": _command_result(status),
+        "next": {
+            "bootstrap": "Run `task bootstrap -- <project_root>` from the scion-ops repo if grove_id is empty or preflight fails.",
+            "start_round_tool": "scion_ops_start_round",
+        },
+    }
+
+
+@mcp.tool()
+def scion_ops_git_status(project_root: str = "") -> dict[str, Any]:
     """Show repo status and local round branches."""
-    status = _run(["git", "status", "--short", "--branch"], timeout=15)
-    branches = _run(["git", "branch", "--list", "round-*"], timeout=15)
+    root = _project_root(project_root) if project_root else _repo_root()
+    status = _run(["git", "status", "--short", "--branch"], timeout=15, cwd=root)
+    branches = _run(["git", "branch", "--list", "round-*"], timeout=15, cwd=root)
     return {
         "source": "local_git",
+        "project_root": str(root),
         "status": _command_result(status),
         "round_branches": branches["output"].splitlines(),
         "round_branch_result": _command_result(branches),
@@ -1195,10 +1308,12 @@ def scion_ops_git_diff(
     path_filter: str = "",
     stat_only: bool = False,
     max_output_chars: int = 20000,
+    project_root: str = "",
 ) -> dict[str, Any]:
     """Show a branch diff against a base branch, optionally limited to one path."""
     branch = _clean_name(branch, "branch")
-    base_branch = _clean_name(base_branch, "base_branch") if base_branch else _default_base_branch()
+    root = _project_root(project_root) if project_root else _repo_root()
+    base_branch = _clean_name(base_branch, "base_branch") if base_branch else _default_base_branch(str(root))
     max_output_chars = _clamp(max_output_chars, 1000, 60000)
     args = ["git", "diff"]
     if stat_only:
@@ -1206,12 +1321,13 @@ def scion_ops_git_diff(
     args.append(f"{base_branch}..{branch}")
     if path_filter:
         args.extend(["--", path_filter])
-    result = _run(args, timeout=25)
+    result = _run(args, timeout=25, cwd=root)
     output = result["output"]
     truncated = len(output) > max_output_chars
     return {
         **_command_result(result),
         "source": "local_git",
+        "project_root": str(root),
         "output": output[:max_output_chars],
         "truncated": truncated,
     }

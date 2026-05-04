@@ -13,15 +13,16 @@ Use the top-level lifecycle tasks:
 task x
 task build
 task up
+task bootstrap
 task test
 task down
 ```
 
 `task x` is the day-zero path: build images, create/update the deployment, and
-run the smoke test. `task up` is both deploy and update. It creates or reuses
-the kind cluster, applies base runtime resources, verifies the workspace mount,
-loads local images, applies the control-plane Kustomize target, and waits for
-rollout.
+run the bootstrap and smoke test. `task up` is both deploy and update. It
+creates or reuses the kind cluster, applies base runtime resources, verifies the
+workspace mount, loads local images, applies the control-plane Kustomize target,
+and waits for rollout.
 
 ## Kubernetes Resources
 
@@ -73,8 +74,9 @@ The Hub Deployment runs:
 - an in-cluster Kubernetes runtime profile
 
 The MCP Deployment runs the scion-ops streamable HTTP MCP server and reads Hub
-state through the `scion-hub` ClusterIP service. In local kind, MCP mounts this
-repo via a kind node `extraMount` and Kubernetes `hostPath`.
+state through the `scion-hub` ClusterIP service. In local kind, MCP mounts the
+host workspace tree via a kind node `extraMount` and Kubernetes `hostPath`, so
+tools operate on the mounted git checkout selected by `project_root`.
 
 The broker creates agent pods in `scion-agents` using in-cluster Kubernetes API
 access. It does not use host Podman or Docker sockets.
@@ -89,6 +91,7 @@ After `task up`, use:
 
 ```bash
 eval "$(task kind:hub:auth-export)"
+task bootstrap
 task kind:mcp:smoke
 ```
 
@@ -116,9 +119,23 @@ Useful overrides:
 | `SCION_OPS_KIND_HUB_PORT` | `18090` |
 | `SCION_OPS_KIND_LISTEN_ADDRESS` | `192.168.122.103` |
 | `SCION_OPS_MCP_URL` | `http://192.168.122.103:8765/mcp` |
+| `SCION_OPS_WORKSPACE_HOST_PATH` | `~/workspace` when it contains the scion-ops checkout, otherwise the checkout's parent |
+| `SCION_OPS_WORKSPACE_NODE_PATH` | `/workspace` |
 | `SCION_KIND_CP_SMOKE_KEEP_AGENT` | unset, deletes on success |
 | `SCION_KIND_CP_SMOKE_SKIP_SETUP` | unset, applies kind resources |
 | `SCION_KIND_CP_SMOKE_TIMEOUT` | `90` |
+
+## Project Targeting
+
+The codebase being changed is always the target project. `task bootstrap --
+<project-root>` links that target as a Hub grove and provides the kind broker.
+Shared credentials are stored as Hub-scoped secrets, and scion-ops templates are
+synced as Hub global templates.
+
+The MCP tool contract mirrors that shape: pass `project_root` to
+`scion_ops_project_status`, `scion_ops_start_round`, `scion_ops_round_status`,
+`scion_ops_watch_round_events`, and git diff/status tools when operating on a
+target project.
 
 ## Persistence
 
@@ -131,9 +148,5 @@ Deleting the kind cluster deletes cluster-local Scion state.
 | Broker registration | Hub state for co-located broker | yes |
 | MCP workspace | host checkout mounted into kind node | no |
 | Agent artifacts | agent workspaces and pushed git branches | pod-local state is ephemeral |
-| Subscription credentials | not yet restored into kind Hub | issue #29 |
-| Templates/harness configs | checked-in generic smoke config only by default | issue #29 |
-
-Issue #29 is the required follow-up for remote-safe credential, template, and
-harness bootstrap. Until that lands, do not claim full Claude/Codex/Gemini
-consensus rounds as a complete Kubernetes operation.
+| Subscription credentials | Hub-scoped secrets restored by `task bootstrap` | yes |
+| Templates/harness configs | Hub global templates and Hub harness configs restored by `task bootstrap` | yes |

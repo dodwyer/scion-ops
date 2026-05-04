@@ -26,8 +26,8 @@ directly deployable.
 | namespace | `scion-agents` |
 | runtime service account | `scion-agent-manager` |
 | image registry | `localhost` |
-| workspace host path | current repo checkout |
-| workspace node path | `/workspace/scion-ops` |
+| workspace host path | `~/workspace` when it contains the scion-ops checkout, otherwise the checkout's parent |
+| workspace node path | `/workspace` |
 | Hub host URL | `http://192.168.122.103:18090` |
 | MCP host URL | `http://192.168.122.103:8765/mcp` |
 
@@ -45,9 +45,13 @@ SCION_OPS_KIND_PROVIDER=docker task up
 
 ## Workspace Mount
 
-The kind node is created with an `extraMount` from the host checkout to
-`/workspace/scion-ops`. The MCP Deployment mounts that node path as a
-Kubernetes `hostPath`.
+The kind node is created with an `extraMount` from the host workspace tree to
+`/workspace`. The MCP Deployment mounts that node path as a Kubernetes
+`hostPath` and auto-discovers the scion-ops checkout under it.
+
+This is what lets one MCP server operate on multiple local git checkouts. The
+target repo must be under the mounted host workspace tree; otherwise recreate
+kind with `SCION_OPS_WORKSPACE_HOST_PATH` set to a common parent.
 
 Existing kind clusters cannot be mutated to add the mount. Check it with:
 
