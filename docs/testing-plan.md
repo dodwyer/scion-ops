@@ -7,10 +7,10 @@ The supported verification path is Kubernetes-only.
 Use this sequence for a full local validation:
 
 ```bash
-task build
-task up
-task test
+task x
 ```
+
+`task x` expands to `task build`, `task up`, and `task test`.
 
 `task test` runs `scripts/kind-control-plane-smoke.py`. It verifies:
 
@@ -41,11 +41,11 @@ task kind:mcp:smoke
 task kind:broker:status
 ```
 
-Use port-forwards for direct local inspection:
+Use the kind-native localhost mappings for direct inspection:
 
 ```bash
-task kind:hub:port-forward
-task kind:mcp:port-forward
+eval "$(task kind:hub:auth-export)"
+task kind:mcp:smoke
 ```
 
 ## Static Verification

@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/component: mcp
     app.kubernetes.io/part-of: scion-control-plane
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app.kubernetes.io/name: scion-ops-mcp
     app.kubernetes.io/component: mcp
@@ -15,3 +15,4 @@ spec:
     - name: http
       port: 8765
       targetPort: http
+      nodePort: 30876

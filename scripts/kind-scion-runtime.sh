@@ -13,6 +13,11 @@ IMAGE_REGISTRY="${SCION_IMAGE_REGISTRY:-localhost}"
 MANIFEST_DIR="${SCION_K8S_MANIFEST_DIR:-${REPO_ROOT}/deploy/kind}"
 WORKSPACE_HOST_PATH="${SCION_OPS_WORKSPACE_HOST_PATH:-$REPO_ROOT}"
 WORKSPACE_NODE_PATH="${SCION_OPS_WORKSPACE_NODE_PATH:-/workspace/scion-ops}"
+KIND_LISTEN_ADDRESS="${SCION_OPS_KIND_LISTEN_ADDRESS:-127.0.0.1}"
+HUB_HOST_PORT="${SCION_OPS_KIND_HUB_PORT:-18090}"
+MCP_HOST_PORT="${SCION_OPS_MCP_PORT:-8765}"
+HUB_NODE_PORT="30090"
+MCP_NODE_PORT="30876"
 CONTEXT="kind-${CLUSTER_NAME}"
 
 usage() {
@@ -40,6 +45,10 @@ Environment:
                                  (default: this repo)
   SCION_OPS_WORKSPACE_NODE_PATH  Node path used by future MCP hostPath mounts
                                  (default: /workspace/scion-ops)
+  SCION_OPS_KIND_LISTEN_ADDRESS  Host listen address for kind port mappings
+                                 (default: 127.0.0.1)
+  SCION_OPS_KIND_HUB_PORT        Host port for the Hub service (default: 18090)
+  SCION_OPS_MCP_PORT             Host port for the MCP service (default: 8765)
 EOF
 }
 
@@ -79,6 +88,15 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
 - role: control-plane
+  extraPortMappings:
+  - containerPort: ${HUB_NODE_PORT}
+    hostPort: ${HUB_HOST_PORT}
+    listenAddress: "${KIND_LISTEN_ADDRESS}"
+    protocol: TCP
+  - containerPort: ${MCP_NODE_PORT}
+    hostPort: ${MCP_HOST_PORT}
+    listenAddress: "${KIND_LISTEN_ADDRESS}"
+    protocol: TCP
   extraMounts:
   - hostPath: ${WORKSPACE_HOST_PATH}
     containerPath: ${WORKSPACE_NODE_PATH}
@@ -116,21 +134,60 @@ workspace_mount_present() {
     "$runtime" exec "$node" test -d "${WORKSPACE_NODE_PATH}/.git"
 }
 
+kind_native_ports_present() {
+  local node
+  local runtime
+  local bindings
+
+  node="$(kind_node_name)"
+  [[ -n "$node" ]] || return 1
+  runtime="$(container_runtime_for_node "$node")" || return 1
+  bindings="$("$runtime" container inspect --format '{{json .HostConfig.PortBindings}}' "$node" 2>/dev/null || true)"
+
+  [[ "$bindings" == *"\"${HUB_NODE_PORT}/tcp\""* ]] &&
+    [[ "$bindings" == *"\"${MCP_NODE_PORT}/tcp\""* ]] &&
+    [[ "$bindings" == *"\"HostPort\":\"${HUB_HOST_PORT}\""* ]] &&
+    [[ "$bindings" == *"\"HostPort\":\"${MCP_HOST_PORT}\""* ]]
+}
+
 warn_missing_workspace_mount() {
   cat >&2 <<EOF
 Warning: workspace mount is not available inside kind node ${WORKSPACE_NODE_PATH}.
 Existing kind clusters cannot be updated with new extraMounts. Recreate this
-cluster with 'task kind:down && task kind:up' before deploying a kind-hosted MCP.
+cluster with 'task down' and then 'task up' before deploying scion-ops.
 EOF
+}
+
+warn_missing_kind_native_ports() {
+  cat >&2 <<EOF
+Warning: kind native port mappings are not available on cluster ${CLUSTER_NAME}.
+Existing kind clusters cannot be updated with new extraPortMappings. Recreate
+this cluster with 'task down' and then 'task up'.
+
+Required mappings:
+  ${KIND_LISTEN_ADDRESS}:${HUB_HOST_PORT} -> kind node ${HUB_NODE_PORT} -> scion-hub
+  ${KIND_LISTEN_ADDRESS}:${MCP_HOST_PORT} -> kind node ${MCP_NODE_PORT} -> scion-ops-mcp
+EOF
+}
+
+validate_cluster_substrate() {
+  local missing=0
+  if ! workspace_mount_present; then
+    warn_missing_workspace_mount
+    missing=1
+  fi
+  if ! kind_native_ports_present; then
+    warn_missing_kind_native_ports
+    missing=1
+  fi
+  [[ "$missing" -eq 0 ]] || die "existing kind cluster $CLUSTER_NAME is missing required scion-ops substrate; recreate it with task down and task up"
 }
 
 ensure_cluster() {
   require kind
   if cluster_exists; then
     log "reuse kind cluster $CLUSTER_NAME"
-    if ! workspace_mount_present; then
-      warn_missing_workspace_mount
-    fi
+    validate_cluster_substrate
     return
   fi
 
@@ -195,6 +252,8 @@ cmd_status() {
   printf 'namespace: %s\n' "$NAMESPACE"
   printf 'workspace host: %s\n' "$WORKSPACE_HOST_PATH"
   printf 'workspace node: %s\n\n' "$WORKSPACE_NODE_PATH"
+  printf 'Hub host URL: http://%s:%s\n' "$KIND_LISTEN_ADDRESS" "$HUB_HOST_PORT"
+  printf 'MCP host URL: http://%s:%s/mcp\n\n' "$KIND_LISTEN_ADDRESS" "$MCP_HOST_PORT"
 
   if ! cluster_exists; then
     die "kind cluster $CLUSTER_NAME does not exist"
@@ -210,6 +269,11 @@ cmd_status() {
     printf 'workspace mount: ok\n'
   else
     printf 'workspace mount: unavailable; run task kind:workspace:status for details\n'
+  fi
+  if kind_native_ports_present; then
+    printf 'kind native ports: ok\n'
+  else
+    printf 'kind native ports: unavailable; recreate the cluster with task down and task up\n'
   fi
 }
 

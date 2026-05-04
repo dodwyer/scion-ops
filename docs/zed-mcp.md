@@ -15,10 +15,10 @@ task up
 Expose MCP locally:
 
 ```bash
-task kind:mcp:port-forward
+task up
 ```
 
-The forwarded URL is:
+The local URL is:
 
 ```text
 http://127.0.0.1:8765/mcp
@@ -49,13 +49,12 @@ agent does not start MCP. Kubernetes owns the MCP server process.
 
 ## Remote Workspace
 
-If Zed runs locally and scion-ops runs on a remote host, start the port-forward
+If Zed runs locally and scion-ops runs on a remote host, run the kind deployment
 on the remote host:
 
 ```bash
 cd /home/david/workspace/github/livewyer-ops/scion-ops
 task up
-task kind:mcp:port-forward
 ```
 
 Then tunnel the local port to the remote host:

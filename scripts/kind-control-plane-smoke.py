@@ -196,105 +196,22 @@ def http_ready(endpoint: str) -> bool:
         return False
 
 
-def process_output(process: subprocess.Popen[str]) -> str:
-    if process.stdout is None:
-        return ""
-    try:
-        output, _ = process.communicate(timeout=1)
-        return output or ""
-    except subprocess.TimeoutExpired:
-        return ""
-
-
-def start_port_forward(
-    *,
-    env: dict[str, str],
-    context: str,
-    namespace: str,
-    service: str,
-    local_port: int,
-    remote_port: int,
-) -> subprocess.Popen[str]:
-    args = [
-        "kubectl",
-        "--context",
-        context,
-        "-n",
-        namespace,
-        "port-forward",
-        f"svc/{service}",
-        f"{local_port}:{remote_port}",
-    ]
-    print(f"+ {command_line(args)}", flush=True)
-    return subprocess.Popen(
-        args,
-        cwd=ROOT,
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
-
-
-def stop_process(process: subprocess.Popen[str] | None) -> None:
-    if process is None or process.poll() is not None:
-        return
-    process.terminate()
-    try:
-        process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(timeout=5)
-
-
-def ensure_hub_forward(
-    *,
-    env: dict[str, str],
-    endpoint: str,
-    context: str,
-    namespace: str,
-    allow_start: bool,
-    timeout_seconds: int,
-) -> subprocess.Popen[str] | None:
-    if http_ready(endpoint):
-        log(f"reuse kind Hub at {endpoint}")
-        return None
-    if not allow_start:
-        raise SmokeFailure(
-            "hub_unavailable",
-            f"kind Hub is not reachable at {endpoint}",
-            hint="Start a port-forward:\n  task kind:hub:port-forward",
-        )
-
-    local_port = hub_port(endpoint)
-    log(f"start kind Hub port-forward at {endpoint}")
-    process = start_port_forward(
-        env=env,
-        context=context,
-        namespace=namespace,
-        service="scion-hub",
-        local_port=local_port,
-        remote_port=8090,
-    )
+def ensure_hub_ready(*, endpoint: str, timeout_seconds: int) -> None:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() <= deadline:
-        if process.poll() is not None:
-            raise SmokeFailure(
-                "hub_unavailable",
-                f"kind Hub port-forward exited with {process.returncode}",
-                hint="Check the Hub service:\n  task kind:control-plane:status",
-                output=process_output(process),
-            )
         if http_ready(endpoint):
-            return process
+            log(f"kind Hub is reachable at {endpoint}")
+            return
         time.sleep(0.25)
-    output = process_output(process)
-    stop_process(process)
     raise SmokeFailure(
         "hub_unavailable",
         f"kind Hub was not reachable at {endpoint} within {timeout_seconds}s",
-        hint="Check the Hub service:\n  task kind:control-plane:status",
-        output=output,
+        hint=(
+            "Check native kind port exposure and Hub rollout:\n"
+            "  task kind:status\n"
+            "  task kind:control-plane:status\n"
+            "If this is an old cluster, recreate it with task down and task up."
+        ),
     )
 
 
@@ -485,56 +402,28 @@ async def mcp_hub_status(url: str, *, read_timeout: int = 30) -> dict[str, Any]:
 
 async def ensure_mcp(
     *,
-    env: dict[str, str],
     url: str,
-    context: str,
-    namespace: str,
-    allow_start: bool,
     timeout_seconds: int,
-) -> tuple[subprocess.Popen[str] | None, dict[str, Any]]:
-    try:
-        return None, await mcp_hub_status(url, read_timeout=20)
-    except Exception as first_error:
-        if not allow_start:
-            raise SmokeFailure(
-                "mcp_transport",
-                f"kind MCP is not reachable at {url}: {first_error}",
-                hint="Start a port-forward:\n  task kind:mcp:port-forward",
-            ) from first_error
-
-    parsed = urllib.parse.urlparse(url)
-    local_port = parsed.port or 8765
-    log(f"start kind MCP port-forward at {url}")
-    process = start_port_forward(
-        env=env,
-        context=context,
-        namespace=namespace,
-        service="scion-ops-mcp",
-        local_port=local_port,
-        remote_port=8765,
-    )
+) -> dict[str, Any]:
     deadline = time.monotonic() + timeout_seconds
     last_error: Exception | None = None
     while time.monotonic() <= deadline:
-        if process.poll() is not None:
-            raise SmokeFailure(
-                "mcp_transport",
-                f"kind MCP port-forward exited with {process.returncode}",
-                hint="Check the MCP service:\n  task kind:mcp:status",
-                output=process_output(process),
-            )
         try:
-            return process, await mcp_hub_status(url, read_timeout=20)
+            payload = await mcp_hub_status(url, read_timeout=20)
+            log(f"kind MCP is reachable at {url}")
+            return payload
         except Exception as exc:
             last_error = exc
             await asyncio.sleep(0.5)
-    output = process_output(process)
-    stop_process(process)
     raise SmokeFailure(
         "mcp_transport",
         f"kind MCP was not ready at {url}: {last_error}",
-        hint="Check the MCP service:\n  task kind:mcp:status",
-        output=output,
+        hint=(
+            "Check native kind port exposure and MCP rollout:\n"
+            "  task kind:status\n"
+            "  task kind:mcp:status\n"
+            "If this is an old cluster, recreate it with task down and task up."
+        ),
     )
 
 
@@ -744,11 +633,6 @@ def parser() -> argparse.ArgumentParser:
     parser.add_argument("--skip-template-sync", action="store_false", dest="sync_template")
     parser.add_argument("--skip-mcp", action="store_true")
     parser.add_argument(
-        "--no-port-forward",
-        action="store_true",
-        help="require existing Hub/MCP port-forwards instead of starting temporary ones",
-    )
-    parser.add_argument(
         "--keep-agent",
         action="store_true",
         default=os.environ.get("SCION_KIND_CP_SMOKE_KEEP_AGENT", "").lower()
@@ -773,8 +657,6 @@ async def smoke(args: argparse.Namespace) -> None:
     context = f"kind-{args.cluster}"
     agent = args.agent or f"kind-cp-smoke-{time.strftime('%Y%m%d%H%M%S')}"
     prompt = args.prompt or (DEFAULT_TEMPLATE_PROMPT if args.template else DEFAULT_GENERIC_PROMPT)
-    hub_forward: subprocess.Popen[str] | None = None
-    mcp_forward: subprocess.Popen[str] | None = None
     agent_started = False
     success = False
 
@@ -794,12 +676,8 @@ async def smoke(args: argparse.Namespace) -> None:
             status_task = "kind:hub:status" if args.skip_mcp else "kind:control-plane:status"
             run(["task", status_task], env=env, category="kubernetes", timeout=180)
             ensure_kind_hub_auth(env, endpoint=args.hub)
-            hub_forward = ensure_hub_forward(
-                env=env,
+            ensure_hub_ready(
                 endpoint=args.hub,
-                context=context,
-                namespace=args.namespace,
-                allow_start=not args.no_port_forward,
                 timeout_seconds=args.startup_timeout,
             )
 
@@ -817,12 +695,8 @@ async def smoke(args: argparse.Namespace) -> None:
             verify_broker(env=env, scion_bin=scion_bin, endpoint=args.hub, broker=args.broker)
 
             if not args.skip_mcp:
-                mcp_forward, hub_status = await ensure_mcp(
-                    env=env,
+                hub_status = await ensure_mcp(
                     url=args.mcp_url,
-                    context=context,
-                    namespace=args.namespace,
-                    allow_start=not args.no_port_forward,
                     timeout_seconds=args.startup_timeout,
                 )
                 check_mcp_status(hub_status)
@@ -885,8 +759,6 @@ async def smoke(args: argparse.Namespace) -> None:
                 )
             elif agent_started:
                 print_cleanup(agent, args.hub, context, args.namespace)
-            stop_process(mcp_forward)
-            stop_process(hub_forward)
 
 
 def main() -> int:

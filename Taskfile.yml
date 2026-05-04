@@ -37,6 +37,13 @@ vars:
   SCION_BIN: scion
 
 tasks:
+  x:
+    desc: Build, deploy/update, and smoke test the Kubernetes deployment.
+    cmds:
+      - task: build
+      - task: up
+      - task: test
+
   build:
     desc: Build all Scion images required by the Kubernetes deployment.
     cmds:
@@ -163,10 +170,6 @@ tasks:
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' logs -f deploy/scion-hub
 
-  kind:hub:port-forward:
-    cmds:
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' port-forward svc/scion-hub '{{.SCION_OPS_KIND_HUB_PORT}}':8090
-
   kind:hub:auth-export:
     silent: true
     cmds:
@@ -193,10 +196,6 @@ tasks:
   kind:mcp:logs:
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' logs -f deploy/scion-ops-mcp
-
-  kind:mcp:port-forward:
-    cmds:
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' port-forward svc/scion-ops-mcp '{{.SCION_OPS_MCP_PORT}}':8765
 
   kind:mcp:smoke:
     cmds:

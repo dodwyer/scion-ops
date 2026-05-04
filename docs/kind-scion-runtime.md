@@ -27,6 +27,8 @@ directly deployable.
 | image registry | `localhost` |
 | workspace host path | current repo checkout |
 | workspace node path | `/workspace/scion-ops` |
+| Hub host URL | `http://127.0.0.1:18090` |
+| MCP host URL | `http://127.0.0.1:8765/mcp` |
 
 Override the cluster name with:
 
@@ -52,6 +54,19 @@ If the mount is missing, recreate the local cluster:
 task down
 task up
 ```
+
+## Native Ports
+
+The kind node is also created with `extraPortMappings`:
+
+| Host | kind node | Kubernetes Service |
+|---|---|---|
+| `127.0.0.1:18090` | `30090` | `scion-hub` NodePort |
+| `127.0.0.1:8765` | `30876` | `scion-ops-mcp` NodePort |
+
+Existing kind clusters cannot be mutated to add these mappings. If
+`task kind:status` reports missing kind native ports, recreate the cluster with
+`task down` and `task up`.
 
 ## Images
 
