@@ -137,9 +137,22 @@ The smoke task connects to the configured URL first. If no MCP server responds,
 it starts a temporary local server, lists tools, calls Hub status and agent
 listing, then shuts it down.
 
-For a future kind-hosted MCP deployment, keep Zed configured with a URL but
-point it at the forwarded service endpoint, for example
+For the experimental kind-hosted MCP deployment, keep Zed configured with a URL
+but point it at the forwarded service endpoint, for example
 `http://127.0.0.1:8765/mcp`.
+
+For the experimental kind-hosted MCP slice, start the port-forward with:
+
+```bash
+task kind:mcp:port-forward
+```
+
+In another terminal, smoke test the forwarded service without starting a host
+fallback:
+
+```bash
+task kind:mcp:smoke
+```
 
 ## Remote HTTP By SSH Tunnel
 

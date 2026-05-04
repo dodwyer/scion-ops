@@ -60,3 +60,21 @@ runtime pods.
 
 Exit criteria: for non-local clusters, replace this with a cloned workspace or
 persistent workspace volume managed by explicit bootstrap/restore tasks.
+
+## kind MCP Hub Dev Token Sharing
+
+Issue: #21
+
+Decision: the local kind MCP Deployment mounts the Hub PVC read-only and reads
+the Hub dev-auth token from `/hub-state/dev-token`.
+
+Reason: the current kind Hub slice is intentionally dev-auth based and does not
+yet restore a Kubernetes Secret for Hub auth material. Sharing the generated
+token lets the MCP server use the Hub HTTP API without introducing a separate
+bootstrap system in this slice.
+
+Constraint: this is local-development only. The MCP pod can read Hub state from
+the PVC, so it must be treated as a privileged control-plane component.
+
+Exit criteria: replace PVC token sharing with explicit Secret restore before
+using the kind control plane outside local testing.
