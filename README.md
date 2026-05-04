@@ -46,7 +46,9 @@ kind runs agent pods. The proposed all-in-kind control-plane path is documented
 in `docs/kind-control-plane.md` and should remain Kustomize-first until the
 resource model is proven. The first experimental Hub-only kind slice is applied
 separately with `task kind:control-plane:apply` and verified with
-`task kind:control-plane:status`.
+`task kind:control-plane:status`. New kind clusters also mount this repo into
+the kind node for the future MCP Deployment; verify that substrate with
+`task kind:workspace:status`.
 
 ## Layout
 

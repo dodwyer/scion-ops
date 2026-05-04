@@ -40,3 +40,23 @@ restarts.
 
 Exit criteria: replace dev-only auth/session behavior with Kubernetes Secret
 restore before using the kind control plane outside local testing.
+
+## kind MCP Workspace HostPath
+
+Issue: #15
+
+Decision: local kind clusters mount the host `scion-ops` checkout into the kind
+node with a kind `extraMount`, so a future MCP pod can mount that node path with
+Kubernetes `hostPath`.
+
+Reason: the MCP server needs live repo access for git, task, Scion, and
+artifact inspection. In kind, pod `hostPath` volumes see the node container
+filesystem, so the host checkout must be mounted into the node before any MCP
+Deployment can use it.
+
+Constraint: this is local-kind only and is not an agent workspace pattern. Do
+not use workstation bind mounts for non-kind clusters or for Scion agent
+runtime pods.
+
+Exit criteria: for non-local clusters, replace this with a cloned workspace or
+persistent workspace volume managed by explicit bootstrap/restore tasks.

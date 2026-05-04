@@ -1,7 +1,8 @@
 # kind Control Plane Deployment
 
-Status: first Hub-only slice implemented. Broker and MCP Kubernetes resources
-are still pending.
+Status: first Hub-only slice implemented. The local kind workspace mount
+substrate for a future MCP Deployment is in place. Broker and MCP Kubernetes
+resources are still pending.
 
 This is the path for running the Scion control plane inside the local kind
 cluster. The current default remains host-managed Hub, broker, and MCP with kind
@@ -44,6 +45,7 @@ Apply and verify:
 
 ```bash
 task kind:up
+task kind:workspace:status
 task kind:load-images -- localhost/scion-base:latest
 task kind:control-plane:apply
 task kind:control-plane:status
@@ -93,6 +95,37 @@ OAuth setup. The Deployment overrides the `scion-base` agent entrypoint and
 runs the Hub process directly as UID/GID 1000 because `sciontool init` is for
 agent containers. The web session secret is still auto-generated per pod start
 and is not production-ready.
+
+## MCP Workspace Mount Substrate
+
+The MCP server needs a live `scion-ops` workspace for git, task, Scion, and
+artifact inspection. In kind, a pod `hostPath` volume sees the kind node
+filesystem, not the developer workstation filesystem directly. For local kind
+clusters, `task kind:up` now creates the cluster with a kind `extraMount`:
+
+| Side | Default path |
+|---|---|
+| Host checkout | repo root |
+| kind node | `/workspace/scion-ops` |
+
+The future MCP Deployment can mount the node path as a Kubernetes `hostPath`.
+This is intentionally limited to local kind. For non-kind clusters, use a
+cloned workspace or persistent workspace volume instead of a workstation bind
+mount.
+
+Existing kind clusters cannot be updated with new `extraMounts`. Verify the
+substrate before deploying MCP resources:
+
+```bash
+task kind:workspace:status
+```
+
+If the mount is missing, recreate only the local kind cluster:
+
+```bash
+task kind:down
+task kind:up
+```
 
 ## Relationship To Existing Docs
 
@@ -144,7 +177,7 @@ restore model.
 | Broker credentials | Kubernetes Secret or re-register on bootstrap | Broker must keep or reacquire trust with Hub. |
 | Grove identity | Host repo `.scion/grove-id` plus Hub state | Recreating either side incorrectly can create duplicate grove identity. |
 | Subscription credentials | Kubernetes Secret sourced from host files or external secret store | Claude, Codex, and Gemini auth should not be baked into images. |
-| MCP workspace | HostPath mount for local kind or cloned persistent workspace | MCP tools need repo access for git/task/artifact inspection. |
+| MCP workspace | HostPath mount through the kind node for local kind, or cloned persistent workspace outside kind | MCP tools need repo access for git/task/artifact inspection. |
 | Agent artifacts | Git pushes, explicit sync, or persistent workspace volume | Do not rely on ephemeral agent pod storage for useful work. |
 
 For local development, prefer restoring secrets/configuration from the host
@@ -172,8 +205,9 @@ deploy/kind/
   kustomization.yaml
 ```
 
-The first implementation adds only the Hub resources. Avoid placeholder
-manifests that are not applied by tests.
+The first resource implementation adds only the Hub resources. The workspace
+mount substrate is part of kind cluster creation, not a Kubernetes manifest.
+Avoid placeholder manifests that are not applied by tests.
 
 ## Networking
 
@@ -208,21 +242,22 @@ Key requirements:
 
 1. Add Kustomize resources for Hub and its persistent state. Done for the
    Hub-only slice.
-2. Add MCP deployment with repo/workspace access and HTTP service.
-3. Add broker deployment using in-cluster Kubernetes auth.
-4. Add bootstrap/restore tasks for secrets, grove identity, templates, and
+2. Add local kind workspace mount substrate for MCP repo access. Done.
+3. Add MCP deployment with repo/workspace access and HTTP service.
+4. Add broker deployment using in-cluster Kubernetes auth.
+5. Add bootstrap/restore tasks for secrets, grove identity, templates, and
    broker provide.
-5. Extend `task smoke:e2e` or add a sibling smoke task that validates the
+6. Extend `task smoke:e2e` or add a sibling smoke task that validates the
    kind-hosted control plane.
-6. Consider Helm packaging only after the manifests pass local kind smoke tests
+7. Consider Helm packaging only after the manifests pass local kind smoke tests
    and the required values are clear.
 
 ## Open Questions
 
 - Should local kind use hostPath volumes for Hub/MCP state, or PVCs with backup
   and restore tasks?
-- Should the MCP workspace be a hostPath mount of this repo or a clone inside a
-  persistent volume?
+- Outside local kind, should the MCP workspace be a clone inside a persistent
+  volume or restored through another workspace bootstrap path?
 - Which Hub storage backend should be considered durable enough for local
   recreation?
 - How should the in-kind path restore a stable session/JWT secret before it is

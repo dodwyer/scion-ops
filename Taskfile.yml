@@ -75,6 +75,11 @@ tasks:
     cmds:
       - bash scripts/kind-scion-runtime.sh status
 
+  kind:workspace:status:
+    desc: Verify the kind node can see this repo for future MCP hostPath mounts.
+    cmds:
+      - bash scripts/kind-scion-runtime.sh workspace-status
+
   kind:load-images:
     desc: 'Load local images into kind. Usage: task kind:load-images -- localhost/scion-claude:latest'
     cmds:

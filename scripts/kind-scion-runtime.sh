@@ -2,15 +2,17 @@
 # Manage the local kind cluster used for Scion Kubernetes runtime testing.
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CLUSTER_NAME="${KIND_CLUSTER_NAME:-scion-ops}"
 NAMESPACE="${SCION_K8S_NAMESPACE:-scion-agents}"
 SERVICE_ACCOUNT="${SCION_K8S_SERVICE_ACCOUNT:-scion-agent-manager}"
 PROFILE_NAME="${SCION_K8S_PROFILE:-kind}"
 RUNTIME_NAME="${SCION_K8S_RUNTIME:-kubernetes}"
 IMAGE_REGISTRY="${SCION_IMAGE_REGISTRY:-localhost}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 MANIFEST_DIR="${SCION_K8S_MANIFEST_DIR:-${REPO_ROOT}/deploy/kind}"
+WORKSPACE_HOST_PATH="${SCION_OPS_WORKSPACE_HOST_PATH:-$REPO_ROOT}"
+WORKSPACE_NODE_PATH="${SCION_OPS_WORKSPACE_NODE_PATH:-/workspace/scion-ops}"
 CONTEXT="kind-${CLUSTER_NAME}"
 
 usage() {
@@ -21,6 +23,7 @@ Commands:
   up                  Create/reuse the kind cluster and apply deploy/kind.
   down                Delete the kind cluster.
   status              Show cluster, namespace, RBAC, and node status.
+  workspace-status    Verify the kind node can see the scion-ops workspace.
   load-images IMAGE   Load one or more local images into the kind nodes.
   load-archive FILE   Load one or more image archives into the kind nodes.
   configure-scion     Configure global Scion profile "kind" for this cluster.
@@ -33,6 +36,10 @@ Environment:
   SCION_K8S_PROFILE          Scion profile name (default: kind)
   SCION_K8S_RUNTIME          Scion runtime name (default: kubernetes)
   SCION_IMAGE_REGISTRY       Agent image registry/prefix (default: localhost)
+  SCION_OPS_WORKSPACE_HOST_PATH  Host scion-ops checkout mounted into kind
+                                 (default: this repo)
+  SCION_OPS_WORKSPACE_NODE_PATH  Node path used by future MCP hostPath mounts
+                                 (default: /workspace/scion-ops)
 EOF
 }
 
@@ -57,15 +64,85 @@ kubectl_ctx() {
   kubectl --context "$CONTEXT" "$@"
 }
 
+ensure_workspace_host_path() {
+  [[ "$WORKSPACE_HOST_PATH" = /* ]] || die "SCION_OPS_WORKSPACE_HOST_PATH must be an absolute path: $WORKSPACE_HOST_PATH"
+  [[ "$WORKSPACE_NODE_PATH" = /* ]] || die "SCION_OPS_WORKSPACE_NODE_PATH must be an absolute path: $WORKSPACE_NODE_PATH"
+  [[ -d "$WORKSPACE_HOST_PATH" ]] || die "workspace host path not found: $WORKSPACE_HOST_PATH"
+  [[ -f "${WORKSPACE_HOST_PATH}/Taskfile.yml" ]] || die "workspace host path does not look like scion-ops: $WORKSPACE_HOST_PATH"
+}
+
+create_cluster_config() {
+  local config
+  config="$(mktemp)"
+  cat > "$config" <<EOF
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  extraMounts:
+  - hostPath: ${WORKSPACE_HOST_PATH}
+    containerPath: ${WORKSPACE_NODE_PATH}
+EOF
+  printf '%s\n' "$config"
+}
+
+kind_node_name() {
+  kind get nodes --name "$CLUSTER_NAME" 2>/dev/null | head -n 1
+}
+
+container_runtime_for_node() {
+  local node="$1"
+  local runtime
+
+  for runtime in docker podman; do
+    if command -v "$runtime" >/dev/null 2>&1 && "$runtime" container inspect "$node" >/dev/null 2>&1; then
+      printf '%s\n' "$runtime"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+workspace_mount_present() {
+  local node
+  local runtime
+
+  node="$(kind_node_name)"
+  [[ -n "$node" ]] || return 1
+  runtime="$(container_runtime_for_node "$node")" || return 1
+
+  "$runtime" exec "$node" test -f "${WORKSPACE_NODE_PATH}/Taskfile.yml" &&
+    "$runtime" exec "$node" test -d "${WORKSPACE_NODE_PATH}/.git"
+}
+
+warn_missing_workspace_mount() {
+  cat >&2 <<EOF
+Warning: workspace mount is not available inside kind node ${WORKSPACE_NODE_PATH}.
+Existing kind clusters cannot be updated with new extraMounts. Recreate this
+cluster with 'task kind:down && task kind:up' before deploying a kind-hosted MCP.
+EOF
+}
+
 ensure_cluster() {
   require kind
   if cluster_exists; then
     log "reuse kind cluster $CLUSTER_NAME"
+    if ! workspace_mount_present; then
+      warn_missing_workspace_mount
+    fi
     return
   fi
 
+  ensure_workspace_host_path
   log "create kind cluster $CLUSTER_NAME"
-  kind create cluster --name "$CLUSTER_NAME"
+  local config
+  config="$(create_cluster_config)"
+  if ! kind create cluster --name "$CLUSTER_NAME" --config "$config"; then
+    rm -f "$config"
+    return 1
+  fi
+  rm -f "$config"
 }
 
 apply_manifests() {
@@ -94,6 +171,7 @@ kind cluster ready
 
 Next:
   task kind:configure-scion
+  task kind:workspace:status
   task kind:doctor
 EOF
 }
@@ -114,7 +192,9 @@ cmd_status() {
 
   printf 'cluster:   %s\n' "$CLUSTER_NAME"
   printf 'context:   %s\n' "$CONTEXT"
-  printf 'namespace: %s\n\n' "$NAMESPACE"
+  printf 'namespace: %s\n' "$NAMESPACE"
+  printf 'workspace host: %s\n' "$WORKSPACE_HOST_PATH"
+  printf 'workspace node: %s\n\n' "$WORKSPACE_NODE_PATH"
 
   if ! cluster_exists; then
     die "kind cluster $CLUSTER_NAME does not exist"
@@ -125,6 +205,32 @@ cmd_status() {
   kubectl_ctx get namespace "$NAMESPACE"
   printf '\n'
   kubectl_ctx get serviceaccount,role,rolebinding -n "$NAMESPACE" | grep -E "NAME|${SERVICE_ACCOUNT}|scion-agent-manager"
+  printf '\n\n'
+  if workspace_mount_present; then
+    printf 'workspace mount: ok\n'
+  else
+    printf 'workspace mount: unavailable; run task kind:workspace:status for details\n'
+  fi
+}
+
+cmd_workspace_status() {
+  require kind
+
+  printf 'cluster:        %s\n' "$CLUSTER_NAME"
+  printf 'workspace host: %s\n' "$WORKSPACE_HOST_PATH"
+  printf 'workspace node: %s\n\n' "$WORKSPACE_NODE_PATH"
+
+  if ! cluster_exists; then
+    die "kind cluster $CLUSTER_NAME does not exist; run: task kind:up"
+  fi
+
+  if workspace_mount_present; then
+    printf 'workspace mount: ok\n'
+    return
+  fi
+
+  warn_missing_workspace_mount
+  return 1
 }
 
 cmd_load_images() {
@@ -201,6 +307,10 @@ case "${1:-}" in
   status)
     shift
     cmd_status "$@"
+    ;;
+  workspace-status)
+    shift
+    cmd_workspace_status "$@"
     ;;
   load-images)
     shift
