@@ -22,6 +22,7 @@ SCION_SRC="${HOME}/workspace/github/GoogleCloudPlatform/scion"
 TAG="latest"
 REGISTRY="localhost"
 HARNESSES=(claude codex gemini)   # skip opencode by default to save time/disk
+BUILD_MCP=1
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOCAL_IMG_BUILD="$REPO_ROOT/image-build"
@@ -33,6 +34,7 @@ while [[ $# -gt 0 ]]; do
     --registry)  REGISTRY="$2"; shift 2 ;;
     --harness)   HARNESSES=("$2"); shift 2 ;;
     --all-harnesses) HARNESSES=(claude codex gemini opencode); shift ;;
+    --skip-mcp)  BUILD_MCP=0; shift ;;
     -h|--help)
       cat <<EOF
 Usage: $(basename "$0") [options]
@@ -41,6 +43,7 @@ Usage: $(basename "$0") [options]
   --registry <name>  Image prefix (default: $REGISTRY)
   --harness <name>   Build only this harness (repeatable)
   --all-harnesses    Build claude codex gemini opencode (default: claude codex gemini)
+  --skip-mcp         Do not build the scion-ops MCP image
 EOF
       exit 0
       ;;
@@ -88,6 +91,13 @@ for h in "${HARNESSES[@]}"; do
         "$harness_dir" \
         --build-arg "BASE_IMAGE=${REGISTRY}/scion-base:${TAG}"
 done
+
+if [[ "$BUILD_MCP" == "1" ]]; then
+  build "scion-ops-mcp" \
+        "$LOCAL_IMG_BUILD/scion-ops-mcp/Dockerfile" \
+        "$LOCAL_IMG_BUILD/scion-ops-mcp" \
+        --build-arg "BASE_IMAGE=${REGISTRY}/scion-base:${TAG}"
+fi
 
 green ""
 green "All images built."

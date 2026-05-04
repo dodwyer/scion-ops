@@ -6,3 +6,5 @@ resources:
   - hub-pvc.yaml
   - hub-service.yaml
   - hub-deployment.yaml
+  - mcp-service.yaml
+  - mcp-deployment.yaml

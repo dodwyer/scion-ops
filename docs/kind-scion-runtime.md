@@ -135,6 +135,7 @@ Load the images into kind:
 ```bash
 task kind:load-images -- \
   localhost/scion-base:latest \
+  localhost/scion-ops-mcp:latest \
   localhost/scion-claude:latest \
   localhost/scion-codex:latest \
   localhost/scion-gemini:latest

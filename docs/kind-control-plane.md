@@ -1,7 +1,6 @@
 # kind Control Plane Deployment
 
-Status: first Hub-only slice implemented. The local kind workspace mount
-substrate for a future MCP Deployment is in place. Broker and MCP Kubernetes
+Status: Hub and MCP slices implemented for local kind. Broker Kubernetes
 resources are still pending.
 
 This is the path for running the Scion control plane inside the local kind
@@ -28,11 +27,12 @@ host:
   optional restore/bootstrap scripts
 ```
 
-## Implemented Hub Slice
+## Implemented Hub And MCP Slices
 
-The first slice adds a separate Kustomize target under
-`deploy/kind/control-plane` for a Hub/Web process only. It is not included by
-`task kind:up`, so the existing host-managed Hub workflow stays the default.
+The control-plane slices add a separate Kustomize target under
+`deploy/kind/control-plane` for Hub/Web and the scion-ops HTTP MCP server. It
+is not included by `task kind:up`, so the existing host-managed Hub workflow
+stays the default.
 
 Resources:
 
@@ -40,19 +40,21 @@ Resources:
 - `deploy/kind/control-plane/hub-config.yaml`
 - `deploy/kind/control-plane/hub-service.yaml`
 - `deploy/kind/control-plane/hub-pvc.yaml`
+- `deploy/kind/control-plane/mcp-deployment.yaml`
+- `deploy/kind/control-plane/mcp-service.yaml`
 
 Apply and verify:
 
 ```bash
 task kind:up
 task kind:workspace:status
-task kind:load-images -- localhost/scion-base:latest
+task kind:load-images -- localhost/scion-base:latest localhost/scion-ops-mcp:latest
 task kind:control-plane:apply
 task kind:control-plane:status
 ```
 
-If `localhost/scion-base:latest` has not been built locally, build it first
-with `task images:build` and then load it into kind.
+If the images have not been built locally, build them first with
+`task images:build` and then load them into kind.
 
 The Hub-specific task names remain available as narrow aliases:
 
@@ -60,6 +62,15 @@ The Hub-specific task names remain available as narrow aliases:
 task kind:hub:apply
 task kind:hub:status
 task kind:hub:logs
+```
+
+MCP-specific status, logs, and port-forward helpers are also available:
+
+```bash
+task kind:mcp:status
+task kind:mcp:logs
+task kind:mcp:port-forward
+task kind:mcp:smoke
 ```
 
 To inspect the Hub HTTP endpoint from the host, use a local-only port-forward:
@@ -108,10 +119,9 @@ clusters, `task kind:up` now creates the cluster with a kind `extraMount`:
 | Host checkout | repo root |
 | kind node | `/workspace/scion-ops` |
 
-The future MCP Deployment can mount the node path as a Kubernetes `hostPath`.
-This is intentionally limited to local kind. For non-kind clusters, use a
-cloned workspace or persistent workspace volume instead of a workstation bind
-mount.
+The MCP Deployment mounts the node path as a Kubernetes `hostPath`. This is
+intentionally limited to local kind. For non-kind clusters, use a cloned
+workspace or persistent workspace volume instead of a workstation bind mount.
 
 Existing kind clusters cannot be updated with new `extraMounts`. Verify the
 substrate before deploying MCP resources:
@@ -126,6 +136,13 @@ If the mount is missing, recreate only the local kind cluster:
 task kind:down
 task kind:up
 ```
+
+The MCP image is `localhost/scion-ops-mcp:latest`. It is built from
+`image-build/scion-ops-mcp/Dockerfile` on top of `scion-base`, adding `task`
+and the Python MCP dependencies while running the server from the mounted
+workspace. The Deployment reads Hub state through the `scion-hub` ClusterIP
+service and reads the local dev-auth token from the Hub PVC mounted read-only at
+`/hub-state`.
 
 ## Relationship To Existing Docs
 
@@ -177,7 +194,8 @@ restore model.
 | Broker credentials | Kubernetes Secret or re-register on bootstrap | Broker must keep or reacquire trust with Hub. |
 | Grove identity | Host repo `.scion/grove-id` plus Hub state | Recreating either side incorrectly can create duplicate grove identity. |
 | Subscription credentials | Kubernetes Secret sourced from host files or external secret store | Claude, Codex, and Gemini auth should not be baked into images. |
-| MCP workspace | HostPath mount through the kind node for local kind, or cloned persistent workspace outside kind | MCP tools need repo access for git/task/artifact inspection. |
+| MCP workspace | HostPath mount through the kind node for local kind, or cloned persistent workspace outside kind | MCP tools need repo access for git/task/artifact inspection. The local kind MCP mount is read-write. |
+| MCP Hub auth | Read-only view of Hub PVC dev token for local kind, restored Secret outside kind | The current local slice depends on Hub dev auth and is not production-ready. |
 | Agent artifacts | Git pushes, explicit sync, or persistent workspace volume | Do not rely on ephemeral agent pod storage for useful work. |
 
 For local development, prefer restoring secrets/configuration from the host
@@ -194,20 +212,21 @@ deploy/kind/
   namespace.yaml
   rbac.yaml
   control-plane/
+    hub-config.yaml
     hub-deployment.yaml
     hub-service.yaml
     hub-pvc.yaml
-    broker-deployment.yaml
-    broker-rbac.yaml
     mcp-deployment.yaml
     mcp-service.yaml
+    broker-deployment.yaml
+    broker-rbac.yaml
     kustomization.yaml
   kustomization.yaml
 ```
 
-The first resource implementation adds only the Hub resources. The workspace
-mount substrate is part of kind cluster creation, not a Kubernetes manifest.
-Avoid placeholder manifests that are not applied by tests.
+Implemented resources are Hub and MCP only. The workspace mount substrate is
+part of kind cluster creation, not a Kubernetes manifest. Avoid placeholder
+manifests that are not applied by tests.
 
 ## Networking
 
@@ -220,7 +239,13 @@ The MCP server should keep using HTTP transport. Zed can then connect through a
 port-forwarded localhost URL:
 
 ```bash
-kubectl --context kind-scion-ops -n scion-agents port-forward svc/scion-ops-mcp 8765:8765
+task kind:mcp:port-forward
+```
+
+In another terminal, smoke test the forwarded service:
+
+```bash
+task kind:mcp:smoke
 ```
 
 ## Broker Constraints
@@ -243,7 +268,8 @@ Key requirements:
 1. Add Kustomize resources for Hub and its persistent state. Done for the
    Hub-only slice.
 2. Add local kind workspace mount substrate for MCP repo access. Done.
-3. Add MCP deployment with repo/workspace access and HTTP service.
+3. Add MCP deployment with repo/workspace access and HTTP service. Done for the
+   local kind slice.
 4. Add broker deployment using in-cluster Kubernetes auth.
 5. Add bootstrap/restore tasks for secrets, grove identity, templates, and
    broker provide.

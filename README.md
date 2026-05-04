@@ -46,8 +46,10 @@ kind runs agent pods. The proposed all-in-kind control-plane path is documented
 in `docs/kind-control-plane.md` and should remain Kustomize-first until the
 resource model is proven. The first experimental Hub-only kind slice is applied
 separately with `task kind:control-plane:apply` and verified with
-`task kind:control-plane:status`. New kind clusters also mount this repo into
-the kind node for the future MCP Deployment; verify that substrate with
+`task kind:control-plane:status`. The experimental kind-hosted MCP service uses
+the same control-plane target; expose it locally with
+`task kind:mcp:port-forward`. New kind clusters mount this repo into the kind
+node for the MCP Deployment; verify that substrate with
 `task kind:workspace:status`.
 
 ## Layout
@@ -55,7 +57,7 @@ the kind node for the future MCP Deployment; verify that substrate with
 - `.scion/templates/` — agent role definitions, including `consensus-runner`
 - `CLAUDE.md` — agent guidance and project engineering standards
 - `KNOWNISSUES.md` — intentional exceptions and risks to revisit
-- `deploy/kind/` — native Kubernetes resources for the local kind runtime and experimental Hub control plane
+- `deploy/kind/` — native Kubernetes resources for the local kind runtime and experimental Hub/MCP control plane
 - `docs/kind-control-plane.md` — proposed Kustomize path for running Hub, broker, and MCP in kind
 - `docs/kind-broker-runtime.md` — broker registration and kind profile workflow
 - `docs/local-hub-mode.md` — local Hub/Web/Broker workstation workflow
