@@ -40,10 +40,11 @@ vars:
 
 tasks:
   x:
-    desc: Build, deploy/update, and smoke test the Kubernetes deployment.
+    desc: Build, deploy/update, bootstrap, and smoke test the Kubernetes deployment.
     cmds:
       - task: build
       - task: up
+      - task: bootstrap
       - task: test
 
   build:
@@ -64,6 +65,11 @@ tasks:
     desc: Smoke test the Kubernetes-hosted Hub, broker, MCP, and agent runtime.
     cmds:
       - task kind:control-plane:smoke -- {{.CLI_ARGS}}
+
+  bootstrap:
+    desc: Restore Hub secrets, harness configs, and templates for rounds.
+    cmds:
+      - task kind:bootstrap -- {{.CLI_ARGS}}
 
   round:
     desc: Start a Scion consensus round after Kubernetes Hub credential bootstrap.
@@ -198,6 +204,14 @@ tasks:
     cmds:
       - PYTHONDONTWRITEBYTECODE=1 uv run scripts/smoke-mcp-server.py --transport http --url '{{.SCION_OPS_MCP_URL}}'
 
+  kind:bootstrap:
+    cmds:
+      - bash scripts/kind-bootstrap.sh {{.CLI_ARGS}}
+
+  kind:round:preflight:
+    cmds:
+      - bash scripts/kind-round-preflight.sh {{.CLI_ARGS}}
+
   kind:doctor:
     cmds:
       - '{{.SCION_BIN}} doctor --profile kind'
@@ -223,3 +237,4 @@ tasks:
       - git diff --check
       - task --list
       - python3 -c "import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in ('mcp_servers/scion_ops.py', 'scripts/kind-control-plane-smoke.py', 'scripts/smoke-mcp-server.py')]"
+      - bash -n scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh orchestrator/run-round.sh orchestrator/round.sh

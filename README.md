@@ -3,10 +3,8 @@
 Kubernetes-only operating layer for running dueling Scion agents against a
 Scion Hub, co-located Runtime Broker, HTTP MCP server, and agent pods.
 
-The supported deployment target is Kubernetes. For local development this repo
-uses `kind` with Podman as the default provider; host workstation Hub, host
-broker, local-only Scion, and stdio MCP workflows are no longer supported
-project modes.
+The supported deployment target is Kubernetes. Local development uses `kind`
+with Podman as the default provider.
 
 ## Quickstart
 
@@ -15,9 +13,10 @@ upstream Scion checkout at `~/workspace/github/GoogleCloudPlatform/scion` unless
 you pass `task build -- --src <path>`.
 
 ```bash
-task x          # build, create/update, deploy, and smoke test
+task x          # build, create/update, bootstrap, deploy, and smoke test
 task build      # build all Scion and scion-ops images
 task up         # create/update kind and apply the Kubernetes control plane
+task bootstrap  # restore Hub credentials, harness configs, and templates
 task test       # smoke test Hub, broker, MCP, and Kubernetes agent dispatch
 task down       # destroy the local kind deployment
 ```
@@ -27,11 +26,10 @@ cluster, base runtime resources, image loading, and control-plane Kustomize
 target. Hidden aliases `task deploy`, `task update`, and `task destroy` map to
 the same lifecycle operations for agents that use those words.
 
-The current smoke test dispatches the checked-in no-auth generic smoke config
-through the kind-hosted Hub and co-located broker. Subscription-backed Claude,
-Codex, and Gemini consensus rounds remain the next bootstrap step in issue #29:
-credentials, harness configs, and templates must be restored into the
-Kubernetes-hosted Hub without relying on host-local upload paths.
+`task bootstrap` is the default credential and template restore path. It links
+the target repo as a Hub grove, provides the kind broker, stores shared
+subscription credentials as Hub secrets, and syncs the scion-ops templates from
+inside the Hub pod so host-local upload paths are not used.
 
 ## Kubernetes Shape
 
@@ -43,11 +41,11 @@ kind cluster:
     PVC-backed Scion state
   scion-ops-mcp Deployment
     streamable HTTP MCP server
-    mounted scion-ops workspace
+    mounted host workspace tree
   Scion agent pods
 
 host:
-  repo checkout
+  repo checkout and target project checkouts
   container image build source
   kind native host ports for Hub and Zed
 ```
@@ -94,12 +92,21 @@ Smoke test the HTTP service with `task kind:mcp:smoke`. See `docs/zed-mcp.md`.
 - `orchestrator/` — consensus round launcher and agent utilities
 - `rubric/` — reviewer prompt and verdict schema
 - `scripts/build-images.sh` — image build helper
+- `scripts/kind-bootstrap.sh` — Hub credential, harness, and template restore
 - `scripts/kind-scion-runtime.sh` — kind substrate helper
 - `scripts/kind-control-plane-smoke.py` — Kubernetes control-plane smoke
 
 ## Rounds
 
-`task round -- "prompt"` remains the intended one-line product operation for a
-full consensus round. Do not treat it as complete for subscription-backed
-Kubernetes operation until issue #29 restores Claude, Codex, Gemini credentials,
-templates, and harness configs into the Kubernetes-hosted Hub.
+`task round -- "prompt"` starts a consensus round against the selected target
+project. Bootstrap the target once, then pass its project root when starting a
+round from the scion-ops checkout:
+
+```bash
+task bootstrap -- /home/david/workspace/github/example/project
+SCION_OPS_PROJECT_ROOT=/home/david/workspace/github/example/project task round -- "prompt"
+```
+
+The MCP tool `scion_ops_start_round` accepts the same target as `project_root`.
+Agents work from the target repo's Hub grove and branch context; uncommitted
+local work is not included unless it is committed or pushed before the round.

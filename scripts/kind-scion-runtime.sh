@@ -11,8 +11,27 @@ PROFILE_NAME="${SCION_K8S_PROFILE:-kind}"
 RUNTIME_NAME="${SCION_K8S_RUNTIME:-kubernetes}"
 IMAGE_REGISTRY="${SCION_IMAGE_REGISTRY:-localhost}"
 MANIFEST_DIR="${SCION_K8S_MANIFEST_DIR:-${REPO_ROOT}/deploy/kind}"
-WORKSPACE_HOST_PATH="${SCION_OPS_WORKSPACE_HOST_PATH:-$REPO_ROOT}"
-WORKSPACE_NODE_PATH="${SCION_OPS_WORKSPACE_NODE_PATH:-/workspace/scion-ops}"
+DEFAULT_WORKSPACE_HOST_PATH="${HOME}/workspace"
+case "$REPO_ROOT" in
+  "$DEFAULT_WORKSPACE_HOST_PATH"|"$DEFAULT_WORKSPACE_HOST_PATH"/*) ;;
+  *) DEFAULT_WORKSPACE_HOST_PATH="$(dirname "$REPO_ROOT")" ;;
+esac
+if [[ ! -d "$DEFAULT_WORKSPACE_HOST_PATH" ]]; then
+  DEFAULT_WORKSPACE_HOST_PATH="$(dirname "$REPO_ROOT")"
+fi
+WORKSPACE_HOST_PATH="${SCION_OPS_WORKSPACE_HOST_PATH:-$DEFAULT_WORKSPACE_HOST_PATH}"
+WORKSPACE_NODE_PATH="${SCION_OPS_WORKSPACE_NODE_PATH:-/workspace}"
+case "$REPO_ROOT" in
+  "$WORKSPACE_HOST_PATH")
+    SCION_OPS_REPO_NODE_PATH="${SCION_OPS_REPO_NODE_PATH:-$WORKSPACE_NODE_PATH}"
+    ;;
+  "$WORKSPACE_HOST_PATH"/*)
+    SCION_OPS_REPO_NODE_PATH="${SCION_OPS_REPO_NODE_PATH:-${WORKSPACE_NODE_PATH}/${REPO_ROOT#"$WORKSPACE_HOST_PATH"/}}"
+    ;;
+  *)
+    SCION_OPS_REPO_NODE_PATH="${SCION_OPS_REPO_NODE_PATH:-${WORKSPACE_NODE_PATH}/scion-ops}"
+    ;;
+esac
 KIND_PROVIDER="${KIND_EXPERIMENTAL_PROVIDER:-${SCION_OPS_KIND_PROVIDER:-podman}}"
 KIND_CLUSTER_CONFIG_TEMPLATE="${SCION_OPS_KIND_CLUSTER_CONFIG_TEMPLATE:-${REPO_ROOT}/deploy/kind/cluster.yaml.tpl}"
 KIND_LISTEN_ADDRESS="${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}"
@@ -45,10 +64,14 @@ Environment:
   SCION_K8S_PROFILE          Scion profile name (default: kind)
   SCION_K8S_RUNTIME          Scion runtime name (default: kubernetes)
   SCION_IMAGE_REGISTRY       Agent image registry/prefix (default: localhost)
-  SCION_OPS_WORKSPACE_HOST_PATH  Host scion-ops checkout mounted into kind
-                                 (default: this repo)
-  SCION_OPS_WORKSPACE_NODE_PATH  Node path used by future MCP hostPath mounts
-                                 (default: /workspace/scion-ops)
+  SCION_OPS_WORKSPACE_HOST_PATH  Host workspace tree mounted into kind
+                                 (default: ~/workspace when it contains the
+                                 scion-ops checkout, otherwise the checkout's
+                                 parent)
+  SCION_OPS_WORKSPACE_NODE_PATH  Node path for the mounted workspace tree
+                                 (default: /workspace)
+  SCION_OPS_REPO_NODE_PATH       scion-ops repo path inside the kind node
+                                 (default: derived from host/node paths)
   SCION_OPS_KIND_PROVIDER        kind provider when KIND_EXPERIMENTAL_PROVIDER
                                  is unset (default: podman)
   SCION_OPS_KIND_CLUSTER_CONFIG_TEMPLATE
@@ -84,8 +107,12 @@ kubectl_ctx() {
 ensure_workspace_host_path() {
   [[ "$WORKSPACE_HOST_PATH" = /* ]] || die "SCION_OPS_WORKSPACE_HOST_PATH must be an absolute path: $WORKSPACE_HOST_PATH"
   [[ "$WORKSPACE_NODE_PATH" = /* ]] || die "SCION_OPS_WORKSPACE_NODE_PATH must be an absolute path: $WORKSPACE_NODE_PATH"
+  [[ "$SCION_OPS_REPO_NODE_PATH" = /* ]] || die "SCION_OPS_REPO_NODE_PATH must be an absolute path: $SCION_OPS_REPO_NODE_PATH"
   [[ -d "$WORKSPACE_HOST_PATH" ]] || die "workspace host path not found: $WORKSPACE_HOST_PATH"
-  [[ -f "${WORKSPACE_HOST_PATH}/Taskfile.yml" ]] || die "workspace host path does not look like scion-ops: $WORKSPACE_HOST_PATH"
+  case "$REPO_ROOT" in
+    "$WORKSPACE_HOST_PATH"|"$WORKSPACE_HOST_PATH"/*) ;;
+    *) die "SCION_OPS_WORKSPACE_HOST_PATH must contain the scion-ops checkout: $WORKSPACE_HOST_PATH" ;;
+  esac
 }
 
 yaml_dq_escape() {
@@ -152,8 +179,8 @@ workspace_mount_present() {
   [[ -n "$node" ]] || return 1
   runtime="$(container_runtime_for_node "$node")" || return 1
 
-  "$runtime" exec "$node" test -f "${WORKSPACE_NODE_PATH}/Taskfile.yml" &&
-    "$runtime" exec "$node" test -d "${WORKSPACE_NODE_PATH}/.git"
+  "$runtime" exec "$node" test -f "${SCION_OPS_REPO_NODE_PATH}/Taskfile.yml" &&
+    "$runtime" exec "$node" test -d "${SCION_OPS_REPO_NODE_PATH}/.git"
 }
 
 kind_native_ports_present() {
@@ -178,6 +205,11 @@ warn_missing_workspace_mount() {
 Warning: workspace mount is not available inside kind node ${WORKSPACE_NODE_PATH}.
 Existing kind clusters cannot be updated with new extraMounts. Recreate this
 cluster with 'task down' and then 'task up' before deploying scion-ops.
+
+Expected:
+  host workspace path: ${WORKSPACE_HOST_PATH}
+  node workspace path: ${WORKSPACE_NODE_PATH}
+  scion-ops node path: ${SCION_OPS_REPO_NODE_PATH}
 EOF
 }
 
@@ -275,7 +307,8 @@ cmd_status() {
   printf 'namespace: %s\n' "$NAMESPACE"
   printf 'provider:  %s\n' "$KIND_PROVIDER"
   printf 'workspace host: %s\n' "$WORKSPACE_HOST_PATH"
-  printf 'workspace node: %s\n\n' "$WORKSPACE_NODE_PATH"
+  printf 'workspace node: %s\n' "$WORKSPACE_NODE_PATH"
+  printf 'scion-ops node: %s\n\n' "$SCION_OPS_REPO_NODE_PATH"
   printf 'Hub host URL: http://%s:%s\n' "$KIND_LISTEN_ADDRESS" "$HUB_HOST_PORT"
   printf 'MCP host URL: http://%s:%s/mcp\n\n' "$KIND_LISTEN_ADDRESS" "$MCP_HOST_PORT"
 
@@ -306,7 +339,8 @@ cmd_workspace_status() {
 
   printf 'cluster:        %s\n' "$CLUSTER_NAME"
   printf 'workspace host: %s\n' "$WORKSPACE_HOST_PATH"
-  printf 'workspace node: %s\n\n' "$WORKSPACE_NODE_PATH"
+  printf 'workspace node: %s\n' "$WORKSPACE_NODE_PATH"
+  printf 'scion-ops node: %s\n\n' "$SCION_OPS_REPO_NODE_PATH"
 
   if ! cluster_exists; then
     die "kind cluster $CLUSTER_NAME does not exist; run: task kind:up"

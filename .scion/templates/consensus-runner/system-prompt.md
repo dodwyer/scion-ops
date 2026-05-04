@@ -87,14 +87,13 @@ The audit file is a working artifact. It does not need to be committed.
 
 1. Initialize `state/<round_id>.json`.
 2. Spawn both implementers in parallel:
-   - Claude: `scion start <claude_impl> --type impl-claude --branch <claude_impl> --harness-auth auth-file --non-interactive --notify "<implementation task>"`
-   - Codex: `scion start <codex_impl> --type impl-codex --branch <codex_impl> --harness-auth auth-file --non-interactive --notify "<implementation task>"`
+   - Claude: `scion start <claude_impl> --type impl-claude --branch <claude_impl> --no-auth --no-upload --non-interactive --notify "<implementation task>"`
+   - Codex: `scion start <codex_impl> --type impl-codex --branch <codex_impl> --harness-auth auth-file --no-upload --non-interactive --notify "<implementation task>"`
 3. Wait for both implementers to reach `completed`. Use `sciontool status blocked` while waiting. Inspect failed or stalled agents with `scion look`.
 4. For each review round up to `max_review_rounds`:
    - Create review snapshot branches with `git branch -f <snapshot_branch> <implementation_branch>`.
-   - Spawn `reviewer-claude` on the Codex snapshot branch.
-   - Spawn `reviewer-codex` on the Claude snapshot branch.
-   - Use `--harness-auth auth-file` for both reviewer starts.
+   - Spawn `reviewer-claude` on the Codex snapshot branch with `--no-auth --no-upload`.
+   - Spawn `reviewer-codex` on the Claude snapshot branch with `--harness-auth auth-file --no-upload`.
    - Include your coordinator agent name in each review prompt and require the reviewer to send its `verdict.json` back to you with `scion message`.
    - Collect both JSON verdicts from Scion messages or visible terminal output.
    - Append the verdicts to `state/<round_id>.json`.
@@ -102,13 +101,13 @@ The audit file is a working artifact. It does not need to be committed.
    - If consensus is not reached, send only blocking issues back to the relevant implementer. If the implementer stopped, resume it first with `scion resume <agent> --non-interactive`, then message the feedback with `--notify`.
 5. If no consensus after the maximum review rounds, set audit status `escalate`, report the blocking issues, mark the Scion task completed as escalated, and stop.
 6. Pick the winner by highest final-round score: `correctness + completeness`. On a tie, prefer a branch whose tests passed; if still tied, choose Claude.
-7. Create or reset local branch `round-<round_id>-integration` from the winner branch. Spawn the integrator using the winner's implementation template on that integration branch, with `--harness-auth auth-file`. Instruct it to:
+7. Create or reset local branch `round-<round_id>-integration` from the winner branch. Spawn the integrator using the winner's implementation template on that integration branch. Use `--no-auth --no-upload` if the winner is Claude; use `--harness-auth auth-file --no-upload` if the winner is Codex. Instruct it to:
    - inspect the loser branch for useful ideas,
    - apply agreed reviewer feedback,
    - run tests,
    - commit,
    - push `round-<round_id>-integration`.
-8. Create `round-<round_id>-final-review-snapshot` from `round-<round_id>-integration`, then spawn the final reviewer on that snapshot branch with `--harness-auth auth-file`.
+8. Create `round-<round_id>-final-review-snapshot` from `round-<round_id>-integration`, then spawn the final reviewer on that snapshot branch with `--harness-auth auth-file --no-upload`.
    - If `final_reviewer` is missing or exactly `gemini`, first start `final-reviewer-gemini`.
    - If `final_reviewer` is exactly `codex`, start `final-reviewer-codex`.
    - Do not start `final-reviewer-codex` when `final_reviewer` is `gemini` unless a previous `final-reviewer-gemini` start command failed because the template, harness, image, or auth file was unavailable.
@@ -143,10 +142,12 @@ When spawning or messaging implementers, require:
 - `git push -u origin HEAD` when `origin` is configured,
 - `sciontool status task_completed "<summary>"`.
 
-All child agents must be started with `--harness-auth auth-file` so Claude uses
-the `CLAUDE_AUTH` subscription credential file, Codex uses the `CODEX_AUTH`
-subscription credential file, and Gemini uses the `GEMINI_OAUTH_CREDS` personal
-OAuth credential file provisioned by the Hub.
+Claude child agents must be started with `--no-auth --no-upload` so the Claude
+CLI reads the Hub-projected `CLAUDE_AUTH` subscription file at
+`~/.claude/.credentials.json`. Codex and Gemini child agents must be started
+with `--harness-auth auth-file --no-upload` so Scion selects the Hub-projected
+`CODEX_AUTH` and `GEMINI_OAUTH_CREDS` subscription credential files. Templates
+are pre-synced by `task bootstrap`; do not upload templates during a round.
 
 ## Final Review Requirements
 

@@ -10,7 +10,9 @@ Use this sequence for a full local validation:
 task x
 ```
 
-`task x` expands to `task build`, `task up`, and `task test`.
+`task x` expands to `task build`, `task up`, `task bootstrap`, and `task test`.
+The bootstrap step restores shared Hub credentials, harness configs, and
+templates before a round is started.
 
 `task test` runs `scripts/kind-control-plane-smoke.py`. It verifies:
 
@@ -61,8 +63,7 @@ recreate the Kubernetes cluster.
 
 ## Known Test Gap
 
-The Kubernetes smoke intentionally uses the checked-in generic no-auth smoke
-config. It does not prove Claude, Codex, or Gemini subscription-backed
-consensus rounds. That is blocked on issue #29, which must restore credentials,
-templates, and harness configs into the Kubernetes-hosted Hub without
-host-local upload paths.
+The Kubernetes smoke still uses the checked-in generic no-auth smoke config, so
+it proves broker dispatch and MCP readiness without spending subscription model
+usage. The next full validation is a short `scion_ops_start_round` call against
+a clean target branch after `task bootstrap` passes.

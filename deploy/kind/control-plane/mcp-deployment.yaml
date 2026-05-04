@@ -31,6 +31,14 @@ spec:
             - -ec
           args:
             - |
+              if [ ! -f "${SCION_OPS_ROOT}/Taskfile.yml" ]; then
+                for candidate in /workspace/scion-ops /workspace/*/scion-ops /workspace/*/*/scion-ops /workspace/*/*/*/scion-ops; do
+                  if [ -f "${candidate}/Taskfile.yml" ] && [ -f "${candidate}/mcp_servers/scion_ops.py" ]; then
+                    export SCION_OPS_ROOT="${candidate}"
+                    break
+                  fi
+                done
+              fi
               export SCION_GROVE_ID="${SCION_GROVE_ID:-$(cat "${SCION_OPS_ROOT}/.scion/grove-id" 2>/dev/null || true)}"
               export SCION_OPS_GROVE_ID="${SCION_OPS_GROVE_ID:-$SCION_GROVE_ID}"
               git config --global --add safe.directory "${SCION_OPS_ROOT}" >/dev/null 2>&1 || true
@@ -46,6 +54,10 @@ spec:
               value: /bin/zsh
             - name: SCION_OPS_ROOT
               value: /workspace/scion-ops
+            - name: SCION_OPS_HOST_WORKSPACE_ROOT
+              value: /home/david/workspace
+            - name: SCION_OPS_CONTAINER_WORKSPACE_ROOT
+              value: /workspace
             - name: SCION_OPS_MCP_TRANSPORT
               value: streamable-http
             - name: SCION_OPS_MCP_HOST
@@ -87,14 +99,14 @@ spec:
               memory: 1Gi
           volumeMounts:
             - name: workspace
-              mountPath: /workspace/scion-ops
+              mountPath: /workspace
             - name: hub-state
               mountPath: /hub-state
               readOnly: true
       volumes:
         - name: workspace
           hostPath:
-            path: /workspace/scion-ops
+            path: /workspace
             type: Directory
         - name: hub-state
           persistentVolumeClaim:
