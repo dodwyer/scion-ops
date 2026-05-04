@@ -97,3 +97,26 @@ to loopback inside the Hub pod and is not exposed as a Kubernetes Service.
 
 Exit criteria: add a separate broker Deployment only after the project has an
 explicit broker credential restore or registration bootstrap flow.
+
+## kind Hub Local Storage Uploads
+
+Issue: #27
+
+Decision: the kind control-plane smoke uses an inline `generic` harness config
+for its no-auth agent instead of uploading grove templates or harness configs by
+default.
+
+Reason: the current kind Hub uses Scion local storage on the Hub PVC. When the
+host CLI talks to that Hub through a port-forward, template and harness-config
+sync can receive pod-local upload paths such as `/home/scion/.scion/storage/...`
+that are not writable or meaningful from the host. That is acceptable for the
+host-managed workstation Hub, but it is not a good remote-Hub bootstrap pattern.
+
+Constraint: custom grove templates and harness configs are opt-in in the kind
+smoke via `--sync-template` and `--sync-harness-config`; use those only with a
+Hub storage backend that supports remote uploads, or with a future in-cluster
+bootstrap/restore task.
+
+Exit criteria: replace the inline generic smoke fallback with normal template
+and harness-config bootstrap after kind Hub state uses a remote-upload-capable
+storage path or Scion exposes an in-cluster bootstrap workflow.
