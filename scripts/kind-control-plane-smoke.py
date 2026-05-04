@@ -43,7 +43,7 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 EXPORT_RE = re.compile(r"^export\s+([A-Za-z_][A-Za-z0-9_]*)=(.*)$")
 IMAGE_HINT = (
     "Build and load the smoke agent image, then retry:\n"
-    "  task images:build -- --harness claude\n"
+    "  task build -- --harness claude\n"
     "  task kind:load-images -- localhost/scion-base:latest localhost/scion-claude:latest"
 )
 
@@ -378,7 +378,10 @@ def bootstrap_grove(
             ],
             env=env,
             category="hub_state",
-            hint=f"Prepare local harness config first:\n  task hub:prepare-{harness}-harness",
+            hint=(
+                "Remote-safe harness bootstrap is not implemented yet; "
+                "use the inline generic smoke or complete issue #29."
+            ),
             timeout=120,
         )
 
@@ -728,7 +731,7 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         default=os.environ.get("SCION_KIND_CP_SMOKE_SYNC_HARNESS_CONFIG", "").lower()
         in {"1", "true", "yes", "on"},
-        help="also sync the selected template's default harness config",
+        help="also sync the selected template's default harness config; requires a remote-safe Hub storage path",
     )
     parser.add_argument("--skip-harness-sync", action="store_false", dest="sync_harness_config")
     parser.add_argument(

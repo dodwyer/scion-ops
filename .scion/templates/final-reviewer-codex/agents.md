@@ -40,7 +40,7 @@ The verdict JSON must have this shape:
 - Use `--format json` when you need machine-readable output.
 - Use `--notify` when messaging agents so progress returns through Scion.
 - Do not use `--global`; stay inside the current grove.
-- Do not use `--no-hub` unless the task explicitly asks for local-only debugging.
+- Do not use `--no-hub`; scion-ops supports Hub-backed Kubernetes operation only.
 - Do not inspect or modify `.scion` internals unless your task is specifically about Scion configuration.
 
 ## Messages

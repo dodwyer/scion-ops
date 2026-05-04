@@ -1,30 +1,20 @@
-# Local kind Runtime
+# kind Runtime Substrate
 
-This project uses `kind` as the local Kubernetes target for Scion agent runtime
-testing. In the current default workflow, kind runs agent pods while Hub,
-broker, and MCP stay on the host. The proposed all-in-kind control-plane path
-is documented separately in `docs/kind-control-plane.md`.
+`kind` is the supported local Kubernetes substrate for scion-ops. It runs the
+base namespace/RBAC, the Scion control plane, MCP, and Scion agent pods.
 
-## Responsibility Split
+## Base Resources
 
-Scion does not bootstrap the local Kubernetes substrate for us. Once configured
-with a Kubernetes runtime, Scion creates and manages agent runtime objects such
-as pods and secrets in the configured namespace. This project is responsible for
-the local setup around that runtime: the kind cluster, namespace, and minimum
-RBAC needed by Scion.
-
-These manifests are intentionally native Kustomize resources. Do not move this
-path to Helm unless the kind control-plane resource model has stabilized and we
-need packaged install/upgrade behavior.
-
-Those Kubernetes resources live in `deploy/kind` and are directly deployable:
+`deploy/kind` contains the base namespace and RBAC needed by Scion's Kubernetes
+runtime:
 
 ```bash
 kubectl --context kind-scion-ops apply -k deploy/kind
 ```
 
-`task kind:up` creates or reuses the kind cluster, then applies that
-kustomization. The helper script should not contain embedded Kubernetes YAML.
+`task up` applies these resources before applying `deploy/kind/control-plane`.
+The helper script does not embed Kubernetes YAML; resources remain native and
+directly deployable.
 
 ## Defaults
 
@@ -32,131 +22,77 @@ kustomization. The helper script should not contain embedded Kubernetes YAML.
 |---|---|
 | kind cluster | `scion-ops` |
 | kubectl context | `kind-scion-ops` |
-| agent namespace | `scion-agents` |
-| RBAC service account | `scion-agent-manager` |
-| Scion profile | `kind` |
-| Scion runtime | `kubernetes` |
+| namespace | `scion-agents` |
+| runtime service account | `scion-agent-manager` |
 | image registry | `localhost` |
 | workspace host path | current repo checkout |
 | workspace node path | `/workspace/scion-ops` |
 
-Override the cluster name with an environment variable:
+Override the cluster name with:
 
 ```bash
-KIND_CLUSTER_NAME=scion-dev task kind:up
+KIND_CLUSTER_NAME=scion-dev task up
 ```
 
-For a different namespace or service account, create a kustomize overlay and
-run with matching `SCION_K8S_MANIFEST_DIR`, `SCION_K8S_NAMESPACE`, and
-`SCION_K8S_SERVICE_ACCOUNT` values.
+## Workspace Mount
 
-## Create the Cluster
+The kind node is created with an `extraMount` from the host checkout to
+`/workspace/scion-ops`. The MCP Deployment mounts that node path as a
+Kubernetes `hostPath`.
 
-Prerequisites:
-
-- `kind`
-- `kubectl`
-- `yq` for `task kind:configure-scion`
+Existing kind clusters cannot be mutated to add the mount. Check it with:
 
 ```bash
-task kind:up
-```
-
-The task is idempotent. It creates the cluster if missing, reuses it if present,
-applies the `deploy/kind` Kubernetes resources, and sets the kind context
-namespace.
-
-New clusters are created with a kind `extraMount` that exposes this repo inside
-the kind control-plane node at `/workspace/scion-ops`. That node path is the
-substrate a future kind-hosted MCP Deployment can mount with a Kubernetes
-`hostPath` volume. Existing kind clusters cannot be mutated to add this mount;
-if `task kind:workspace:status` reports it missing, recreate the cluster with
-`task kind:down && task kind:up`.
-
-Override the mount paths when needed:
-
-```bash
-SCION_OPS_WORKSPACE_HOST_PATH=/home/david/workspace/github/livewyer-ops/scion-ops \
-SCION_OPS_WORKSPACE_NODE_PATH=/workspace/scion-ops \
-task kind:up
-```
-
-Check the result:
-
-```bash
-task kind:status
 task kind:workspace:status
-kubectl --context kind-scion-ops get pods -n scion-agents
 ```
 
-## Configure Scion Diagnostics
-
-Configure a global Scion profile named `kind`. This step uses `yq` because the
-current `scion config set` command does not support nested runtime/profile
-keys:
+If the mount is missing, recreate the local cluster:
 
 ```bash
-task kind:configure-scion
+task down
+task up
 ```
 
-This writes:
+## Images
 
-```yaml
-image_registry: localhost
-runtimes:
-  kubernetes:
-    type: kubernetes
-    context: kind-scion-ops
-    namespace: scion-agents
-profiles:
-  kind:
-    runtime: kubernetes
-```
-
-Run Scion's Kubernetes diagnostics:
+Build all images:
 
 ```bash
-task kind:doctor
+task build
 ```
 
-This validates cluster connectivity, namespace access, pod permissions,
-`pods/exec`, pod logs, and secret permissions.
+`task up` loads the expected local image tags into kind:
 
-## Load Agent Images
-
-Build the Scion images locally:
-
-```bash
-task images:build
+```text
+localhost/scion-base:latest
+localhost/scion-ops-mcp:latest
+localhost/scion-claude:latest
+localhost/scion-codex:latest
+localhost/scion-gemini:latest
 ```
 
-Load the images into kind:
-
-```bash
-task kind:load-images -- \
-  localhost/scion-base:latest \
-  localhost/scion-ops-mcp:latest \
-  localhost/scion-claude:latest \
-  localhost/scion-codex:latest \
-  localhost/scion-gemini:latest
-```
-
-If the images were built with Podman but your kind provider cannot see them as
-Docker images, export archives and load those instead:
+If your kind provider cannot read locally built images directly, `task up`
+falls back to exporting matching Podman images as temporary archives. You can
+still load a specific archive manually with the implementation helper:
 
 ```bash
 podman save localhost/scion-claude:latest -o /tmp/scion-claude.tar
 task kind:load-archive -- /tmp/scion-claude.tar
 ```
 
-For repeated local development, a local registry can replace `kind load`. If
-the all-in-kind control plane adopts a registry, document it in
-`docs/kind-control-plane.md` as part of the persistence/bootstrap model.
+## Diagnostics
 
-## Cleanup
+The top-level check is:
 
 ```bash
-task kind:down
+task test
 ```
 
-This deletes the kind cluster named by `KIND_CLUSTER_NAME`.
+Lower-level Kubernetes checks remain available for debugging:
+
+```bash
+task kind:status
+task kind:control-plane:status
+task kind:mcp:status
+task kind:broker:status
+```
