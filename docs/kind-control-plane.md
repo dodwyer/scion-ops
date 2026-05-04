@@ -64,6 +64,8 @@ The Hub/broker-specific task names remain available as narrow aliases:
 task kind:hub:apply
 task kind:hub:status
 task kind:hub:logs
+task kind:hub:port-forward
+eval "$(task kind:hub:auth-export)"
 task kind:broker:status
 task kind:broker:logs
 ```
@@ -80,12 +82,19 @@ task kind:mcp:smoke
 To inspect the Hub HTTP endpoint from the host, use a local-only port-forward:
 
 ```bash
-kubectl --context kind-scion-ops -n scion-agents port-forward svc/scion-hub 18090:8090
+task kind:hub:port-forward
+```
+
+In another terminal, export the matching endpoint and dev-auth token:
+
+```bash
+eval "$(task kind:hub:auth-export)"
 curl http://127.0.0.1:18090/healthz
 ```
 
 The Service is ClusterIP-only. There is no host port binding unless the
-port-forward is running.
+port-forward is running. Override the local port with
+`SCION_OPS_KIND_HUB_PORT`.
 
 Remove the experimental control-plane resources with:
 

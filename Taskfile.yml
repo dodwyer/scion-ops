@@ -15,6 +15,10 @@ vars:
     sh: printf '%s' "${HUB_WEB_PORT:-8090}"
   HUB_ENDPOINT:
     sh: printf '%s' "${HUB_ENDPOINT:-${SCION_HUB_ENDPOINT:-http://127.0.0.1:${HUB_WEB_PORT:-8090}}}"
+  SCION_OPS_KIND_HUB_PORT:
+    sh: printf '%s' "${SCION_OPS_KIND_HUB_PORT:-18090}"
+  SCION_OPS_KIND_HUB_URL:
+    sh: printf 'http://127.0.0.1:%s' "${SCION_OPS_KIND_HUB_PORT:-18090}"
   KIND_CLUSTER_NAME:
     sh: printf '%s' "${KIND_CLUSTER_NAME:-scion-ops}"
   KIND_CONTEXT:
@@ -142,6 +146,21 @@ tasks:
     desc: Follow logs from the experimental kind Hub deployment.
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' logs -f deploy/scion-hub
+
+  kind:hub:port-forward:
+    desc: Forward the experimental kind Hub service to localhost.
+    cmds:
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' port-forward svc/scion-hub '{{.SCION_OPS_KIND_HUB_PORT}}':8090
+
+  kind:hub:auth-export:
+    desc: Print host export lines for the port-forwarded experimental kind Hub.
+    silent: true
+    cmds:
+      - |
+        token="$(kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' exec deploy/scion-hub -c hub -- cat /home/scion/.scion/dev-token)"
+        printf 'export SCION_HUB_ENDPOINT=%s\n' '{{.SCION_OPS_KIND_HUB_URL}}'
+        printf 'export HUB_ENDPOINT=%s\n' '{{.SCION_OPS_KIND_HUB_URL}}'
+        printf 'export SCION_DEV_TOKEN=%s\n' "$token"
 
   kind:broker:status:
     desc: Show the co-located Runtime Broker status inside the experimental kind Hub pod.

@@ -47,9 +47,11 @@ in `docs/kind-control-plane.md` and should remain Kustomize-first until the
 resource model is proven. The experimental kind control-plane runs Hub/Web with
 a co-located Runtime Broker plus the HTTP MCP service. Apply it separately with
 `task kind:control-plane:apply` and verify it with
-`task kind:control-plane:status`. Expose the kind-hosted MCP service locally with
-`task kind:mcp:port-forward`. New kind clusters mount this repo into the kind
-node for the MCP Deployment; verify that substrate with
+`task kind:control-plane:status`. Expose the kind-hosted Hub and MCP services
+locally with `task kind:hub:port-forward` and `task kind:mcp:port-forward`.
+Use `eval "$(task kind:hub:auth-export)"` for host CLI auth against the
+port-forwarded kind Hub. New kind clusters mount this repo into the kind node
+for the MCP Deployment; verify that substrate with
 `task kind:workspace:status`.
 
 ## Layout
