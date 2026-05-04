@@ -1,8 +1,9 @@
 # Local kind Runtime
 
-This project uses `kind` as the local Kubernetes target for Scion runtime
-testing. This is the substrate for later Hub/Broker work: issue #1 only creates
-the cluster, namespace, RBAC, and image-loading path.
+This project uses `kind` as the local Kubernetes target for Scion agent runtime
+testing. In the current default workflow, kind runs agent pods while Hub,
+broker, and MCP stay on the host. The proposed all-in-kind control-plane path
+is documented separately in `docs/kind-control-plane.md`.
 
 ## Responsibility Split
 
@@ -11,6 +12,10 @@ with a Kubernetes runtime, Scion creates and manages agent runtime objects such
 as pods and secrets in the configured namespace. This project is responsible for
 the local setup around that runtime: the kind cluster, namespace, and minimum
 RBAC needed by Scion.
+
+These manifests are intentionally native Kustomize resources. Do not move this
+path to Helm unless the kind control-plane resource model has stabilized and we
+need packaged install/upgrade behavior.
 
 Those Kubernetes resources live in `deploy/kind` and are directly deployable:
 
@@ -125,8 +130,9 @@ podman save localhost/scion-claude:latest -o /tmp/scion-claude.tar
 task kind:load-archive -- /tmp/scion-claude.tar
 ```
 
-For repeated local development, a local registry can replace `kind load`, but
-that should be introduced with the broker/runtime issue if we need it.
+For repeated local development, a local registry can replace `kind load`. If
+the all-in-kind control plane adopts a registry, document it in
+`docs/kind-control-plane.md` as part of the persistence/bootstrap model.
 
 ## Cleanup
 

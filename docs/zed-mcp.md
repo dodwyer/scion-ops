@@ -9,6 +9,11 @@ For Hub mode, prefer streamable HTTP. It keeps one long-lived MCP service
 attached to the `scion-ops` workspace and lets Zed, Claude, Codex, or a tunnel
 connect by URL.
 
+The examples below assume the current default deployment: Hub, broker, and MCP
+run on the host or remote host that owns the workspace. If MCP later runs inside
+kind, use the same Zed URL shape but expose it through the service/port-forward
+described in `docs/kind-control-plane.md`.
+
 ## Choose A Mode
 
 | Mode | Zed config | Who starts the MCP server | Best fit |
@@ -18,6 +23,7 @@ connect by URL.
 | Remote HTTP URL | `url` | Remote supervisor starts MCP behind network controls | Shared or always-on remote setup |
 | Local stdio | `command` and `args` | Zed launches `uv run .../scion_ops.py` | Everything runs on one machine |
 | SSH stdio | `command` and `args` running `ssh` | Zed launches local `ssh`; SSH launches remote MCP | No long-lived HTTP service |
+| kind-hosted HTTP URL | `url` | Kubernetes runs MCP; user starts port-forward or ingress | Proposed all-in-kind path |
 
 In all modes, the external agent does not independently discover or start this
 MCP server. Zed reads `context_servers`, connects to the configured MCP server,
@@ -130,6 +136,10 @@ task mcp:http:smoke
 The smoke task connects to the configured URL first. If no MCP server responds,
 it starts a temporary local server, lists tools, calls Hub status and agent
 listing, then shuts it down.
+
+For a future kind-hosted MCP deployment, keep Zed configured with a URL but
+point it at the forwarded service endpoint, for example
+`http://127.0.0.1:8765/mcp`.
 
 ## Remote HTTP By SSH Tunnel
 
