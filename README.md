@@ -49,6 +49,8 @@ resource model is proven.
 ## Layout
 
 - `.scion/templates/` — agent role definitions, including `consensus-runner`
+- `CLAUDE.md` — agent guidance and project engineering standards
+- `KNOWNISSUES.md` — intentional exceptions and risks to revisit
 - `deploy/kind/` — native Kubernetes resources for the local kind runtime
 - `docs/kind-control-plane.md` — proposed Kustomize path for running Hub, broker, and MCP in kind
 - `docs/kind-broker-runtime.md` — broker registration and kind profile workflow

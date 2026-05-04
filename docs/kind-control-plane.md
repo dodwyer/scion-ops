@@ -56,6 +56,14 @@ premature chart values/API design, and matches the existing project preference
 for native deployable resources. Helm can package the result later if we need a
 versioned install/upgrade interface.
 
+This is an intentional exception to the general project standard that
+Kubernetes resources are typically packaged with Helm. It is documented in
+`KNOWNISSUES.md` and remains valid only while the local kind control-plane
+configuration stays small, native, and reproducible from this repo.
+
+If the deployment needs a chart, console-applied Helm releases should be
+managed through a helmfile.
+
 ## Persistence Model
 
 Deleting and recreating the kind cluster deletes any state that lives only in
