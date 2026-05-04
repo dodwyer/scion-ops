@@ -78,3 +78,22 @@ the PVC, so it must be treated as a privileged control-plane component.
 
 Exit criteria: replace PVC token sharing with explicit Secret restore before
 using the kind control plane outside local testing.
+
+## kind Co-Located Broker First
+
+Issue: #23
+
+Decision: the first in-kind Runtime Broker slice runs inside the Hub pod by
+enabling Scion's co-located Hub+broker server mode.
+
+Reason: a separate broker Deployment needs a reliable HMAC credential bootstrap
+or restore path before it can join Hub mode safely. The co-located Scion server
+path already creates the broker record and broker secret in Hub state, which is
+enough for the local kind control plane to prove Kubernetes runtime access
+without custom registration plumbing.
+
+Constraint: this is a local-development control-plane shape. The broker binds
+to loopback inside the Hub pod and is not exposed as a Kubernetes Service.
+
+Exit criteria: add a separate broker Deployment only after the project has an
+explicit broker credential restore or registration bootstrap flow.

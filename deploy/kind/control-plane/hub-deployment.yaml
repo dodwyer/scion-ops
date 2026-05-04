@@ -19,6 +19,7 @@ spec:
         app.kubernetes.io/component: hub
         app.kubernetes.io/part-of: scion-control-plane
     spec:
+      serviceAccountName: scion-control-plane
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
@@ -35,6 +36,8 @@ spec:
               value: scion
             - name: LOGNAME
               value: scion
+            - name: KUBECONFIG
+              value: /home/scion/.kube/config
           args:
             - --global
             - server
@@ -43,6 +46,7 @@ spec:
             - --production
             - --enable-hub
             - --enable-web
+            - --enable-runtime-broker
             - --dev-auth
             - --host
             - 0.0.0.0
@@ -60,6 +64,8 @@ spec:
           ports:
             - name: http
               containerPort: 8090
+            - name: broker
+              containerPort: 9800
           readinessProbe:
             httpGet:
               path: /healthz
@@ -86,6 +92,9 @@ spec:
               mountPath: /home/scion/.scion/settings.yaml
               subPath: settings.yaml
               readOnly: true
+            - name: kubeconfig
+              mountPath: /home/scion/.kube
+              readOnly: true
       volumes:
         - name: state
           persistentVolumeClaim:
@@ -93,3 +102,6 @@ spec:
         - name: settings
           configMap:
             name: scion-hub-settings
+        - name: kubeconfig
+          configMap:
+            name: scion-broker-kubeconfig

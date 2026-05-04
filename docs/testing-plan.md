@@ -6,7 +6,8 @@ trusting the full local Hub-mode stack.
 This plan covers the current default: host-managed Hub, broker, and MCP with
 kind used as the Kubernetes agent runtime. The experimental all-in-kind control
 plane is documented in `docs/kind-control-plane.md`; it should get its own
-smoke task once the broker resources are implemented.
+dispatch smoke once the co-located broker path is promoted beyond rollout
+checks.
 
 ## Layer Checks
 
@@ -47,18 +48,21 @@ HTTP MCP transport and Hub-backed tool surface:
 task mcp:http:smoke
 ```
 
-For the experimental kind-hosted Hub/MCP path, mirror the HTTP MCP check with:
+For the experimental kind-hosted Hub/broker/MCP path, mirror the HTTP MCP check with:
 
 ```bash
 task kind:workspace:status
 task kind:control-plane:apply
 task kind:control-plane:status
+task kind:broker:status
 task kind:mcp:port-forward
 task kind:mcp:smoke
 ```
 
 Run `task kind:mcp:smoke` in a second terminal while the port-forward is active.
-The kind-hosted broker dispatch remains a follow-up.
+The kind control plane now starts a co-located Runtime Broker in the Hub pod.
+A kind-hosted dispatch smoke remains a follow-up because it needs a dedicated
+bootstrap flow for grove linking, templates, and restored agent credentials.
 
 ## End-To-End Smoke
 
