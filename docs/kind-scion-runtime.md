@@ -37,6 +37,8 @@ kustomization. The helper script should not contain embedded Kubernetes YAML.
 | Scion profile | `kind` |
 | Scion runtime | `kubernetes` |
 | image registry | `localhost` |
+| workspace host path | current repo checkout |
+| workspace node path | `/workspace/scion-ops` |
 
 Override the cluster name with an environment variable:
 
@@ -64,10 +66,26 @@ The task is idempotent. It creates the cluster if missing, reuses it if present,
 applies the `deploy/kind` Kubernetes resources, and sets the kind context
 namespace.
 
+New clusters are created with a kind `extraMount` that exposes this repo inside
+the kind control-plane node at `/workspace/scion-ops`. That node path is the
+substrate a future kind-hosted MCP Deployment can mount with a Kubernetes
+`hostPath` volume. Existing kind clusters cannot be mutated to add this mount;
+if `task kind:workspace:status` reports it missing, recreate the cluster with
+`task kind:down && task kind:up`.
+
+Override the mount paths when needed:
+
+```bash
+SCION_OPS_WORKSPACE_HOST_PATH=/home/david/workspace/github/livewyer-ops/scion-ops \
+SCION_OPS_WORKSPACE_NODE_PATH=/workspace/scion-ops \
+task kind:up
+```
+
 Check the result:
 
 ```bash
 task kind:status
+task kind:workspace:status
 kubectl --context kind-scion-ops get pods -n scion-agents
 ```
 
