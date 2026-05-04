@@ -90,6 +90,23 @@ tasks:
     cmds:
       - bash scripts/kind-scion-runtime.sh configure-scion
 
+  kind:hub:apply:
+    desc: Apply the experimental Hub-only kind control-plane resources.
+    cmds:
+      - kubectl --context '{{.KIND_CONTEXT}}' apply -f deploy/kind/namespace.yaml
+      - kubectl --context '{{.KIND_CONTEXT}}' apply -k deploy/kind/control-plane
+
+  kind:hub:status:
+    desc: Wait for the experimental kind Hub rollout and show its resources.
+    cmds:
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-hub --timeout=120s
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' get deploy,svc,pvc,cm -l app.kubernetes.io/part-of=scion-control-plane
+
+  kind:hub:logs:
+    desc: Follow logs from the experimental kind Hub deployment.
+    cmds:
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' logs -f deploy/scion-hub
+
   kind:doctor:
     desc: Run Scion diagnostics against the local kind runtime profile.
     cmds:

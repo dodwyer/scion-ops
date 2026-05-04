@@ -1,11 +1,11 @@
 # kind Control Plane Deployment
 
-Status: design only. No Hub, broker, or MCP Kubernetes manifests are added by
-this document.
+Status: first Hub-only slice implemented. Broker and MCP Kubernetes resources
+are still pending.
 
-This is the proposed path for running the Scion control plane inside the local
-kind cluster. The current default remains host-managed Hub, broker, and MCP
-with kind used only for agent pods.
+This is the path for running the Scion control plane inside the local kind
+cluster. The current default remains host-managed Hub, broker, and MCP with kind
+used only for agent pods.
 
 ## Direction
 
@@ -26,6 +26,56 @@ host:
   subscription credentials
   optional restore/bootstrap scripts
 ```
+
+## Implemented Hub Slice
+
+The first slice adds a separate Kustomize target under
+`deploy/kind/control-plane` for a Hub/Web process only. It is not included by
+`task kind:up`, so the existing host-managed Hub workflow stays the default.
+
+Resources:
+
+- `deploy/kind/control-plane/hub-deployment.yaml`
+- `deploy/kind/control-plane/hub-config.yaml`
+- `deploy/kind/control-plane/hub-service.yaml`
+- `deploy/kind/control-plane/hub-pvc.yaml`
+
+Apply and verify:
+
+```bash
+task kind:up
+task kind:load-images -- localhost/scion-base:latest
+task kind:hub:apply
+task kind:hub:status
+```
+
+If `localhost/scion-base:latest` has not been built locally, build it first
+with `task images:build` and then load it into kind.
+
+To inspect the Hub HTTP endpoint from the host, use a local-only port-forward:
+
+```bash
+kubectl --context kind-scion-ops -n scion-agents port-forward svc/scion-hub 18090:8090
+curl http://127.0.0.1:18090/healthz
+```
+
+The Service is ClusterIP-only. There is no host port binding unless the
+port-forward is running.
+
+The Hub stores its mutable global Scion directory, SQLite database, dev token,
+templates, and local storage directory on the `scion-hub-state` PVC. The
+minimal `settings.yaml` comes from the `scion-hub-settings` ConfigMap so the
+required `image_registry: localhost` setting is reproducible from this repo.
+Deleting the kind cluster deletes the PVC-backed state.
+
+This first slice intentionally runs `scion --global server start` in explicit
+component mode with `--production --enable-hub --enable-web --dev-auth`:
+production mode prevents workstation defaults from starting the broker
+automatically, while dev auth keeps the local kind deployment usable without
+OAuth setup. The Deployment overrides the `scion-base` agent entrypoint and
+runs the Hub process directly as UID/GID 1000 because `sciontool init` is for
+agent containers. The web session secret is still auto-generated per pod start
+and is not production-ready.
 
 ## Relationship To Existing Docs
 
@@ -83,10 +133,11 @@ restore model.
 For local development, prefer restoring secrets/configuration from the host
 rather than treating kind as the durable source of truth.
 
-## Proposed Resource Layout
+## Resource Layout
 
-Keep resources under `deploy/kind` so the current `task kind:up` path remains
-the single apply point:
+Keep resources under `deploy/kind`. The experimental control-plane target is
+separate from the current `task kind:up` target until the full all-in-kind path
+has passed smoke tests:
 
 ```text
 deploy/kind/
@@ -104,8 +155,8 @@ deploy/kind/
   kustomization.yaml
 ```
 
-The first implementation should add only resources that can be validated in the
-local kind cluster. Avoid placeholder manifests that are not applied by tests.
+The first implementation adds only the Hub resources. Avoid placeholder
+manifests that are not applied by tests.
 
 ## Networking
 
@@ -138,7 +189,8 @@ Key requirements:
 
 ## Phased Implementation
 
-1. Add Kustomize resources for Hub and its persistent state.
+1. Add Kustomize resources for Hub and its persistent state. Done for the
+   Hub-only slice.
 2. Add MCP deployment with repo/workspace access and HTTP service.
 3. Add broker deployment using in-cluster Kubernetes auth.
 4. Add bootstrap/restore tasks for secrets, grove identity, templates, and
@@ -156,5 +208,5 @@ Key requirements:
   persistent volume?
 - Which Hub storage backend should be considered durable enough for local
   recreation?
-- Should dev auth remain local-only, or should the in-kind path require a
-  production-style session/JWT secret from the start?
+- How should the in-kind path restore a stable session/JWT secret before it is
+  used beyond local development?

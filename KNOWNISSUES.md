@@ -22,3 +22,21 @@ helmfile rather than ad hoc `helm install` commands.
 
 Exit criteria: Kustomize remains acceptable only while the control-plane config
 can stay simple, native, and reproducible from this repo.
+
+## kind Hub Dev Auth
+
+Issue: #15
+
+Decision: the first in-kind Hub slice runs `scion server start` with explicit
+Hub/Web components and dev auth enabled.
+
+Reason: `--production` prevents workstation defaults from starting extra
+components, while `--dev-auth` keeps the local kind Hub usable before OAuth,
+broker credentials, and secret restore are implemented.
+
+Constraint: this is local-development only. The web session secret is
+auto-generated on pod start, so browser sessions do not survive Hub pod
+restarts.
+
+Exit criteria: replace dev-only auth/session behavior with Kubernetes Secret
+restore before using the kind control plane outside local testing.

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: scion-hub
+  labels:
+    app.kubernetes.io/name: scion-hub
+    app.kubernetes.io/component: hub
+    app.kubernetes.io/part-of: scion-control-plane
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: scion-hub
+    app.kubernetes.io/component: hub
+  ports:
+    - name: http
+      port: 8090
+      targetPort: http
