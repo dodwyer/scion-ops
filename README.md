@@ -45,6 +45,7 @@ To advertise the kind Kubernetes runtime through the local broker, run
 
 - `.scion/templates/` — agent role definitions, including `consensus-runner`
 - `deploy/kind/` — native Kubernetes resources for the local kind runtime
+- `docs/kind-control-plane.md` — proposed Kustomize path for running Hub/Broker/MCP in kind
 - `docs/kind-broker-runtime.md` — broker registration and kind profile workflow
 - `docs/local-hub-mode.md` — local Hub/Web/Broker workstation workflow
 - `docs/testing-plan.md` — layer checks and end-to-end smoke workflow
