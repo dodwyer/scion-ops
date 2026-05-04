@@ -21,7 +21,7 @@ Do not report success until the final reviewer accepts the integrated branch.
 - Use `--format json` when you need machine-readable output.
 - Use `--notify` when starting or messaging child agents.
 - Do not use `--global`; stay inside the current grove.
-- Do not use `--no-hub` unless the task explicitly asks for local-only debugging.
+- Do not use `--no-hub`; scion-ops supports Hub-backed Kubernetes operation only.
 - Do not use `sync` or `cdw`.
 - You may use `scion resume` only for child agents you created in this round.
 

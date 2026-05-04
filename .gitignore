@@ -5,3 +5,5 @@ state/
 *.local.json
 .scion/settings.local.json
 .scion/settings.local.yaml
+__pycache__/
+*.py[cod]

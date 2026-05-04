@@ -240,7 +240,29 @@ cmd_load_images() {
 
   for image in "$@"; do
     log "load image $image into $CLUSTER_NAME"
-    kind load docker-image --name "$CLUSTER_NAME" "$image"
+    local load_output
+    if load_output="$(kind load docker-image --name "$CLUSTER_NAME" "$image" 2>&1)"; then
+      [[ -n "$load_output" ]] && printf '%s\n' "$load_output"
+      continue
+    fi
+
+    if ! command -v podman >/dev/null 2>&1 || ! podman image exists "$image"; then
+      printf '%s\n' "$load_output" >&2
+      die "image $image is not available to kind or podman; run: task build"
+    fi
+
+    local archive
+    archive="$(mktemp "${TMPDIR:-/tmp}/scion-kind-image.XXXXXX.tar")"
+    log "export podman image $image for kind"
+    if ! podman save "$image" -o "$archive"; then
+      rm -f "$archive"
+      die "failed to export podman image $image"
+    fi
+    if ! kind load image-archive --name "$CLUSTER_NAME" "$archive"; then
+      rm -f "$archive"
+      die "failed to load podman archive for $image into $CLUSTER_NAME"
+    fi
+    rm -f "$archive"
   done
 }
 

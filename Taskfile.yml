@@ -1,20 +1,11 @@
 version: '3'
 
-# We prepend ~/.local/bin (for the locally-built git 2.47+) and $GOPATH/bin
-# (for the scion CLI) so that every task inherits them regardless of the
-# invoking shell's profile.
+# Keep the repo-local toolchain visible to every task without relying on an
+# interactive shell profile.
 env:
   PATH: '{{.HOME}}/.local/bin:{{.HOME}}/.npm-global/bin:{{.GOPATH}}/bin:{{.PATH}}'
 
 vars:
-  # 8080 is commonly taken by other dev servers (e.g. uvicorn). 8090 is Scion's
-  # workstation-mode web port if you pass --web-port=8090 below.
-  HUB_BIND_HOST:
-    sh: printf '%s' "${HUB_BIND_HOST:-127.0.0.1}"
-  HUB_WEB_PORT:
-    sh: printf '%s' "${HUB_WEB_PORT:-8090}"
-  HUB_ENDPOINT:
-    sh: printf '%s' "${HUB_ENDPOINT:-${SCION_HUB_ENDPOINT:-http://127.0.0.1:${HUB_WEB_PORT:-8090}}}"
   SCION_OPS_KIND_HUB_PORT:
     sh: printf '%s' "${SCION_OPS_KIND_HUB_PORT:-18090}"
   SCION_OPS_KIND_HUB_URL:
@@ -46,67 +37,86 @@ vars:
   SCION_BIN: scion
 
 tasks:
-  install:
-    desc: Preflight host + go install scion CLI
-    cmds:
-      - bash scripts/bootstrap-host.sh
-      - go install github.com/GoogleCloudPlatform/scion/cmd/scion@latest
-      - '{{.SCION_BIN}} version || true'
-
-  init:
-    desc: One-time machine init + register this grove
-    cmds:
-      - '{{.SCION_BIN}} init --machine'
-      - '{{.SCION_BIN}} init'
-
-  images:build:
-    desc: 'Build Scion container images with podman. Usage: task images:build -- [scripts/build-images.sh options]'
+  build:
+    desc: Build all Scion images required by the Kubernetes deployment.
     cmds:
       - bash scripts/build-images.sh {{.CLI_ARGS}}
 
+  up:
+    desc: Create or update the kind Kubernetes deployment.
+    cmds:
+      - task: kind:up
+      - task: kind:workspace:status
+      - task kind:load-images -- localhost/scion-base:latest localhost/scion-ops-mcp:latest localhost/scion-claude:latest localhost/scion-codex:latest localhost/scion-gemini:latest
+      - task: kind:control-plane:apply
+      - task: kind:control-plane:status
+
+  test:
+    desc: Smoke test the Kubernetes-hosted Hub, broker, MCP, and agent runtime.
+    cmds:
+      - task kind:control-plane:smoke -- {{.CLI_ARGS}}
+
+  round:
+    desc: Start a Scion consensus round after Kubernetes Hub credential bootstrap.
+    cmds:
+      - bash orchestrator/run-round.sh "{{.CLI_ARGS}}"
+
+  down:
+    desc: Destroy the kind Kubernetes deployment.
+    prompt: This deletes the {{.KIND_CLUSTER_NAME}} kind cluster and all cluster-local Scion state. Continue?
+    cmds:
+      - task: kind:down
+
+  deploy:
+    cmds:
+      - task: up
+
+  update:
+    cmds:
+      - task: up
+
+  destroy:
+    cmds:
+      - task: down
+
+  images:build:
+    cmds:
+      - task build -- {{.CLI_ARGS}}
+
   kind:up:
-    desc: Create/reuse the local kind cluster and apply deploy/kind resources.
     cmds:
       - bash scripts/kind-scion-runtime.sh up
 
   kind:down:
-    desc: Delete the local kind cluster.
     cmds:
       - bash scripts/kind-scion-runtime.sh down
 
   kind:status:
-    desc: Show kind cluster, deployed runtime resources, and node status.
     cmds:
       - bash scripts/kind-scion-runtime.sh status
 
   kind:workspace:status:
-    desc: Verify the kind node can see this repo for future MCP hostPath mounts.
     cmds:
       - bash scripts/kind-scion-runtime.sh workspace-status
 
   kind:load-images:
-    desc: 'Load local images into kind. Usage: task kind:load-images -- localhost/scion-claude:latest'
     cmds:
       - bash scripts/kind-scion-runtime.sh load-images {{.CLI_ARGS}}
 
   kind:load-archive:
-    desc: 'Load image archives into kind. Usage: task kind:load-archive -- /tmp/scion-claude.tar'
     cmds:
       - bash scripts/kind-scion-runtime.sh load-archive {{.CLI_ARGS}}
 
   kind:configure-scion:
-    desc: Configure global Scion profile "kind" for the local kind cluster.
     cmds:
       - bash scripts/kind-scion-runtime.sh configure-scion
 
   kind:control-plane:apply:
-    desc: Apply the experimental kind control-plane resources.
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' apply -f deploy/kind/namespace.yaml
       - kubectl --context '{{.KIND_CONTEXT}}' apply -k deploy/kind/control-plane
 
   kind:control-plane:status:
-    desc: Show status for the experimental kind control plane.
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-hub --timeout=120s
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-mcp --timeout=120s
@@ -114,12 +124,10 @@ tasks:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' get deploy,svc,pvc,cm -l app.kubernetes.io/part-of=scion-control-plane
 
   kind:control-plane:logs:
-    desc: Follow logs from the experimental kind control plane.
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' logs -f -l app.kubernetes.io/part-of=scion-control-plane --all-containers=true --max-log-requests=4
 
   kind:control-plane:smoke:
-    desc: Bootstrap the kind Hub and dispatch a no-auth smoke agent through the co-located broker.
     cmds:
       - |
         PYTHONDONTWRITEBYTECODE=1 \
@@ -131,13 +139,11 @@ tasks:
         uv run scripts/kind-control-plane-smoke.py {{.CLI_ARGS}}
 
   kind:control-plane:delete:
-    desc: Delete the experimental kind control-plane resources.
-    prompt: This deletes experimental kind control-plane resources from {{.KIND_CONTEXT}}. Continue?
+    prompt: This deletes Kubernetes control-plane resources from {{.KIND_CONTEXT}}. Continue?
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' delete -k deploy/kind/control-plane --ignore-not-found=true
 
   kind:hub:apply:
-    desc: Apply the experimental Hub/broker kind control-plane resources.
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' apply -f deploy/kind/namespace.yaml
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' apply -f deploy/kind/control-plane/broker-rbac.yaml
@@ -148,24 +154,20 @@ tasks:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' apply -f deploy/kind/control-plane/hub-deployment.yaml
 
   kind:hub:status:
-    desc: Wait for the experimental kind Hub rollout and show its resources.
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-hub --timeout=120s
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' exec deploy/scion-hub -c hub -- scion --global broker status --json
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' get deploy,svc,pvc,cm -l app.kubernetes.io/part-of=scion-control-plane
 
   kind:hub:logs:
-    desc: Follow logs from the experimental kind Hub deployment.
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' logs -f deploy/scion-hub
 
   kind:hub:port-forward:
-    desc: Forward the experimental kind Hub service to localhost.
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' port-forward svc/scion-hub '{{.SCION_OPS_KIND_HUB_PORT}}':8090
 
   kind:hub:auth-export:
-    desc: Print host export lines for the port-forwarded experimental kind Hub.
     silent: true
     cmds:
       - |
@@ -175,270 +177,53 @@ tasks:
         printf 'export SCION_DEV_TOKEN=%s\n' "$token"
 
   kind:broker:status:
-    desc: Show the co-located Runtime Broker status inside the experimental kind Hub pod.
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-hub --timeout=120s
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' exec deploy/scion-hub -c hub -- scion --global broker status --json
 
   kind:broker:logs:
-    desc: Follow Hub pod logs for the co-located experimental kind Runtime Broker.
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' logs -f deploy/scion-hub -c hub
 
   kind:mcp:status:
-    desc: Wait for the experimental kind MCP rollout and show its resources.
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-mcp --timeout=120s
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' get deploy,svc -l app.kubernetes.io/name=scion-ops-mcp
 
   kind:mcp:logs:
-    desc: Follow logs from the experimental kind MCP deployment.
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' logs -f deploy/scion-ops-mcp
 
   kind:mcp:port-forward:
-    desc: Forward the kind MCP service to the local MCP URL port.
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' port-forward svc/scion-ops-mcp '{{.SCION_OPS_MCP_PORT}}':8765
 
   kind:mcp:smoke:
-    desc: Smoke test the forwarded kind MCP service without starting a host fallback.
     cmds:
       - PYTHONDONTWRITEBYTECODE=1 uv run scripts/smoke-mcp-server.py --transport http --url '{{.SCION_OPS_MCP_URL}}'
 
   kind:doctor:
-    desc: Run Scion diagnostics against the local kind runtime profile.
     cmds:
       - '{{.SCION_BIN}} doctor --profile kind'
 
-  broker:kind-configure:
-    desc: Configure the Scion kind profile and verify Kubernetes runtime diagnostics.
-    cmds:
-      - SCION_BIN='{{.SCION_BIN}}' bash scripts/kind-broker-runtime.sh configure
-
-  broker:kind-provide:
-    desc: Refresh broker registration, provide this grove, and make the broker default.
-    cmds:
-      - SCION_BIN='{{.SCION_BIN}}' HUB_ENDPOINT='{{.HUB_ENDPOINT}}' bash scripts/kind-broker-runtime.sh provide
-
-  broker:kind-status:
-    desc: Show Scion kind profile, local broker, and Hub broker profile status.
-    cmds:
-      - SCION_BIN='{{.SCION_BIN}}' HUB_ENDPOINT='{{.HUB_ENDPOINT}}' bash scripts/kind-broker-runtime.sh status
-
-  broker:kind-smoke:
-    desc: Dispatch a minimal Hub agent with --profile kind and verify a pod appears in kind.
-    cmds:
-      - SCION_BIN='{{.SCION_BIN}}' HUB_ENDPOINT='{{.HUB_ENDPOINT}}' bash scripts/kind-broker-runtime.sh smoke
-
-  hub:up:
-    desc: Start/reuse local Scion Hub workstation server and wait for Hub/Broker/Web readiness.
-    cmds:
-      - SCION_BIN='{{.SCION_BIN}}' HUB_BIND_HOST='{{.HUB_BIND_HOST}}' HUB_WEB_PORT='{{.HUB_WEB_PORT}}' HUB_ENDPOINT='{{.HUB_ENDPOINT}}' bash scripts/hub-mode.sh up
-
-  hub:auth-export:
-    desc: Print the SCION_DEV_TOKEN export line from server.log (use with `eval $(task hub:auth-export)`).
-    cmds:
-      - SCION_BIN='{{.SCION_BIN}}' HUB_ENDPOINT='{{.HUB_ENDPOINT}}' bash scripts/hub-mode.sh auth-export
-    silent: true
-
-  hub:link:
-    desc: Wire current grove to the running Hub — endpoint, enable, link, register harness auth/config, sync templates.
-    preconditions:
-      - sh: '[ -n "$SCION_DEV_TOKEN" ]'
-        msg: 'SCION_DEV_TOKEN not set. Run:  eval $(task hub:auth-export)'
-    cmds:
-      - SCION_BIN='{{.SCION_BIN}}' HUB_ENDPOINT='{{.HUB_ENDPOINT}}' bash scripts/hub-mode.sh link
-      - task: hub:register-claude-auth
-      - task: hub:register-codex-auth
-      - task: hub:register-gemini-auth
-      - task: hub:prepare-claude-harness
-      - task: hub:prepare-codex-harness
-      - task: hub:prepare-gemini-harness
-      - task: hub:sync-harness-configs
-      - '{{.SCION_BIN}} templates sync --all --non-interactive --yes'
-
-  hub:register-claude-auth:
-    desc: Upload host ~/.claude/.credentials.json to the Hub as a grove-scoped file secret.
-    cmds:
-      - test -f "$HOME/.claude/.credentials.json" || (echo "no ~/.claude/.credentials.json — run 'claude login' first" && exit 1)
-      - '{{.SCION_BIN}} hub secret set --grove --type file --target /home/scion/.claude/.credentials.json CLAUDE_AUTH "@$HOME/.claude/.credentials.json" --non-interactive --yes'
-
-  hub:register-codex-auth:
-    desc: Upload host ~/.codex/auth.json to the Hub as a grove-scoped file secret.
-    cmds:
-      - test -f "$HOME/.codex/auth.json" || (echo "no ~/.codex/auth.json — run 'codex login' first" && exit 1)
-      - '{{.SCION_BIN}} hub secret set --grove --type file --target /home/scion/.codex/auth.json CODEX_AUTH "@$HOME/.codex/auth.json" --non-interactive --yes'
-
-  hub:register-gemini-auth:
-    desc: Upload host ~/.gemini/oauth_creds.json to the Hub as a grove-scoped file secret.
-    cmds:
-      - test -f "$HOME/.gemini/oauth_creds.json" || (echo "no ~/.gemini/oauth_creds.json - run 'gemini' and choose Login with Google first" && exit 1)
-      - '{{.SCION_BIN}} hub secret set --grove --type file --target /home/scion/.gemini/oauth_creds.json GEMINI_OAUTH_CREDS "@$HOME/.gemini/oauth_creds.json" --non-interactive --yes'
-
-  hub:prepare-claude-harness:
-    desc: Trust Scion's container workspace paths in the local Claude harness config.
-    cmds:
-      - |
-        cfg="$HOME/.scion/harness-configs/claude/home/.claude.json"
-        test -f "$cfg" || (echo "no Claude harness state at $cfg — run 'scion init --machine' first" && exit 1)
-        tmp="$(mktemp)"
-        jq '
-          def trusted_project: {
-            allowedTools: [],
-            mcpContextUris: [],
-            mcpServers: {},
-            enabledMcpjsonServers: [],
-            disabledMcpjsonServers: [],
-            hasTrustDialogAccepted: true,
-            projectOnboardingSeenCount: 1,
-            hasClaudeMdExternalIncludesApproved: false,
-            hasClaudeMdExternalIncludesWarningShown: false,
-            exampleFiles: []
-          };
-          .projects = (.projects // {})
-          | .projects["/workspace"] = ((.projects["/workspace"] // trusted_project) + {hasTrustDialogAccepted: true})
-          | .projects["/repo-root"] = ((.projects["/repo-root"] // trusted_project) + {hasTrustDialogAccepted: true})
-        ' "$cfg" > "$tmp"
-        mv "$tmp" "$cfg"
-
-  hub:prepare-codex-harness:
-    desc: Trust Scion's container repo root in the local Codex harness config.
-    cmds:
-      - |
-        cfg="$HOME/.scion/harness-configs/codex/home/.codex/config.toml"
-        test -f "$cfg" || (echo "no Codex harness config at $cfg — run 'scion init --machine' first" && exit 1)
-        if ! grep -Fq '[projects."/repo-root"]' "$cfg"; then
-          {
-            printf '\n[projects."/repo-root"]\n'
-            printf 'trust_level = "trusted"\n'
-          } >> "$cfg"
-        fi
-
-  hub:prepare-gemini-harness:
-    desc: Configure Gemini harness for personal OAuth and predictable Flash usage.
-    cmds:
-      - |
-        cfg="$HOME/.scion/harness-configs/gemini/home/.gemini/settings.json"
-        test -f "$cfg" || (echo "no Gemini harness state at $cfg - run 'scion init --machine' first" && exit 1)
-        tmp="$(mktemp)"
-        jq '
-          .security = (.security // {})
-          | .security.auth = (.security.auth // {})
-          | .security.auth.selectedType = "oauth-personal"
-          | .general = (.general // {})
-          | .general.previewFeatures = true
-          | .model = (.model // {})
-          | .model.name = "gemini-2.5-flash"
-        ' "$cfg" > "$tmp"
-        mv "$tmp" "$cfg"
-
-  hub:sync-harness-configs:
-    desc: Sync local Claude, Codex, and Gemini harness configs to Hub.
-    cmds:
-      - '{{.SCION_BIN}} harness-config sync claude --non-interactive --yes'
-      - '{{.SCION_BIN}} harness-config sync codex --non-interactive --yes'
-      - '{{.SCION_BIN}} harness-config sync gemini --non-interactive --yes'
-
-  hub:down:
-    desc: Stop the local Scion workstation server.
-    cmds:
-      - SCION_BIN='{{.SCION_BIN}}' bash scripts/hub-mode.sh down
-
-  hub:status:
-    desc: Show server, Hub, and registered agent status.
-    cmds:
-      - SCION_BIN='{{.SCION_BIN}}' HUB_ENDPOINT='{{.HUB_ENDPOINT}}' bash scripts/hub-mode.sh status
-
-  hub:disable:
-    desc: Disable Hub integration for this grove.
-    cmds:
-      - SCION_BIN='{{.SCION_BIN}}' bash scripts/hub-mode.sh disable
-
-  hub:logs:
-    desc: Tail the local Scion server log.
-    cmds:
-      - bash scripts/hub-mode.sh logs
-
-  round:
-    desc: 'Detached round + watchdog. Usage: task round -- "<prompt>".  Env: MAX_MINUTES (default 30).'
-    cmds:
-      - bash orchestrator/run-round.sh "{{.CLI_ARGS}}"
-
-  round:fg:
-    desc: 'Run a round in the foreground (no detach, no watchdog). Usage: task round:fg -- "<prompt>"'
-    cmds:
-      - bash orchestrator/round.sh "{{.CLI_ARGS}}"
-
   watch:
-    desc: 'Live status board. Usage: task watch  or  task watch -- <round_id>'
     cmds:
       - bash orchestrator/watch.sh "{{.CLI_ARGS}}"
 
   abort:
-    desc: 'Stop+delete agents in current grove. Usage: task abort  or  task abort -- <round_id>'
     cmds:
       - bash orchestrator/abort.sh "{{.CLI_ARGS}}"
 
   look:
-    desc: 'Tail a runner''s terminal. Usage: task look -- <agent-name>'
     cmds:
       - '{{.SCION_BIN}} look "{{.CLI_ARGS}}"'
 
   tail:
-    desc: 'Tail the round.sh log file (use Ctrl-C to stop).'
     cmds:
       - tail -F /tmp/scion-round.log
 
   verify:
-    desc: Run tests + static analysis in CWD (used by Scion agents)
     cmds:
-      - bash orchestrator/lib/verify.sh
-
-  smoke:
-    desc: Phase 1 smoke test — start a stock agent, list, attach to logs, delete
-    cmds:
-      - '{{.SCION_BIN}} start scratch "echo round trip"'
-      - sleep 2
-      - '{{.SCION_BIN}} list'
-      - '{{.SCION_BIN}} delete scratch || true'
-
-  smoke:local:
-    desc: Local-only smoke test using Scion with Hub integration disabled for each command.
-    cmds:
-      - '{{.SCION_BIN}} start scratch-local "echo local round trip" --no-hub'
-      - '{{.SCION_BIN}} list --no-hub'
-      - '{{.SCION_BIN}} delete scratch-local --no-hub || true'
-
-  smoke:e2e:
-    desc: End-to-end Hub + kind + HTTP MCP smoke test.
-    cmds:
-      - |
-        PYTHONDONTWRITEBYTECODE=1 \
-        SCION_BIN='{{.SCION_BIN}}' \
-        HUB_ENDPOINT='{{.HUB_ENDPOINT}}' \
-        SCION_OPS_MCP_URL='{{.SCION_OPS_MCP_URL}}' \
-        SCION_OPS_MCP_HOST='{{.SCION_OPS_MCP_HOST}}' \
-        SCION_OPS_MCP_PORT='{{.SCION_OPS_MCP_PORT}}' \
-        SCION_OPS_MCP_PATH='{{.SCION_OPS_MCP_PATH}}' \
-        uv run scripts/e2e-hub-kind-mcp-smoke.py {{.CLI_ARGS}}
-
-  mcp:stdio:
-    desc: Run the scion-ops MCP server over stdio for Zed/Claude/Codex.
-    cmds:
-      - PYTHONDONTWRITEBYTECODE=1 uv run mcp_servers/scion_ops.py
-
-  mcp:http:
-    desc: Run the scion-ops MCP server over streamable HTTP at the local MCP URL.
-    cmds:
-      - PYTHONDONTWRITEBYTECODE=1 SCION_OPS_MCP_TRANSPORT=streamable-http SCION_OPS_MCP_HOST='{{.SCION_OPS_MCP_HOST}}' SCION_OPS_MCP_PORT='{{.SCION_OPS_MCP_PORT}}' SCION_OPS_MCP_PATH='{{.SCION_OPS_MCP_PATH}}' uv run mcp_servers/scion_ops.py
-
-  mcp:smoke:
-    desc: Smoke test the scion-ops MCP server by listing tools over stdio.
-    cmds:
-      - PYTHONDONTWRITEBYTECODE=1 uv run scripts/smoke-mcp-server.py
-
-  mcp:http:smoke:
-    desc: Smoke test the HTTP MCP server by listing tools at the local MCP URL.
-    cmds:
-      - PYTHONDONTWRITEBYTECODE=1 uv run scripts/smoke-mcp-server.py --transport http --url '{{.SCION_OPS_MCP_URL}}' --host '{{.SCION_OPS_MCP_HOST}}' --port '{{.SCION_OPS_MCP_PORT}}' --path '{{.SCION_OPS_MCP_PATH}}' --start-server
+      - git diff --check
+      - task --list
+      - python3 -c "import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in ('mcp_servers/scion_ops.py', 'scripts/kind-control-plane-smoke.py', 'scripts/smoke-mcp-server.py')]"

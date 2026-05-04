@@ -1,90 +1,104 @@
 # scion-ops
 
-Dueling-agents consensus loop on top of [GoogleCloudPlatform/scion](https://github.com/GoogleCloudPlatform/scion).
-Two implementer agents (Claude + Codex) draft the same prompt in isolated worktrees; cross-review with a 1-5 rubric; the highest-scoring draft is promoted to integrator; Gemini performs the default final independent smoke review; tests are the binding gate.
+Kubernetes-only operating layer for running dueling Scion agents against a
+Scion Hub, co-located Runtime Broker, HTTP MCP server, and agent pods.
+
+The supported deployment target is Kubernetes. For local development this repo
+uses `kind`; host workstation Hub, host broker, local-only Scion, and stdio MCP
+workflows are no longer supported project modes.
 
 ## Quickstart
 
+Prerequisites are `task`, `podman`, `kind`, `kubectl`, `uv`, `scion`, and an
+upstream Scion checkout at `~/workspace/github/GoogleCloudPlatform/scion` unless
+you pass `task build -- --src <path>`.
+
 ```bash
-task install      # bootstrap host: scion CLI, runtime checks, PATH
-task init         # scion init --machine + scion init for this grove
-task kind:up      # create/reuse local kind cluster for Scion K8s runtime tests
-task hub:up       # start local Scion Hub on :8090
-eval "$(task hub:auth-export)"
-task hub:link     # link grove, register auth files/configs, sync templates
-task round -- "your prompt here"
+task build      # build all Scion and scion-ops images
+task up         # create/update kind and apply the Kubernetes control plane
+task test       # smoke test Hub, broker, MCP, and Kubernetes agent dispatch
+task down       # destroy the local kind deployment
 ```
 
-`task round` starts a `consensus-runner` agent. That runner coordinates the
-implementers, reviewers, integrator, and final reviewer through Scion messages
-and agent status rather than host-side worktree polling. Agents are visible at
-<http://127.0.0.1:8090>.
+`task up` is also the deploy and update operation: it reconciles the kind
+cluster, base runtime resources, image loading, and control-plane Kustomize
+target. Hidden aliases `task deploy`, `task update`, and `task destroy` map to
+the same lifecycle operations for agents that use those words.
 
-Claude agents use the Claude subscription credential file from
-`~/.claude/.credentials.json`; Codex agents use `~/.codex/auth.json`; Gemini
-agents use the personal OAuth credential file from `~/.gemini/oauth_creds.json`.
-`task hub:link` uploads all three as grove-scoped Hub file secrets and syncs
-the Claude, Codex, and Gemini harness configs.
+The current smoke test dispatches an inline no-auth generic Scion agent through
+the kind-hosted Hub and co-located broker. Subscription-backed Claude, Codex,
+and Gemini consensus rounds remain the next bootstrap step in issue #29:
+credentials, harness configs, and templates must be restored into the
+Kubernetes-hosted Hub without relying on host-local upload paths.
 
-Set `FINAL_REVIEWER=codex` when starting a round if you want to skip Gemini for
-that run.
+## Kubernetes Shape
 
-For local Kubernetes runtime testing, use `task kind:up`, then
-`task kind:configure-scion` and `task kind:doctor`. See
-`docs/kind-scion-runtime.md`.
+```text
+kind cluster:
+  scion-hub Deployment
+    Hub/API/Web
+    co-located Kubernetes Runtime Broker
+    PVC-backed Scion state
+  scion-ops-mcp Deployment
+    streamable HTTP MCP server
+    mounted scion-ops workspace
+  Scion agent pods
 
-For local Hub mode, use `task hub:up`, authenticate with
-`eval "$(task hub:auth-export)"`, then run `task hub:link`. See
-`docs/local-hub-mode.md`.
+host:
+  repo checkout
+  container image build source
+  kubectl port-forwards for local inspection and Zed
+```
 
-To advertise the kind Kubernetes runtime through the local broker, run
-`task broker:kind-configure`, then `task broker:kind-provide`. See
-`docs/kind-broker-runtime.md`.
+The Kubernetes resources are native Kustomize manifests under `deploy/kind`.
+They are intentionally deployable with `kubectl apply -k`; Helm packaging can
+come later only if the values and lifecycle model justify it.
 
-The current default deployment keeps Hub, broker, and MCP on the host while
-kind runs agent pods. The proposed all-in-kind control-plane path is documented
-in `docs/kind-control-plane.md` and should remain Kustomize-first until the
-resource model is proven. The experimental kind control-plane runs Hub/Web with
-a co-located Runtime Broker plus the HTTP MCP service. Apply it separately with
-`task kind:control-plane:apply` and verify it with
-`task kind:control-plane:status`. Expose the kind-hosted Hub and MCP services
-locally with `task kind:hub:port-forward` and `task kind:mcp:port-forward`.
-Use `eval "$(task kind:hub:auth-export)"` for host CLI auth against the
-port-forwarded kind Hub. New kind clusters mount this repo into the kind node
-for the MCP Deployment; verify that substrate with
-`task kind:workspace:status`. Use `task kind:control-plane:smoke` to link the
-current grove to the kind Hub, verify MCP Hub status, and dispatch a no-auth
-generic agent pod through the co-located broker.
+## MCP And Zed
+
+The supported MCP transport is the Kubernetes-hosted HTTP service. Start the
+deployment, then expose MCP locally:
+
+```bash
+task up
+task kind:mcp:port-forward
+```
+
+Configure Zed with:
+
+```json
+{
+  "context_servers": {
+    "scion-ops": {
+      "url": "http://127.0.0.1:8765/mcp"
+    }
+  }
+}
+```
+
+Smoke test the forwarded service with `task kind:mcp:smoke`. See
+`docs/zed-mcp.md`.
 
 ## Layout
 
-- `.scion/templates/` — agent role definitions, including `consensus-runner`
-- `CLAUDE.md` — agent guidance and project engineering standards
-- `KNOWNISSUES.md` — intentional exceptions and risks to revisit
-- `deploy/kind/` — native Kubernetes resources for the local kind runtime and experimental Hub/broker/MCP control plane
-- `docs/kind-control-plane.md` — proposed Kustomize path for running Hub, broker, and MCP in kind
-- `docs/kind-broker-runtime.md` — broker registration and kind profile workflow
-- `docs/local-hub-mode.md` — local Hub/Web/Broker workstation workflow
-- `docs/testing-plan.md` — layer checks and end-to-end smoke workflow
-- `orchestrator/round.sh` — thin launcher for the consensus runner
-- `mcp_servers/scion_ops.py` — streamable HTTP and stdio MCP server for Zed external agents
-- `rubric/` — reviewer prompt + verdict JSON schema
-- `scripts/kind-scion-runtime.sh` — local kind orchestration helper
-- `scripts/hub-mode.sh` — local Scion Hub workstation helper
-- `scripts/kind-broker-runtime.sh` — local broker/kind profile helper
-- `scripts/bootstrap-host.sh` — one-shot host preflight
+- `.scion/templates/` — agent role definitions for the consensus protocol
+- `CLAUDE.md` — project engineering standards
+- `KNOWNISSUES.md` — intentional exceptions and exit criteria
+- `deploy/kind/` — Kubernetes resources for kind, Hub, broker, and MCP
+- `docs/kind-control-plane.md` — Kubernetes deployment model
+- `docs/kind-scion-runtime.md` — kind runtime substrate details
+- `docs/testing-plan.md` — verification plan
+- `docs/zed-mcp.md` — Kubernetes-hosted MCP registration
+- `mcp_servers/scion_ops.py` — streamable HTTP MCP server
+- `orchestrator/` — consensus round launcher and agent utilities
+- `rubric/` — reviewer prompt and verdict schema
+- `scripts/build-images.sh` — image build helper
+- `scripts/kind-scion-runtime.sh` — kind substrate helper
+- `scripts/kind-control-plane-smoke.py` — Kubernetes control-plane smoke
 
-## Zed MCP
+## Rounds
 
-Use `task mcp:http` to run the MCP server at `http://127.0.0.1:8765/mcp` for
-Hub-mode external agents. Verify it with `task mcp:http:smoke`. Stdio remains
-available with `task mcp:stdio` and `task mcp:smoke`. The MCP agent/status
-tools read Hub state through the Hub HTTP API. See `docs/zed-mcp.md`.
-
-## Testing
-
-Use `task smoke:e2e` to validate the host-managed Hub + kind + HTTP MCP stack
-in one run. Use `task kind:control-plane:smoke` for the experimental all-in-kind
-Hub/broker/MCP path. The project testing plan is in `docs/testing-plan.md`.
-
-See `/home/david/.claude/plans/https-claude-ai-share-a56e403d-3326-4857-staged-rocket.md` for the full design.
+`task round -- "prompt"` remains the intended one-line product operation for a
+full consensus round. Do not treat it as complete for subscription-backed
+Kubernetes operation until issue #29 restores Claude, Codex, Gemini credentials,
+templates, and harness configs into the Kubernetes-hosted Hub.
