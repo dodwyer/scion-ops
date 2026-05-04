@@ -41,11 +41,16 @@ To advertise the kind Kubernetes runtime through the local broker, run
 `task broker:kind-configure`, then `task broker:kind-provide`. See
 `docs/kind-broker-runtime.md`.
 
+The current default deployment keeps Hub, broker, and MCP on the host while
+kind runs agent pods. The proposed all-in-kind control-plane path is documented
+in `docs/kind-control-plane.md` and should remain Kustomize-first until the
+resource model is proven.
+
 ## Layout
 
 - `.scion/templates/` — agent role definitions, including `consensus-runner`
 - `deploy/kind/` — native Kubernetes resources for the local kind runtime
-- `docs/kind-control-plane.md` — proposed Kustomize path for running Hub/Broker/MCP in kind
+- `docs/kind-control-plane.md` — proposed Kustomize path for running Hub, broker, and MCP in kind
 - `docs/kind-broker-runtime.md` — broker registration and kind profile workflow
 - `docs/local-hub-mode.md` — local Hub/Web/Broker workstation workflow
 - `docs/testing-plan.md` — layer checks and end-to-end smoke workflow

@@ -3,6 +3,11 @@
 Use the narrow checks while changing one layer, and `task smoke:e2e` before
 trusting the full local Hub-mode stack.
 
+This plan covers the current default: host-managed Hub, broker, and MCP with
+kind used as the Kubernetes agent runtime. The proposed all-in-kind control
+plane is documented in `docs/kind-control-plane.md`; it should get its own
+smoke task once the Kustomize resources are implemented.
+
 ## Layer Checks
 
 Host and Scion CLI:
@@ -41,6 +46,10 @@ HTTP MCP transport and Hub-backed tool surface:
 ```bash
 task mcp:http:smoke
 ```
+
+For the future all-in-kind path, these checks should be mirrored with
+`kubectl apply -k`, service readiness, port-forwarded MCP access, and a
+kind-hosted broker dispatch.
 
 ## End-To-End Smoke
 

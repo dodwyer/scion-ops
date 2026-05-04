@@ -8,8 +8,10 @@ mode a single local Scion server runs:
 - Runtime Broker: execution plane for creating and managing agents.
 - Web Frontend: browser dashboard for the same Hub state.
 
-For issue #2, the broker remains the co-located workstation broker. Moving the
-execution plane onto the kind Kubernetes runtime is a follow-up task.
+This is the current default for local development. It keeps Hub, broker, and
+MCP host-managed while kind runs agent pods through the Kubernetes runtime
+profile. The proposed all-in-kind alternative is documented in
+`docs/kind-control-plane.md` and is not the default path yet.
 
 ## Defaults
 
@@ -90,6 +92,10 @@ task hub:down
 
 Stopping the workstation server also stops the co-located Runtime Broker. Agents
 managed by that broker are no longer reachable until the server is restarted.
+
+If the all-in-kind control plane is enabled later, lifecycle and persistence
+checks should move to `kubectl` and the Kustomize resources described in
+`docs/kind-control-plane.md`.
 
 ## Local-Only Escape Hatch
 

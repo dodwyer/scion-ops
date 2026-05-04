@@ -1,11 +1,15 @@
 # kind Broker Runtime
 
-This wires the local workstation Runtime Broker to the kind-backed Kubernetes
-profile. The shape follows the upstream Scion model:
+This wires the host-managed workstation Runtime Broker to the kind-backed
+Kubernetes profile. The shape follows the upstream Scion model:
 
 - Hub is the control plane for groves, agents, templates, and broker routing.
 - Runtime Broker is the compute provider for a grove.
 - Kubernetes is selected by a Scion profile at agent dispatch time.
+
+This is the current default. A future all-in-kind path would run the broker
+inside kind as well; that design, persistence model, and constraints live in
+`docs/kind-control-plane.md`.
 
 References:
 
@@ -14,7 +18,7 @@ References:
 
 ## Prerequisites
 
-Start from the issue #1 and #2 workflows:
+Start from the local kind and host Hub workflows:
 
 ```bash
 task kind:up

@@ -1,5 +1,8 @@
 # kind Control Plane Deployment
 
+Status: design only. No Hub, broker, or MCP Kubernetes manifests are added by
+this document.
+
 This is the proposed path for running the Scion control plane inside the local
 kind cluster. The current default remains host-managed Hub, broker, and MCP
 with kind used only for agent pods.
@@ -23,6 +26,21 @@ host:
   subscription credentials
   optional restore/bootstrap scripts
 ```
+
+## Relationship To Existing Docs
+
+- `docs/kind-scion-runtime.md` documents the current kind substrate and agent
+  runtime resources.
+- `docs/local-hub-mode.md` documents the current host-managed Hub/Web/Broker
+  workflow.
+- `docs/kind-broker-runtime.md` documents the current host-managed broker
+  providing the `kind` Kubernetes profile.
+- `docs/zed-mcp.md` documents the current host/remote HTTP MCP registration
+  path; a kind-hosted MCP service should expose the same HTTP URL shape through
+  port-forwarding or controlled ingress.
+- `docs/testing-plan.md` documents the current end-to-end smoke; the all-in-kind
+  deployment should add a sibling smoke rather than overloading that default
+  until it is stable.
 
 ## Why Kustomize First
 
