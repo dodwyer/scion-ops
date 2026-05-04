@@ -10,15 +10,18 @@ workspace bootstrap model before they are supported.
 Use the top-level lifecycle tasks:
 
 ```bash
+task x
 task build
 task up
 task test
 task down
 ```
 
-`task up` is both deploy and update. It creates or reuses the kind cluster,
-applies base runtime resources, verifies the workspace mount, loads local
-images, applies the control-plane Kustomize target, and waits for rollout.
+`task x` is the day-zero path: build images, create/update the deployment, and
+run the smoke test. `task up` is both deploy and update. It creates or reuses
+the kind cluster, applies base runtime resources, verifies the workspace mount,
+loads local images, applies the control-plane Kustomize target, and waits for
+rollout.
 
 ## Kubernetes Resources
 
@@ -41,7 +44,8 @@ deploy/kind/
     kustomization.yaml
 ```
 
-The direct apply form remains valid:
+The direct apply form remains valid after the kind cluster has been created
+with the required native port mappings:
 
 ```bash
 kubectl --context kind-scion-ops apply -k deploy/kind/control-plane
@@ -68,21 +72,18 @@ access. It does not use host Podman or Docker sockets.
 
 ## Local Access
 
-Services are ClusterIP-only by default. Use port-forwards for local tools:
+Local kind exposes Hub and MCP through kind `extraPortMappings` and fixed
+Kubernetes `NodePort` services. No `kubectl port-forward` process is part of
+the supported workflow.
 
-```bash
-task kind:hub:port-forward
-task kind:mcp:port-forward
-```
-
-In another terminal:
+After `task up`, use:
 
 ```bash
 eval "$(task kind:hub:auth-export)"
 task kind:mcp:smoke
 ```
 
-The Hub forwards to `http://127.0.0.1:18090`; MCP forwards to
+Hub is available at `http://127.0.0.1:18090`; MCP is available at
 `http://127.0.0.1:8765/mcp`.
 
 ## Smoke Test

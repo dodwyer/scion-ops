@@ -421,7 +421,7 @@ class HubClient:
             raise HubAPIError(
                 "Hub integration is disabled for this workspace",
                 category="hub_state",
-                details={"next": "run task up, then expose the kind Hub or MCP service with a Kubernetes port-forward"},
+                details={"next": "run task up so kind creates native Hub and MCP host port mappings"},
             )
         if not self.cfg.endpoint:
             raise HubAPIError("Hub endpoint is not configured", category="hub_state")

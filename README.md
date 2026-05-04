@@ -14,6 +14,7 @@ upstream Scion checkout at `~/workspace/github/GoogleCloudPlatform/scion` unless
 you pass `task build -- --src <path>`.
 
 ```bash
+task x          # build, create/update, deploy, and smoke test
 task build      # build all Scion and scion-ops images
 task up         # create/update kind and apply the Kubernetes control plane
 task test       # smoke test Hub, broker, MCP, and Kubernetes agent dispatch
@@ -47,7 +48,7 @@ kind cluster:
 host:
   repo checkout
   container image build source
-  kubectl port-forwards for local inspection and Zed
+  kind native localhost ports for Hub and Zed
 ```
 
 The Kubernetes resources are native Kustomize manifests under `deploy/kind`.
@@ -56,12 +57,12 @@ come later only if the values and lifecycle model justify it.
 
 ## MCP And Zed
 
-The supported MCP transport is the Kubernetes-hosted HTTP service. Start the
-deployment, then expose MCP locally:
+The supported MCP transport is the Kubernetes-hosted HTTP service. `task up`
+creates kind native port mappings, so MCP is available on localhost without a
+`kubectl port-forward` process:
 
 ```bash
 task up
-task kind:mcp:port-forward
 ```
 
 Configure Zed with:
@@ -76,7 +77,7 @@ Configure Zed with:
 }
 ```
 
-Smoke test the forwarded service with `task kind:mcp:smoke`. See
+Smoke test the localhost service with `task kind:mcp:smoke`. See
 `docs/zed-mcp.md`.
 
 ## Layout
