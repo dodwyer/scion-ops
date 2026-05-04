@@ -100,7 +100,7 @@ explicit broker credential restore or registration bootstrap flow.
 
 ## kind Hub Local Storage Uploads
 
-Issue: #27
+Issue: #29
 
 Decision: the kind control-plane smoke uses an inline `generic` harness config
 for its no-auth agent instead of uploading grove templates or harness configs by
