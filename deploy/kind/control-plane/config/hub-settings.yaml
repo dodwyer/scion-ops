@@ -1,0 +1,21 @@
+schema_version: "1"
+active_profile: kind
+image_registry: localhost
+hub:
+  endpoint: http://scion-hub:8090
+server:
+  hub:
+    public_url: http://scion-hub:8090
+  broker:
+    broker_id: 00000000-0000-4000-8000-000000000023
+    broker_name: kind-control-plane
+    host: 127.0.0.1
+    auto_provide: true
+runtimes:
+  kubernetes:
+    type: kubernetes
+    context: in-cluster
+    namespace: scion-agents
+profiles:
+  kind:
+    runtime: kubernetes

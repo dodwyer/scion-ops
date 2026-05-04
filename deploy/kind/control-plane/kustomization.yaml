@@ -3,10 +3,21 @@ kind: Kustomization
 namespace: scion-agents
 resources:
   - broker-rbac.yaml
-  - broker-kubeconfig.yaml
-  - hub-config.yaml
   - hub-pvc.yaml
   - hub-service.yaml
   - hub-deployment.yaml
   - mcp-service.yaml
   - mcp-deployment.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    app.kubernetes.io/part-of: scion-control-plane
+
+configMapGenerator:
+  - name: scion-broker-kubeconfig
+    files:
+      - config=config/broker-kubeconfig.yaml
+  - name: scion-hub-settings
+    files:
+      - settings.yaml=config/hub-settings.yaml

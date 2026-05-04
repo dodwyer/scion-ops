@@ -29,13 +29,18 @@ Resources are native manifests managed by Kustomize:
 
 ```text
 deploy/kind/
+  cluster.yaml.tpl
   namespace.yaml
   rbac.yaml
+  scion-settings.base.yaml
   kustomization.yaml
+  smoke/
+    generic-smoke-agent.yaml
   control-plane/
-    broker-kubeconfig.yaml
     broker-rbac.yaml
-    hub-config.yaml
+    config/
+      broker-kubeconfig.yaml
+      hub-settings.yaml
     hub-deployment.yaml
     hub-pvc.yaml
     hub-service.yaml
@@ -53,6 +58,10 @@ kubectl --context kind-scion-ops apply -k deploy/kind/control-plane
 
 Kustomize is intentional for the current resource size. Do not introduce Helm
 until the values model and upgrade behavior are worth packaging.
+
+Config payloads remain source files under `deploy/kind/control-plane/config`
+and are included with Kustomize `configMapGenerator`; scripts do not carry
+literal Kubernetes YAML bodies.
 
 ## Control-Plane Shape
 
@@ -83,8 +92,8 @@ eval "$(task kind:hub:auth-export)"
 task kind:mcp:smoke
 ```
 
-Hub is available at `http://127.0.0.1:18090`; MCP is available at
-`http://127.0.0.1:8765/mcp`.
+Hub is available at `http://192.168.122.103:18090`; MCP is available at
+`http://192.168.122.103:8765/mcp`.
 
 ## Smoke Test
 
@@ -94,7 +103,7 @@ Run:
 task test
 ```
 
-This dispatches an inline no-auth generic agent through the Kubernetes-hosted
+This dispatches the checked-in no-auth generic smoke config through the Kubernetes-hosted
 Hub and co-located broker, verifies that an agent pod appears in kind, checks
 MCP Hub status through HTTP, and deletes the smoke agent after success.
 
@@ -105,7 +114,8 @@ Useful overrides:
 | `KIND_CLUSTER_NAME` | `scion-ops` |
 | `SCION_K8S_NAMESPACE` | `scion-agents` |
 | `SCION_OPS_KIND_HUB_PORT` | `18090` |
-| `SCION_OPS_MCP_URL` | `http://127.0.0.1:8765/mcp` |
+| `SCION_OPS_KIND_LISTEN_ADDRESS` | `192.168.122.103` |
+| `SCION_OPS_MCP_URL` | `http://192.168.122.103:8765/mcp` |
 | `SCION_KIND_CP_SMOKE_KEEP_AGENT` | unset, deletes on success |
 | `SCION_KIND_CP_SMOKE_SKIP_SETUP` | unset, applies kind resources |
 | `SCION_KIND_CP_SMOKE_TIMEOUT` | `90` |
@@ -122,7 +132,7 @@ Deleting the kind cluster deletes cluster-local Scion state.
 | MCP workspace | host checkout mounted into kind node | no |
 | Agent artifacts | agent workspaces and pushed git branches | pod-local state is ephemeral |
 | Subscription credentials | not yet restored into kind Hub | issue #29 |
-| Templates/harness configs | inline generic smoke only by default | issue #29 |
+| Templates/harness configs | checked-in generic smoke config only by default | issue #29 |
 
 Issue #29 is the required follow-up for remote-safe credential, template, and
 harness bootstrap. Until that lands, do not claim full Claude/Codex/Gemini

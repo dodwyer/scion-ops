@@ -1,0 +1,8 @@
+schema_version: "1"
+harness_config: generic
+image: localhost/scion-base:latest
+user: scion
+command_args:
+  - /bin/sh
+  - -lc
+max_duration: 2m

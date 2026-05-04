@@ -13,12 +13,14 @@ IMAGE_REGISTRY="${SCION_IMAGE_REGISTRY:-localhost}"
 MANIFEST_DIR="${SCION_K8S_MANIFEST_DIR:-${REPO_ROOT}/deploy/kind}"
 WORKSPACE_HOST_PATH="${SCION_OPS_WORKSPACE_HOST_PATH:-$REPO_ROOT}"
 WORKSPACE_NODE_PATH="${SCION_OPS_WORKSPACE_NODE_PATH:-/workspace/scion-ops}"
-KIND_LISTEN_ADDRESS="${SCION_OPS_KIND_LISTEN_ADDRESS:-127.0.0.1}"
+KIND_CLUSTER_CONFIG_TEMPLATE="${SCION_OPS_KIND_CLUSTER_CONFIG_TEMPLATE:-${REPO_ROOT}/deploy/kind/cluster.yaml.tpl}"
+KIND_LISTEN_ADDRESS="${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}"
 HUB_HOST_PORT="${SCION_OPS_KIND_HUB_PORT:-18090}"
 MCP_HOST_PORT="${SCION_OPS_MCP_PORT:-8765}"
 HUB_NODE_PORT="30090"
 MCP_NODE_PORT="30876"
 CONTEXT="kind-${CLUSTER_NAME}"
+SCION_SETTINGS_TEMPLATE="${SCION_SETTINGS_TEMPLATE:-${REPO_ROOT}/deploy/kind/scion-settings.base.yaml}"
 
 usage() {
   cat <<EOF
@@ -45,8 +47,10 @@ Environment:
                                  (default: this repo)
   SCION_OPS_WORKSPACE_NODE_PATH  Node path used by future MCP hostPath mounts
                                  (default: /workspace/scion-ops)
+  SCION_OPS_KIND_CLUSTER_CONFIG_TEMPLATE
+                                 kind cluster template (default: deploy/kind/cluster.yaml.tpl)
   SCION_OPS_KIND_LISTEN_ADDRESS  Host listen address for kind port mappings
-                                 (default: 127.0.0.1)
+                                 (default: 192.168.122.103)
   SCION_OPS_KIND_HUB_PORT        Host port for the Hub service (default: 18090)
   SCION_OPS_MCP_PORT             Host port for the MCP service (default: 8765)
 EOF
@@ -80,27 +84,28 @@ ensure_workspace_host_path() {
   [[ -f "${WORKSPACE_HOST_PATH}/Taskfile.yml" ]] || die "workspace host path does not look like scion-ops: $WORKSPACE_HOST_PATH"
 }
 
-create_cluster_config() {
+yaml_dq_escape() {
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+sed_replacement_escape() {
+  printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'
+}
+
+render_cluster_config() {
+  [[ -f "$KIND_CLUSTER_CONFIG_TEMPLATE" ]] || die "kind cluster template not found: $KIND_CLUSTER_CONFIG_TEMPLATE"
+
   local config
   config="$(mktemp)"
-  cat > "$config" <<EOF
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-nodes:
-- role: control-plane
-  extraPortMappings:
-  - containerPort: ${HUB_NODE_PORT}
-    hostPort: ${HUB_HOST_PORT}
-    listenAddress: "${KIND_LISTEN_ADDRESS}"
-    protocol: TCP
-  - containerPort: ${MCP_NODE_PORT}
-    hostPort: ${MCP_HOST_PORT}
-    listenAddress: "${KIND_LISTEN_ADDRESS}"
-    protocol: TCP
-  extraMounts:
-  - hostPath: ${WORKSPACE_HOST_PATH}
-    containerPath: ${WORKSPACE_NODE_PATH}
-EOF
+  sed \
+    -e "s|__HUB_NODE_PORT__|$(sed_replacement_escape "$HUB_NODE_PORT")|g" \
+    -e "s|__HUB_HOST_PORT__|$(sed_replacement_escape "$HUB_HOST_PORT")|g" \
+    -e "s|__MCP_NODE_PORT__|$(sed_replacement_escape "$MCP_NODE_PORT")|g" \
+    -e "s|__MCP_HOST_PORT__|$(sed_replacement_escape "$MCP_HOST_PORT")|g" \
+    -e "s|__KIND_LISTEN_ADDRESS__|$(sed_replacement_escape "$(yaml_dq_escape "$KIND_LISTEN_ADDRESS")")|g" \
+    -e "s|__WORKSPACE_HOST_PATH__|$(sed_replacement_escape "$(yaml_dq_escape "$WORKSPACE_HOST_PATH")")|g" \
+    -e "s|__WORKSPACE_NODE_PATH__|$(sed_replacement_escape "$(yaml_dq_escape "$WORKSPACE_NODE_PATH")")|g" \
+    "$KIND_CLUSTER_CONFIG_TEMPLATE" > "$config"
   printf '%s\n' "$config"
 }
 
@@ -147,7 +152,8 @@ kind_native_ports_present() {
   [[ "$bindings" == *"\"${HUB_NODE_PORT}/tcp\""* ]] &&
     [[ "$bindings" == *"\"${MCP_NODE_PORT}/tcp\""* ]] &&
     [[ "$bindings" == *"\"HostPort\":\"${HUB_HOST_PORT}\""* ]] &&
-    [[ "$bindings" == *"\"HostPort\":\"${MCP_HOST_PORT}\""* ]]
+    [[ "$bindings" == *"\"HostPort\":\"${MCP_HOST_PORT}\""* ]] &&
+    [[ "$bindings" == *"\"HostIp\":\"${KIND_LISTEN_ADDRESS}\""* ]]
 }
 
 warn_missing_workspace_mount() {
@@ -194,7 +200,7 @@ ensure_cluster() {
   ensure_workspace_host_path
   log "create kind cluster $CLUSTER_NAME"
   local config
-  config="$(create_cluster_config)"
+  config="$(render_cluster_config)"
   if ! kind create cluster --name "$CLUSTER_NAME" --config "$config"; then
     rm -f "$config"
     return 1
@@ -350,7 +356,8 @@ cmd_configure_scion() {
   settings_dir="$(dirname "$settings_file")"
   mkdir -p "$settings_dir"
   if [[ ! -f "$settings_file" ]]; then
-    printf 'schema_version: "1"\n' > "$settings_file"
+    [[ -f "$SCION_SETTINGS_TEMPLATE" ]] || die "Scion settings template not found: $SCION_SETTINGS_TEMPLATE"
+    cp "$SCION_SETTINGS_TEMPLATE" "$settings_file"
   fi
 
   local tmp
