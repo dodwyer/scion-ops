@@ -12,16 +12,10 @@ Deploy the local kind control plane:
 task up
 ```
 
-Expose MCP locally:
-
-```bash
-task up
-```
-
 The local URL is:
 
 ```text
-http://127.0.0.1:8765/mcp
+http://192.168.122.103:8765/mcp
 ```
 
 Verify it in another terminal:
@@ -38,7 +32,7 @@ Add this to `.zed/settings.json` or your Zed user settings:
 {
   "context_servers": {
     "scion-ops": {
-      "url": "http://127.0.0.1:8765/mcp"
+      "url": "http://192.168.122.103:8765/mcp"
     }
   }
 }
@@ -49,27 +43,21 @@ agent does not start MCP. Kubernetes owns the MCP server process.
 
 ## Remote Workspace
 
-If Zed runs locally and scion-ops runs on a remote host, run the kind deployment
-on the remote host:
+If Zed runs locally and scion-ops runs on the remote host, run the kind
+deployment on the remote host:
 
 ```bash
 cd /home/david/workspace/github/livewyer-ops/scion-ops
 task up
 ```
 
-Then tunnel the local port to the remote host:
-
-```bash
-ssh -N -L 8765:127.0.0.1:8765 david@192.168.122.103
-```
-
-Keep the same Zed URL:
+Then use the same remote-host URL in Zed:
 
 ```json
 {
   "context_servers": {
     "scion-ops": {
-      "url": "http://127.0.0.1:8765/mcp"
+      "url": "http://192.168.122.103:8765/mcp"
     }
   }
 }

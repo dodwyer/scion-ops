@@ -6,10 +6,12 @@ env:
   PATH: '{{.HOME}}/.local/bin:{{.HOME}}/.npm-global/bin:{{.GOPATH}}/bin:{{.PATH}}'
 
 vars:
+  SCION_OPS_KIND_LISTEN_ADDRESS:
+    sh: printf '%s' "${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}"
   SCION_OPS_KIND_HUB_PORT:
     sh: printf '%s' "${SCION_OPS_KIND_HUB_PORT:-18090}"
   SCION_OPS_KIND_HUB_URL:
-    sh: printf 'http://127.0.0.1:%s' "${SCION_OPS_KIND_HUB_PORT:-18090}"
+    sh: printf 'http://%s:%s' "${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}" "${SCION_OPS_KIND_HUB_PORT:-18090}"
   KIND_CLUSTER_NAME:
     sh: printf '%s' "${KIND_CLUSTER_NAME:-scion-ops}"
   KIND_CONTEXT:
@@ -17,7 +19,7 @@ vars:
   SCION_K8S_NAMESPACE:
     sh: printf '%s' "${SCION_K8S_NAMESPACE:-scion-agents}"
   SCION_OPS_MCP_HOST:
-    sh: printf '%s' "${SCION_OPS_MCP_HOST:-127.0.0.1}"
+    sh: printf '%s' "${SCION_OPS_MCP_HOST:-${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}}"
   SCION_OPS_MCP_PORT:
     sh: printf '%s' "${SCION_OPS_MCP_PORT:-8765}"
   SCION_OPS_MCP_PATH:
@@ -29,7 +31,7 @@ vars:
         /*) ;;
         *) path="/$path" ;;
       esac
-      printf 'http://%s:%s%s' "${SCION_OPS_MCP_HOST:-127.0.0.1}" "${SCION_OPS_MCP_PORT:-8765}" "$path"
+      printf 'http://%s:%s%s' "${SCION_OPS_MCP_HOST:-${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}}" "${SCION_OPS_MCP_PORT:-8765}" "$path"
   HOME:
     sh: echo "$HOME"
   GOPATH:
@@ -153,12 +155,7 @@ tasks:
   kind:hub:apply:
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' apply -f deploy/kind/namespace.yaml
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' apply -f deploy/kind/control-plane/broker-rbac.yaml
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' apply -f deploy/kind/control-plane/broker-kubeconfig.yaml
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' apply -f deploy/kind/control-plane/hub-config.yaml
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' apply -f deploy/kind/control-plane/hub-pvc.yaml
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' apply -f deploy/kind/control-plane/hub-service.yaml
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' apply -f deploy/kind/control-plane/hub-deployment.yaml
+      - kubectl --context '{{.KIND_CONTEXT}}' apply -k deploy/kind/control-plane
 
   kind:hub:status:
     cmds:

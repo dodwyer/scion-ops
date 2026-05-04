@@ -20,7 +20,7 @@ from mcp.client.stdio import stdio_client
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_URL = "http://127.0.0.1:8765/mcp"
+DEFAULT_URL = "http://192.168.122.103:8765/mcp"
 REQUIRED_TOOLS = {
     "scion_ops_list_agents",
     "scion_ops_round_status",

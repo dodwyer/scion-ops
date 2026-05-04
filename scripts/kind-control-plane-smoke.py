@@ -34,9 +34,10 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_HUB_PORT = int(os.environ.get("SCION_OPS_KIND_HUB_PORT", "18090"))
 DEFAULT_HUB_ENDPOINT = os.environ.get(
     "SCION_OPS_KIND_HUB_URL",
-    f"http://127.0.0.1:{DEFAULT_HUB_PORT}",
+    f"http://192.168.122.103:{DEFAULT_HUB_PORT}",
 )
-DEFAULT_MCP_URL = os.environ.get("SCION_OPS_MCP_URL", "http://127.0.0.1:8765/mcp")
+DEFAULT_MCP_URL = os.environ.get("SCION_OPS_MCP_URL", "http://192.168.122.103:8765/mcp")
+DEFAULT_GENERIC_CONFIG = ROOT / "deploy/kind/smoke/generic-smoke-agent.yaml"
 DEFAULT_GENERIC_PROMPT = "printf 'scion kind control-plane smoke\\n'; pwd; sleep 30"
 DEFAULT_TEMPLATE_PROMPT = "Smoke test: report the current working directory and stop."
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
@@ -297,7 +298,7 @@ def bootstrap_grove(
             category="hub_state",
             hint=(
                 "Remote-safe harness bootstrap is not implemented yet; "
-                "use the inline generic smoke or complete issue #29."
+                "use the checked-in generic smoke config or complete issue #29."
             ),
             timeout=120,
         )
@@ -566,33 +567,13 @@ def print_cleanup(agent: str, hub_endpoint: str, context: str, namespace: str) -
     print(f"  kubectl --context {context} get pods -n {namespace} -l scion.name={agent}")
 
 
-def write_generic_inline_config(tmpdir: Path) -> Path:
-    path = tmpdir / "generic-smoke.yaml"
-    path.write_text(
-        "\n".join(
-            [
-                'schema_version: "1"',
-                "harness_config: generic",
-                "image: localhost/scion-base:latest",
-                "user: scion",
-                "command_args:",
-                "  - /bin/sh",
-                "  - -lc",
-                "max_duration: 2m",
-                "",
-            ]
-        )
-    )
-    return path
-
-
 def parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--agent", default=os.environ.get("SCION_KIND_CP_SMOKE_AGENT", ""))
     parser.add_argument(
         "--template",
         default=os.environ.get("SCION_KIND_CP_SMOKE_TEMPLATE", ""),
-        help="use an existing Hub template instead of the inline generic no-auth config",
+        help="use an existing Hub template instead of the checked-in generic no-auth config",
     )
     parser.add_argument("--broker", default=os.environ.get("SCION_KIND_CP_BROKER", "kind-control-plane"))
     parser.add_argument("--prompt", default=os.environ.get("SCION_KIND_CP_SMOKE_PROMPT", ""))
@@ -660,10 +641,15 @@ async def smoke(args: argparse.Namespace) -> None:
     agent_started = False
     success = False
 
-    with tempfile.TemporaryDirectory(prefix="scion-kind-cp-smoke-") as tmp:
-        tmpdir = Path(tmp)
-        inline_config = None if args.template else write_generic_inline_config(tmpdir)
+    generic_config = None if args.template else DEFAULT_GENERIC_CONFIG
+    if generic_config and not generic_config.exists():
+        raise SmokeFailure(
+            "configuration",
+            f"generic smoke config not found: {generic_config}",
+            hint="Check deploy/kind/smoke/generic-smoke-agent.yaml",
+        )
 
+    with tempfile.TemporaryDirectory(prefix="scion-kind-cp-smoke-"):
         try:
             if not args.skip_setup:
                 run(["task", "kind:up"], env=env, category="kubernetes", timeout=300)
@@ -718,8 +704,8 @@ async def smoke(args: argparse.Namespace) -> None:
             ]
             if args.template:
                 start_args += ["--type", args.template, "--no-upload"]
-            elif inline_config:
-                start_args += ["--config", str(inline_config)]
+            elif generic_config:
+                start_args += ["--config", str(generic_config)]
             start_args.append(prompt)
             run(
                 start_args,
@@ -743,7 +729,7 @@ async def smoke(args: argparse.Namespace) -> None:
             print(f"  hub:        {args.hub}")
             print(f"  mcp:        {'skipped' if args.skip_mcp else args.mcp_url}")
             print(f"  broker:     {args.broker}")
-            print(f"  config:     {args.template or 'inline-generic'}")
+            print(f"  config:     {args.template or generic_config}")
             print(f"  kind:       {context}/{args.namespace}")
             print(f"  pod_count:  {len(pods)}")
             success = True

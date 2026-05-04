@@ -5,8 +5,8 @@ base namespace/RBAC, the Scion control plane, MCP, and Scion agent pods.
 
 ## Base Resources
 
-`deploy/kind` contains the base namespace and RBAC needed by Scion's Kubernetes
-runtime:
+`deploy/kind` contains the kind cluster template plus the base namespace and
+RBAC needed by Scion's Kubernetes runtime:
 
 ```bash
 kubectl --context kind-scion-ops apply -k deploy/kind
@@ -27,8 +27,8 @@ directly deployable.
 | image registry | `localhost` |
 | workspace host path | current repo checkout |
 | workspace node path | `/workspace/scion-ops` |
-| Hub host URL | `http://127.0.0.1:18090` |
-| MCP host URL | `http://127.0.0.1:8765/mcp` |
+| Hub host URL | `http://192.168.122.103:18090` |
+| MCP host URL | `http://192.168.122.103:8765/mcp` |
 
 Override the cluster name with:
 
@@ -61,8 +61,8 @@ The kind node is also created with `extraPortMappings`:
 
 | Host | kind node | Kubernetes Service |
 |---|---|---|
-| `127.0.0.1:18090` | `30090` | `scion-hub` NodePort |
-| `127.0.0.1:8765` | `30876` | `scion-ops-mcp` NodePort |
+| `192.168.122.103:18090` | `30090` | `scion-hub` NodePort |
+| `192.168.122.103:8765` | `30876` | `scion-ops-mcp` NodePort |
 
 Existing kind clusters cannot be mutated to add these mappings. If
 `task kind:status` reports missing kind native ports, recreate the cluster with

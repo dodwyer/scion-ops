@@ -26,9 +26,9 @@ cluster, base runtime resources, image loading, and control-plane Kustomize
 target. Hidden aliases `task deploy`, `task update`, and `task destroy` map to
 the same lifecycle operations for agents that use those words.
 
-The current smoke test dispatches an inline no-auth generic Scion agent through
-the kind-hosted Hub and co-located broker. Subscription-backed Claude, Codex,
-and Gemini consensus rounds remain the next bootstrap step in issue #29:
+The current smoke test dispatches the checked-in no-auth generic smoke config
+through the kind-hosted Hub and co-located broker. Subscription-backed Claude,
+Codex, and Gemini consensus rounds remain the next bootstrap step in issue #29:
 credentials, harness configs, and templates must be restored into the
 Kubernetes-hosted Hub without relying on host-local upload paths.
 
@@ -48,7 +48,7 @@ kind cluster:
 host:
   repo checkout
   container image build source
-  kind native localhost ports for Hub and Zed
+  kind native host ports for Hub and Zed
 ```
 
 The Kubernetes resources are native Kustomize manifests under `deploy/kind`.
@@ -58,8 +58,8 @@ come later only if the values and lifecycle model justify it.
 ## MCP And Zed
 
 The supported MCP transport is the Kubernetes-hosted HTTP service. `task up`
-creates kind native port mappings, so MCP is available on localhost without a
-`kubectl port-forward` process:
+creates kind native port mappings, so MCP is available on the host address
+without a `kubectl port-forward` process:
 
 ```bash
 task up
@@ -71,14 +71,13 @@ Configure Zed with:
 {
   "context_servers": {
     "scion-ops": {
-      "url": "http://127.0.0.1:8765/mcp"
+      "url": "http://192.168.122.103:8765/mcp"
     }
   }
 }
 ```
 
-Smoke test the localhost service with `task kind:mcp:smoke`. See
-`docs/zed-mcp.md`.
+Smoke test the HTTP service with `task kind:mcp:smoke`. See `docs/zed-mcp.md`.
 
 ## Layout
 

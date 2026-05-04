@@ -41,7 +41,7 @@ task kind:mcp:smoke
 task kind:broker:status
 ```
 
-Use the kind-native localhost mappings for direct inspection:
+Use the kind-native host mappings for direct inspection:
 
 ```bash
 eval "$(task kind:hub:auth-export)"
@@ -61,7 +61,8 @@ recreate the Kubernetes cluster.
 
 ## Known Test Gap
 
-The Kubernetes smoke intentionally uses an inline generic no-auth agent. It
-does not prove Claude, Codex, or Gemini subscription-backed consensus rounds.
-That is blocked on issue #29, which must restore credentials, templates, and
-harness configs into the Kubernetes-hosted Hub without host-local upload paths.
+The Kubernetes smoke intentionally uses the checked-in generic no-auth smoke
+config. It does not prove Claude, Codex, or Gemini subscription-backed
+consensus rounds. That is blocked on issue #29, which must restore credentials,
+templates, and harness configs into the Kubernetes-hosted Hub without
+host-local upload paths.
