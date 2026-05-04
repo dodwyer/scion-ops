@@ -45,12 +45,20 @@ Apply and verify:
 ```bash
 task kind:up
 task kind:load-images -- localhost/scion-base:latest
-task kind:hub:apply
-task kind:hub:status
+task kind:control-plane:apply
+task kind:control-plane:status
 ```
 
 If `localhost/scion-base:latest` has not been built locally, build it first
 with `task images:build` and then load it into kind.
+
+The Hub-specific task names remain available as narrow aliases:
+
+```bash
+task kind:hub:apply
+task kind:hub:status
+task kind:hub:logs
+```
 
 To inspect the Hub HTTP endpoint from the host, use a local-only port-forward:
 
@@ -61,6 +69,15 @@ curl http://127.0.0.1:18090/healthz
 
 The Service is ClusterIP-only. There is no host port binding unless the
 port-forward is running.
+
+Remove the experimental control-plane resources with:
+
+```bash
+task kind:control-plane:delete
+```
+
+This deletes resources from `deploy/kind/control-plane`. It does not delete the
+kind cluster or the base agent-runtime resources from `deploy/kind`.
 
 The Hub stores its mutable global Scion directory, SQLite database, dev token,
 templates, and local storage directory on the `scion-hub-state` PVC. The

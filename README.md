@@ -45,7 +45,8 @@ The current default deployment keeps Hub, broker, and MCP on the host while
 kind runs agent pods. The proposed all-in-kind control-plane path is documented
 in `docs/kind-control-plane.md` and should remain Kustomize-first until the
 resource model is proven. The first experimental Hub-only kind slice is applied
-separately with `task kind:hub:apply` and verified with `task kind:hub:status`.
+separately with `task kind:control-plane:apply` and verified with
+`task kind:control-plane:status`.
 
 ## Layout
 

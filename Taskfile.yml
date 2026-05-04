@@ -90,6 +90,27 @@ tasks:
     cmds:
       - bash scripts/kind-scion-runtime.sh configure-scion
 
+  kind:control-plane:apply:
+    desc: Apply the experimental kind control-plane resources.
+    cmds:
+      - task: kind:hub:apply
+
+  kind:control-plane:status:
+    desc: Show status for the experimental kind control plane.
+    cmds:
+      - task: kind:hub:status
+
+  kind:control-plane:logs:
+    desc: Follow logs from the experimental kind control plane.
+    cmds:
+      - task: kind:hub:logs
+
+  kind:control-plane:delete:
+    desc: Delete the experimental kind control-plane resources.
+    prompt: This deletes experimental kind control-plane resources from {{.KIND_CONTEXT}}. Continue?
+    cmds:
+      - kubectl --context '{{.KIND_CONTEXT}}' delete -k deploy/kind/control-plane --ignore-not-found=true
+
   kind:hub:apply:
     desc: Apply the experimental Hub-only kind control-plane resources.
     cmds:
