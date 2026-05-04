@@ -120,8 +120,21 @@ kind_node_name() {
 container_runtime_for_node() {
   local node="$1"
   local runtime
+  local runtimes
 
-  for runtime in docker podman; do
+  case "$KIND_PROVIDER" in
+    podman)
+      runtimes=(podman docker)
+      ;;
+    docker)
+      runtimes=(docker podman)
+      ;;
+    *)
+      runtimes=("$KIND_PROVIDER" podman docker)
+      ;;
+  esac
+
+  for runtime in "${runtimes[@]}"; do
     if command -v "$runtime" >/dev/null 2>&1 && "$runtime" container inspect "$node" >/dev/null 2>&1; then
       printf '%s\n' "$runtime"
       return 0
