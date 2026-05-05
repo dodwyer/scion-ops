@@ -35,7 +35,7 @@ vars:
   HOME:
     sh: echo "$HOME"
   GOPATH:
-    sh: go env GOPATH
+    sh: command -v go >/dev/null 2>&1 && go env GOPATH || printf '%s/go' "$HOME"
   SCION_BIN: scion
 
 tasks:
@@ -59,6 +59,7 @@ tasks:
       - task: kind:workspace:status
       - task kind:load-images -- localhost/scion-base:latest localhost/scion-ops-mcp:latest localhost/scion-claude:latest localhost/scion-codex:latest localhost/scion-gemini:latest
       - task: kind:control-plane:apply
+      - task: kind:control-plane:restart
       - task: kind:control-plane:status
 
   test:
@@ -130,6 +131,10 @@ tasks:
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' apply -f deploy/kind/namespace.yaml
       - kubectl --context '{{.KIND_CONTEXT}}' apply -k deploy/kind/control-plane
+
+  kind:control-plane:restart:
+    cmds:
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-hub deploy/scion-ops-mcp
 
   kind:control-plane:status:
     cmds:

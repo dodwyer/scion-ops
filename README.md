@@ -30,6 +30,11 @@ the same lifecycle operations for agents that use those words.
 the target repo as a Hub grove, provides the kind broker, stores shared
 subscription credentials as Hub secrets, and syncs the scion-ops templates from
 inside the Hub pod so host-local upload paths are not used.
+The default LLM auth path uses provider subscription credential files:
+`CLAUDE_AUTH`, `CLAUDE_CONFIG`, `CODEX_AUTH`, and `GEMINI_OAUTH_CREDS`,
+selected through Scion's `auth-file` harness auth. Vertex ADC is not restored
+by default; enable it deliberately with `SCION_OPS_BOOTSTRAP_VERTEX_ADC=1` and
+provide `GOOGLE_CLOUD_PROJECT` plus a Google Cloud region variable.
 
 ## Kubernetes Shape
 

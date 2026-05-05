@@ -59,7 +59,7 @@ printf 'Project root: %s\n' "$PROJECT_ROOT"
   --type consensus-runner \
   --branch "$RUNNER_BRANCH" \
   --broker "$BROKER" \
-  --no-auth \
+  --harness-auth auth-file \
   --no-upload \
   --non-interactive \
   --yes \

@@ -25,13 +25,41 @@ task kind:mcp:smoke
 
 ## Register In Zed
 
-Add this to `.zed/settings.json` or your Zed user settings:
+If Zed can reach the remote host address directly, add this to
+`.zed/settings.json` or your Zed user settings:
 
 ```json
 {
   "context_servers": {
     "scion-ops": {
       "url": "http://192.168.122.103:8765/mcp"
+    }
+  }
+}
+```
+
+If Zed is running locally and should reach MCP through the Zed SSH connection,
+forward the remote MCP port and point the context server at the local forwarded
+port:
+
+```json
+{
+  "ssh_connections": [
+    {
+      "host": "192.168.122.103",
+      "username": "david",
+      "port_forwards": [
+        {
+          "local_port": 8765,
+          "remote_host": "192.168.122.103",
+          "remote_port": 8765
+        }
+      ]
+    }
+  ],
+  "context_servers": {
+    "scion-ops": {
+      "url": "http://127.0.0.1:8765/mcp"
     }
   }
 }
@@ -50,7 +78,8 @@ cd /home/david/workspace/github/livewyer-ops/scion-ops
 task up
 ```
 
-Then use the same remote-host URL in Zed:
+Then use the same remote-host URL in Zed, or the SSH-forwarded local URL when
+using the forwarded configuration above:
 
 ```json
 {

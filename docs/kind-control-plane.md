@@ -22,7 +22,8 @@ task down
 run the bootstrap and smoke test. `task up` is both deploy and update. It
 creates or reuses the kind cluster, applies base runtime resources, verifies the
 workspace mount, loads local images, applies the control-plane Kustomize target,
-and waits for rollout.
+restarts the control-plane deployments so mutable local image tags are picked
+up, and waits for rollout.
 
 ## Kubernetes Resources
 
@@ -132,6 +133,14 @@ The codebase being changed is always the target project. `task bootstrap --
 Shared credentials are stored as Hub-scoped secrets, and scion-ops templates are
 synced as Hub global templates.
 
+Default model authentication uses subscription credential files restored by
+`task bootstrap`: `CLAUDE_AUTH`, `CLAUDE_CONFIG`, `CODEX_AUTH`, and
+`GEMINI_OAUTH_CREDS`.
+The default round personas use Scion's `--harness-auth auth-file` path for
+Claude, Codex, and Gemini. Vertex ADC is deliberately opt-in. To use it, set
+`SCION_OPS_BOOTSTRAP_VERTEX_ADC=1` and provide `GOOGLE_CLOUD_PROJECT` plus
+`GOOGLE_CLOUD_REGION`, `CLOUD_ML_REGION`, or `GOOGLE_CLOUD_LOCATION`.
+
 The MCP tool contract mirrors that shape: pass `project_root` to
 `scion_ops_project_status`, `scion_ops_start_round`, `scion_ops_round_status`,
 `scion_ops_watch_round_events`, and git diff/status tools when operating on a
@@ -148,5 +157,6 @@ Deleting the kind cluster deletes cluster-local Scion state.
 | Broker registration | Hub state for co-located broker | yes |
 | MCP workspace | host checkout mounted into kind node | no |
 | Agent artifacts | agent workspaces and pushed git branches | pod-local state is ephemeral |
-| Subscription credentials | Hub-scoped secrets restored by `task bootstrap` | yes |
+| Subscription credentials | Hub-scoped Claude, Codex, and Gemini secrets restored by `task bootstrap` | yes |
+| Vertex ADC credentials | optional Hub-scoped secrets restored only when `SCION_OPS_BOOTSTRAP_VERTEX_ADC=1`; cleared by default bootstrap | yes |
 | Templates/harness configs | Hub global templates and Hub harness configs restored by `task bootstrap` | yes |
