@@ -164,6 +164,9 @@ blocked state for the operator to resolve.
 
 ## Spec-Driven Rounds
 
+For a complete start-to-finish example with shell commands, Zed prompts, PR
+handoffs, and archive cleanup, see `docs/zed-openspec-example.md`.
+
 Ask for a spec round with the target project and goal:
 
 ```text
