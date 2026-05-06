@@ -908,6 +908,23 @@ def _default_base_branch(project_root: str = "") -> str:
     return current or "HEAD"
 
 
+def _github_https_remote(remote_url: str) -> str:
+    remote_url = remote_url.strip()
+    if not remote_url:
+        return ""
+    if remote_url.startswith("https://github.com/"):
+        return remote_url
+    ssh_match = re.fullmatch(r"git@github\.com:(?P<repo>\S+)", remote_url)
+    if ssh_match:
+        return f"https://github.com/{ssh_match.group('repo')}"
+    parsed = urllib.parse.urlparse(remote_url)
+    if parsed.scheme == "ssh" and parsed.hostname == "github.com":
+        path = parsed.path.lstrip("/")
+        if parsed.username == "git" and path:
+            return f"https://github.com/{path}"
+    return ""
+
+
 @mcp.tool()
 def scion_ops_hub_status(project_root: str = "") -> dict[str, Any]:
     """Show Scion Hub API health, grove, broker providers, and agents."""
@@ -1240,11 +1257,24 @@ def scion_ops_round_artifacts(round_id: str, project_root: str = "") -> dict[str
     root = _project_root(project_root) if project_root else _repo_root()
     branch_patterns = sorted({f"*{round_id}*", f"*{round_id.lower()}*"})
     branch_result = _run(["git", "branch", "--list", *branch_patterns], timeout=15, cwd=root)
+    remote_url_result = _run(["git", "remote", "get-url", "origin"], timeout=10, cwd=root)
     remote_result = _run(
         ["git", "ls-remote", "--heads", "origin", *branch_patterns],
         timeout=25,
         cwd=root,
     )
+    remote_primary_result = remote_result
+    remote_fallback_result: dict[str, Any] = {}
+    if not remote_result["ok"] and remote_url_result["ok"]:
+        https_remote = _github_https_remote(remote_url_result["output"])
+        if https_remote:
+            remote_fallback_result = _run(
+                ["git", "ls-remote", "--heads", https_remote, *branch_patterns],
+                timeout=25,
+                cwd=root,
+            )
+            if remote_fallback_result["ok"]:
+                remote_result = remote_fallback_result
     remote_branches: list[dict[str, str]] = []
     if remote_result["ok"]:
         for line in remote_result["output"].splitlines():
@@ -1273,6 +1303,9 @@ def scion_ops_round_artifacts(round_id: str, project_root: str = "") -> dict[str
         "workspaces": workspaces,
         "prompts": prompts,
         "branch_result": _command_result(branch_result),
+        "remote_url_result": _command_result(remote_url_result),
+        "remote_primary_result": _command_result(remote_primary_result),
+        "remote_fallback_result": _command_result(remote_fallback_result) if remote_fallback_result else {},
         "remote_branch_result": _command_result(remote_result),
     }
 
