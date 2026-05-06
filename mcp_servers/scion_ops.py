@@ -990,6 +990,26 @@ def _validate_spec_change_result(root: Path, change: str) -> tuple[dict[str, Any
     return command_result, payload
 
 
+def _archive_spec_change_result(root: Path, change: str, confirm: bool) -> tuple[dict[str, Any], dict[str, Any]]:
+    args = [
+        "python3",
+        str(_repo_root() / "scripts" / "archive-openspec-change.py"),
+        "--project-root",
+        str(root),
+        "--change",
+        change,
+        "--json",
+    ]
+    if confirm:
+        args.append("--yes")
+    result = _run(args, timeout=30, cwd=_repo_root())
+    payload = _parse_json_result(result)
+    command_result = _command_result(result)
+    if payload and not payload.get("ok"):
+        command_result["error_kind"] = "openspec_archive"
+    return command_result, payload
+
+
 @mcp.tool()
 def scion_ops_hub_status(project_root: str = "") -> dict[str, Any]:
     """Show Scion Hub API health, grove, broker providers, and agents."""
@@ -1412,6 +1432,7 @@ def scion_ops_spec_status(project_root: str, change: str = "") -> dict[str, Any]
     """List OpenSpec changes in a target project and optionally validate one change."""
     root = _project_root(project_root)
     changes_dir = root / "openspec" / "changes"
+    archive_dir = changes_dir / "archive"
     changes: list[dict[str, Any]] = []
     if changes_dir.exists():
         for path in sorted(item for item in changes_dir.iterdir() if item.is_dir() and item.name != "archive"):
@@ -1423,6 +1444,10 @@ def scion_ops_spec_status(project_root: str, change: str = "") -> dict[str, Any]
                 "has_tasks": (path / "tasks.md").exists(),
                 "spec_file_count": len(list((path / "specs").glob("**/spec.md"))) if (path / "specs").exists() else 0,
             })
+    archived_changes: list[dict[str, str]] = []
+    if archive_dir.exists():
+        for path in sorted(item for item in archive_dir.iterdir() if item.is_dir()):
+            archived_changes.append({"archive": path.name, "path": str(path.relative_to(root))})
     validation: dict[str, Any] = {}
     validation_result: dict[str, Any] = {}
     ok = True
@@ -1436,6 +1461,8 @@ def scion_ops_spec_status(project_root: str, change: str = "") -> dict[str, Any]
         "project_root": str(root),
         "changes_path": str(changes_dir.relative_to(root)),
         "changes": changes,
+        "archive_path": str(archive_dir.relative_to(root)),
+        "archived_changes": archived_changes,
         "change": change,
         "validation": validation,
         "validation_result": validation_result,
@@ -1443,7 +1470,27 @@ def scion_ops_spec_status(project_root: str, change: str = "") -> dict[str, Any]
             "draft_spec_tool": "scion_ops_start_spec_round",
             "validate_tool": "scion_ops_validate_spec_change",
             "start_implementation_tool": "scion_ops_start_impl_round",
+            "archive_tool": "scion_ops_archive_spec_change",
             "watch_tool": "scion_ops_watch_round_events",
+        },
+    }
+
+
+@mcp.tool()
+def scion_ops_archive_spec_change(project_root: str, change: str, confirm: bool = False) -> dict[str, Any]:
+    """Archive an accepted OpenSpec change and sync accepted specs. Requires confirm=true to apply."""
+    root = _project_root(project_root)
+    change = _clean_name(change, "change")
+    command_result, payload = _archive_spec_change_result(root, change, confirm)
+    return {
+        **command_result,
+        "source": "openspec_archive",
+        "project_root": str(root),
+        "change": change,
+        "archive": payload,
+        "next": {
+            "apply": "Call again with confirm=true to apply the archive." if not confirm else "",
+            "status_tool": "scion_ops_spec_status",
         },
     }
 

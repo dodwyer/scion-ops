@@ -164,3 +164,15 @@ scion_ops_round_artifacts(project_root, round_id)
 
 `scion_ops_start_impl_round` validates the artifact set before launching
 agents. Missing or invalid specs fail before model work starts.
+
+After the implementation PR is merged, ask for archive cleanup:
+
+```text
+Use scion-ops on project_root=/home/david/workspace/github/example/project.
+Archive accepted OpenSpec change=add-widget, sync accepted specs, and report the archive path.
+```
+
+The external agent should first call
+`scion_ops_archive_spec_change(project_root, change, confirm=false)` and show
+the plan. After confirmation, it calls the same tool with `confirm=true`, then
+uses `scion_ops_spec_status(project_root, change)` to show the archived state.
