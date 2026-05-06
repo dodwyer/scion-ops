@@ -287,7 +287,10 @@ tasks:
     silent: true
     cmds:
       - |
-        token="$(kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' exec deploy/scion-hub -c hub -- cat /home/scion/.scion/dev-token)"
+        token="$(kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' get secret scion-hub-dev-auth -o jsonpath='{.data.dev-token}' 2>/dev/null | base64 -d 2>/dev/null || true)"
+        if [ -z "$token" ]; then
+          token="$(kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' exec deploy/scion-hub -c hub -- cat /home/scion/.scion/dev-token)"
+        fi
         printf 'export SCION_HUB_ENDPOINT=%s\n' '{{.SCION_OPS_KIND_HUB_URL}}'
         printf 'export HUB_ENDPOINT=%s\n' '{{.SCION_OPS_KIND_HUB_URL}}'
         printf 'export SCION_DEV_TOKEN=%s\n' "$token"

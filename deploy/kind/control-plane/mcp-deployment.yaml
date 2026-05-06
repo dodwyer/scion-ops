@@ -73,7 +73,7 @@ spec:
             - name: SCION_HUB_ENDPOINT
               value: http://scion-hub:8090
             - name: SCION_DEV_TOKEN_FILE
-              value: /hub-state/dev-token
+              value: /run/secrets/scion-hub-dev-auth/dev-token
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
@@ -104,8 +104,8 @@ spec:
               mountPath: /workspace
             - name: checkouts
               mountPath: /home/scion/checkouts
-            - name: hub-state
-              mountPath: /hub-state
+            - name: hub-dev-auth
+              mountPath: /run/secrets/scion-hub-dev-auth
               readOnly: true
       volumes:
         - name: workspace
@@ -115,7 +115,7 @@ spec:
         - name: checkouts
           persistentVolumeClaim:
             claimName: scion-ops-mcp-checkouts
-        - name: hub-state
-          persistentVolumeClaim:
-            claimName: scion-hub-state
-            readOnly: true
+        - name: hub-dev-auth
+          secret:
+            secretName: scion-hub-dev-auth
+            optional: true

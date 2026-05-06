@@ -166,6 +166,9 @@ Hub is available at `http://192.168.122.103:18090`; MCP is available at
 The kind Hub sets `SCION_SERVER_HUB_HUBID` to `scion-ops-kind`. Scion
 namespaces Hub-scoped secrets by Hub ID, so this value must stay stable across
 Hub pod rollouts or bootstrap credentials will become invisible after restart.
+`task bootstrap` also mirrors the active Hub dev-auth token into the
+`scion-hub-dev-auth` Kubernetes Secret. MCP reads that Secret and no longer
+mounts the Hub state PVC for auth.
 
 ## Smoke Test
 
@@ -246,7 +249,7 @@ Deleting the kind cluster deletes cluster-local Scion state.
 |---|---|---|
 | Hub database/state | `scion-hub-state` PVC | yes |
 | Hub ID | `SCION_SERVER_HUB_HUBID=scion-ops-kind` in `deploy/kind/control-plane/hub-deployment.yaml` | no |
-| Hub dev token | `scion-hub-state` PVC | yes |
+| Hub dev token | `scion-hub-state` PVC, mirrored to `scion-hub-dev-auth` by `task bootstrap` | yes |
 | Broker registration | Hub state for co-located broker | yes |
 | MCP workspace | host checkout mounted into kind node | no |
 | MCP-prepared GitHub checkouts | `scion-ops-mcp-checkouts` PVC | yes |

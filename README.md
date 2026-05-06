@@ -105,7 +105,9 @@ come later only if the values and lifecycle model justify it.
 The kind Hub uses a stable `SCION_SERVER_HUB_HUBID` so Hub-scoped bootstrap
 secrets remain visible after Hub pod rollouts. The Hub deployment runs the
 Scion binary from `localhost/scion-base:latest`; persistent Hub state must not
-override the image binary.
+override the image binary. Bootstrap mirrors the local Hub dev-auth token into
+the `scion-hub-dev-auth` Kubernetes Secret so MCP authenticates through a
+Kubernetes resource rather than the Hub state PVC.
 
 ## MCP And Zed
 

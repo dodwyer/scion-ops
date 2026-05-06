@@ -70,6 +70,30 @@ run_in_hub() {
   kubectl_ctx -n "$NAMESPACE" exec "$pod" -c hub -- sh -lc "$command"
 }
 
+restore_hub_dev_auth_secret() {
+  local token="$1"
+  local token_file
+  [[ "$token" == scion_dev_* ]] || die "refusing to restore invalid Hub dev token"
+  token_file="$(mktemp "${TMPDIR:-/tmp}/scion-hub-dev-token.XXXXXX")"
+  chmod 0600 "$token_file"
+  printf '%s\n' "$token" > "$token_file"
+  if ! kubectl_ctx -n "$NAMESPACE" create secret generic scion-hub-dev-auth \
+    --from-file=dev-token="$token_file" \
+    --dry-run=client \
+    -o yaml | kubectl_ctx -n "$NAMESPACE" apply -f - >/dev/null; then
+    rm -f "$token_file"
+    return 1
+  fi
+  rm -f "$token_file"
+  log "restored Kubernetes Secret scion-hub-dev-auth"
+}
+
+restart_mcp_for_hub_auth_secret() {
+  kubectl_ctx -n "$NAMESPACE" rollout restart deploy/scion-ops-mcp >/dev/null
+  kubectl_ctx -n "$NAMESPACE" rollout status deploy/scion-ops-mcp --timeout=120s >/dev/null
+  log "restarted MCP after Hub auth Secret restore"
+}
+
 github_token() {
   if [[ -n "${GITHUB_TOKEN:-}" ]]; then
     printf '%s' "$GITHUB_TOKEN"
@@ -210,9 +234,11 @@ sync_harness_configs() {
 
   log "sync harness configs from inside Hub pod"
   local hub_url
+  local token
   hub_url="$(sh_quote "$HUB_IN_CLUSTER")"
+  token="$(sh_quote "$SCION_DEV_TOKEN")"
   for config in "${configs[@]}"; do
-    run_in_hub "$pod" "SCION_DEV_TOKEN=\$(cat /home/scion/.scion/dev-token) SCION_HUB_ENDPOINT=${hub_url} scion harness-config sync ${config} --hub ${hub_url} --non-interactive --yes"
+    run_in_hub "$pod" "SCION_DEV_TOKEN=${token} SCION_HUB_ENDPOINT=${hub_url} scion harness-config sync ${config} --hub ${hub_url} --non-interactive --yes"
   done
 }
 
@@ -229,8 +255,10 @@ sync_templates() {
 
   log "sync templates from inside Hub pod"
   local hub_url
+  local token
   hub_url="$(sh_quote "$HUB_IN_CLUSTER")"
-  run_in_hub "$pod" "SCION_DEV_TOKEN=\$(cat /home/scion/.scion/dev-token) SCION_HUB_ENDPOINT=${hub_url} scion --global templates sync --all --hub ${hub_url} --non-interactive --yes"
+  token="$(sh_quote "$SCION_DEV_TOKEN")"
+  run_in_hub "$pod" "SCION_DEV_TOKEN=${token} SCION_HUB_ENDPOINT=${hub_url} scion --global templates sync --all --hub ${hub_url} --non-interactive --yes"
 }
 
 main() {
@@ -243,9 +271,11 @@ main() {
 
   log "read kind Hub auth"
   load_hub_auth
+  restore_hub_dev_auth_secret "$SCION_DEV_TOKEN"
 
   log "wait for Hub and MCP rollouts"
   task kind:control-plane:status >/dev/null
+  restart_mcp_for_hub_auth_secret
 
   log "link target grove and provide broker ${BROKER}"
   log "target project: ${PROJECT_ROOT}"
