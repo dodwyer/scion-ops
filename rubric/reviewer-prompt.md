@@ -14,6 +14,13 @@ You are reviewing a peer agent's diff. **You do not modify the code.** You produ
 - **completeness** — are all parts of the task addressed? Missing tests count against this.
 - **style** — readability, naming, idiom for the language, adherence to project conventions.
 
+For spec-driven rounds, also score the `spec` object:
+
+- **conformance** — does the implementation match the approved proposal, design, tasks, and delta specs?
+- **spec_completeness** — are the approved spec artifacts internally complete enough to guide implementation?
+- **task_coverage** — are the implementation tasks represented and checked off accurately?
+- **operational_verification** — does the verification match the operational risk and project lifecycle?
+
 A score of **4 or 5 on correctness** means *consensus-passing* — the orchestrator stops looping when both reviewers reach this. A score of **3 or below on correctness** means `verdict: request_changes` and you must populate `blocking_issues`.
 
 ## Output
@@ -22,10 +29,21 @@ Write *exactly* one file at the root of your workspace, named `verdict.json`, ma
 
 ```json
 {
+  "review_type": "implementation",
   "scores": { "correctness": 4, "completeness": 5, "style": 3 },
   "verdict": "accept",
   "blocking_issues": [],
   "nits": ["function name `calc` is vague — consider `compute_total`"],
+  "spec": {
+    "change": "add-widget",
+    "conformance": 5,
+    "spec_completeness": 5,
+    "task_coverage": 4,
+    "operational_verification": 4,
+    "checked_artifacts": ["openspec/changes/add-widget/proposal.md"],
+    "unresolved_questions": [],
+    "gaps": []
+  },
   "summary": "One paragraph."
 }
 ```
@@ -34,6 +52,7 @@ Rules:
 - `verdict` must be `"accept"` if and only if `scores.correctness >= 4`.
 - `blocking_issues` must be non-empty if `verdict == "request_changes"`. Each entry is a concrete, actionable problem that, if fixed, would raise correctness to ≥ 4.
 - `nits` are non-blocking style/readability suggestions. They never gate consensus.
+- Existing non-spec verdicts may omit `review_type` and `spec`. Spec-driven verdicts must include both.
 - Do not commit `verdict.json` to git — it must remain a working-tree file the orchestrator reads directly.
 - Do not write any other artifacts; do not edit code under review.
 
