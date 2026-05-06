@@ -28,6 +28,7 @@ fi
 required_secrets=(
   GITHUB_TOKEN
   CLAUDE_AUTH
+  CLAUDE_CONFIG
   CODEX_AUTH
   GEMINI_OAUTH_CREDS
 )

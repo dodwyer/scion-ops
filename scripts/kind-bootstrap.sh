@@ -107,6 +107,21 @@ set_file_secret() {
   log "set Hub file secret ${key} -> ${target}"
 }
 
+clear_secret_if_present() {
+  local key="$1"
+  if run_scion hub secret get --scope hub "$key" --json --non-interactive >/dev/null 2>&1; then
+    run_scion hub secret clear --scope hub "$key" --non-interactive --yes >/dev/null
+    log "cleared Hub secret ${key}"
+  fi
+}
+
+truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 sync_harness_configs() {
   local pod="$1"
   local configs=(claude codex gemini)
@@ -177,10 +192,22 @@ main() {
   unset token
 
   set_file_secret CLAUDE_AUTH "${CLAUDE_AUTH_FILE:-${HOME}/.claude/.credentials.json}" "~/.claude/.credentials.json"
+  set_file_secret CLAUDE_CONFIG "${CLAUDE_CONFIG_FILE:-${HOME}/.claude.json}" "~/.claude.json"
   set_file_secret CODEX_AUTH "${CODEX_AUTH_FILE:-${HOME}/.codex/auth.json}" "~/.codex/auth.json"
   set_file_secret GEMINI_OAUTH_CREDS "${GEMINI_OAUTH_CREDS_FILE:-${HOME}/.gemini/oauth_creds.json}" "~/.gemini/oauth_creds.json"
-  if [[ -f "${GOOGLE_APPLICATION_CREDENTIALS:-${HOME}/.config/gcloud/application_default_credentials.json}" ]]; then
+  if truthy "${SCION_OPS_BOOTSTRAP_VERTEX_ADC:-}"; then
+    [[ -n "${GOOGLE_CLOUD_PROJECT:-}" ]] || die "GOOGLE_CLOUD_PROJECT is required when SCION_OPS_BOOTSTRAP_VERTEX_ADC is enabled"
+    [[ -n "${GOOGLE_CLOUD_REGION:-${CLOUD_ML_REGION:-${GOOGLE_CLOUD_LOCATION:-}}}" ]] || die "GOOGLE_CLOUD_REGION, CLOUD_ML_REGION, or GOOGLE_CLOUD_LOCATION is required when SCION_OPS_BOOTSTRAP_VERTEX_ADC is enabled"
     set_file_secret gcloud-adc "${GOOGLE_APPLICATION_CREDENTIALS:-${HOME}/.config/gcloud/application_default_credentials.json}" "~/.config/gcloud/application_default_credentials.json"
+    set_env_secret GOOGLE_CLOUD_PROJECT "$GOOGLE_CLOUD_PROJECT"
+    set_env_secret GOOGLE_CLOUD_REGION "${GOOGLE_CLOUD_REGION:-${CLOUD_ML_REGION:-${GOOGLE_CLOUD_LOCATION:-}}}"
+  else
+    clear_secret_if_present gcloud-adc
+    clear_secret_if_present GOOGLE_CLOUD_PROJECT
+    clear_secret_if_present GOOGLE_CLOUD_REGION
+    clear_secret_if_present CLOUD_ML_REGION
+    clear_secret_if_present GOOGLE_CLOUD_LOCATION
+    log "skip Vertex ADC restore; set SCION_OPS_BOOTSTRAP_VERTEX_ADC=1 to enable"
   fi
 
   pod="$(hub_pod)"

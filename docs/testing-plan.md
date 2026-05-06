@@ -66,4 +66,6 @@ recreate the Kubernetes cluster.
 The Kubernetes smoke still uses the checked-in generic no-auth smoke config, so
 it proves broker dispatch and MCP readiness without spending subscription model
 usage. The next full validation is a short `scion_ops_start_round` call against
-a clean target branch after `task bootstrap` passes.
+a clean target branch after `task bootstrap` passes. That round should use
+Scion's explicit `auth-file` harness authentication path for Claude, Codex,
+and Gemini, including Claude's companion `CLAUDE_CONFIG` state file.

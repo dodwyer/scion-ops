@@ -47,3 +47,33 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: scion-control-plane-broker
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: scion-control-plane-broker-namespaces
+  labels:
+    app.kubernetes.io/name: scion-hub
+    app.kubernetes.io/component: broker
+    app.kubernetes.io/part-of: scion-control-plane
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: scion-control-plane-broker-namespaces
+  labels:
+    app.kubernetes.io/name: scion-hub
+    app.kubernetes.io/component: broker
+    app.kubernetes.io/part-of: scion-control-plane
+subjects:
+  - kind: ServiceAccount
+    name: scion-control-plane
+    namespace: scion-agents
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: scion-control-plane-broker-namespaces

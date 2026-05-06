@@ -624,7 +624,7 @@ class HubClient:
             "/api/v1/messages",
             query={"grove": self.cfg.grove_id, "limit": str(limit)},
         )
-        messages = data.get("items", []) if isinstance(data, dict) else []
+        messages = (data.get("items") or []) if isinstance(data, dict) else []
         result = [item for item in messages if isinstance(item, dict)]
         if round_id:
             result = [item for item in result if _round_text_match(item, round_id)]
