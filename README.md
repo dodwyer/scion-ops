@@ -118,6 +118,11 @@ or stale, `task bootstrap` runs Scion's native broker registration flow,
 recreates the Secret, restarts the broker, and waits for the Hub control-channel
 connection before providing the target grove.
 
+Local kind uses the mounted host workspace for live development. The cluster
+workspace design is Git-based: MCP-managed target checkouts live on persistent
+storage and agent pods clone from Git through Hub mode. See
+`docs/workspace-persistence.md`.
+
 ## MCP And Zed
 
 The supported MCP transport is the Kubernetes-hosted HTTP service. `task up`
@@ -152,6 +157,7 @@ Smoke test the HTTP service with `task kind:mcp:smoke`. See `docs/zed-mcp.md`.
 - `docs/kind-scion-runtime.md` — kind runtime substrate details
 - `docs/openspec-round-workflow.md` — spec-driven round workflow design
 - `docs/testing-plan.md` — verification plan
+- `docs/workspace-persistence.md` — target project workspace persistence model
 - `docs/zed-mcp.md` — Kubernetes-hosted MCP registration
 - `mcp_servers/scion_ops.py` — streamable HTTP MCP server
 - `orchestrator/` — consensus round launcher and agent utilities

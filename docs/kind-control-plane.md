@@ -3,7 +3,8 @@
 This is the supported deployment path for scion-ops. Hub, Web/API, Runtime
 Broker, MCP, and Scion agent pods run in Kubernetes. For local development the
 cluster is `kind`; other Kubernetes clusters need an explicit persistence and
-workspace bootstrap model before they are supported.
+workspace bootstrap implementation before they are supported. The accepted
+workspace design is documented in `docs/workspace-persistence.md`.
 
 ## Operating Contract
 
@@ -98,6 +99,8 @@ The MCP Deployment runs the scion-ops streamable HTTP MCP server and reads Hub
 state through the `scion-hub` ClusterIP service. In local kind, MCP mounts the
 host workspace tree via a kind node `extraMount` and Kubernetes `hostPath`, so
 tools operate on the mounted git checkout selected by `project_root`.
+Cluster deployments should use MCP-managed Git checkouts on persistent storage
+instead of workstation bind mounts.
 
 The broker creates agent pods in `scion-agents` using in-cluster Kubernetes API
 access. It restores Hub HMAC credentials from the `scion-broker-credentials`
@@ -247,7 +250,9 @@ The MCP tool contract mirrors that shape: pass `project_root` to
 `scion_ops_watch_round_events`, and git diff/status tools when operating on a
 target project. If the target is only known by GitHub URL, call
 `scion_ops_prepare_github_repo` first and use the returned MCP-visible
-`project_root`.
+`project_root`. In local kind that path may resolve through the host workspace
+mount or the MCP checkout PVC. In cluster deployments it should resolve through
+the MCP checkout PVC.
 
 ## Persistence
 
@@ -260,8 +265,8 @@ Deleting the kind cluster deletes cluster-local Scion state.
 | Hub dev token | `scion-hub-state` PVC, mirrored to `scion-hub-dev-auth` by `task bootstrap` | yes |
 | Hub web sessions | `scion-hub-web-session` Secret plus session files under `scion-hub-state` PVC | yes |
 | Broker registration | Hub state plus `scion-broker-credentials` Secret restored by `task bootstrap` | yes |
-| MCP workspace | host checkout mounted into kind node | no |
-| MCP-prepared GitHub checkouts | `scion-ops-mcp-checkouts` PVC | yes |
+| MCP workspace | host checkout mounted into kind node; local-kind only | no |
+| MCP-prepared GitHub checkouts | `scion-ops-mcp-checkouts` PVC; cluster design treats this as the target checkout root | yes |
 | Agent artifacts | Hub agent records and pushed git branches | pod-local state is ephemeral |
 | Subscription credentials | Hub-scoped Claude, Codex, and Gemini secrets restored by `task bootstrap` | yes |
 | Vertex ADC credentials | optional Hub-scoped secrets restored only when `SCION_OPS_BOOTSTRAP_VERTEX_ADC=1`; cleared by default bootstrap | yes |

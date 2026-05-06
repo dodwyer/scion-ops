@@ -44,25 +44,29 @@ Constraint: this is local-kind only. Browser session continuity depends on
 Exit criteria: replace dev-only auth/session behavior with the supported
 production auth model before supporting non-kind Kubernetes deployments.
 
-## kind MCP Workspace HostPath
+## Local kind MCP Workspace HostPath
 
-Issue: #31
+Issue: #56
 
 Decision: local kind clusters mount the host `scion-ops` checkout into the kind
 node with a kind `extraMount`, so the MCP pod can mount that node path with
-Kubernetes `hostPath`.
+Kubernetes `hostPath`. This remains a local development shortcut only. The
+accepted cluster workspace design is MCP-managed GitHub checkouts on persistent
+storage, with agent pods cloning from Git through Hub mode.
 
 Reason: the MCP server needs live repo access for git, task, Scion, and
 artifact inspection. In kind, pod `hostPath` volumes see the node container
 filesystem, so the host checkout must be mounted into the node before any MCP
-Deployment can use it.
+Deployment can use it. For clusters beyond kind, the same capability should be
+provided by a checkout PVC rather than a workstation bind mount.
 
 Constraint: this is local-kind only and is not an agent workspace pattern. Do
 not use workstation bind mounts for non-kind clusters or for Scion agent
 runtime pods.
 
-Exit criteria: for non-local clusters, replace this with a cloned workspace or
-persistent workspace volume managed by explicit bootstrap/restore tasks.
+Exit criteria: keep hostPath confined to kind manifests. Before adding a
+non-kind deployment target, package MCP without a `/workspace/scion-ops`
+source mount and make the MCP checkout PVC the target project workspace root.
 
 ## kind Hub Dev Auth Secret Restore
 

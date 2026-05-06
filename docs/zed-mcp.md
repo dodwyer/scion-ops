@@ -107,6 +107,9 @@ scion-ops and the target repo.
 Repo URLs prepared through `scion_ops_prepare_github_repo` are cloned into the
 MCP checkout PVC at `/home/scion/checkouts/github` by default. Use the returned
 `project_root`; it is the path visible to the MCP server and round launcher.
+That PVC-backed checkout path is the intended target-project model for
+cluster deployments. The host workspace mount is only the local kind
+development shortcut.
 
 ## Tool State
 
