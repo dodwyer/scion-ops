@@ -1,5 +1,4 @@
 diff --git a/pkg/runtime/k8s_runtime.go b/pkg/runtime/k8s_runtime.go
-index afc67402..426991b8 100644
 --- a/pkg/runtime/k8s_runtime.go
 +++ b/pkg/runtime/k8s_runtime.go
 @@ -741,11 +741,7 @@ func (r *KubernetesRuntime) buildPod(namespace string, config RunConfig) (*corev
@@ -11,12 +10,11 @@ index afc67402..426991b8 100644
 -		} else {
 -			quotedArgs = append(quotedArgs, a)
 -		}
-+		quotedArgs = append(quotedArgs, shellQuoteArg(a))
++		quotedArgs = append(quotedArgs, tmuxShellQuoteArg(a))
  	}
  	cmdLine := strings.Join(quotedArgs, " ")
  	// Create session with "agent" window running the harness, plus a "shell" window.
 diff --git a/pkg/runtime/k8s_runtime_tmux_test.go b/pkg/runtime/k8s_runtime_tmux_test.go
-index 56268fa1..d0c6126c 100644
 --- a/pkg/runtime/k8s_runtime_tmux_test.go
 +++ b/pkg/runtime/k8s_runtime_tmux_test.go
 @@ -17,6 +17,7 @@ package runtime
@@ -40,7 +38,7 @@ index 56268fa1..d0c6126c 100644
  func TestKubernetesRuntime_Run_Tmux(t *testing.T) {
  	// Setup
  	clientset := k8sfake.NewSimpleClientset()
-@@ -168,3 +175,41 @@ func TestKubernetesRuntime_Run_Tmux(t *testing.T) {
+@@ -168,3 +175,44 @@ func TestKubernetesRuntime_Run_Tmux(t *testing.T) {
  		t.Fatal("Run timed out waiting for pod ready")
  	}
  }
@@ -75,6 +73,9 @@ index 56268fa1..d0c6126c 100644
 +	}
 +	if strings.Contains(startCmd, "\"Clarify `task scion:patch:check`") {
 +		t.Fatalf("prompt was double-quoted and remains shell-active: %s", startCmd)
++	}
++	if !strings.Contains(startCmd, tmuxShellQuoteArg(task)) {
++		t.Fatalf("prompt was not quoted for the outer shell and tmux shell: %s", startCmd)
 +	}
 +
 +	cmd := exec.Command("sh", "-n", "-c", startCmd)

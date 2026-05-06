@@ -1,7 +1,7 @@
 diff --git a/pkg/runtime/common.go b/pkg/runtime/common.go
 --- a/pkg/runtime/common.go
 +++ b/pkg/runtime/common.go
-@@ -351,11 +351,7 @@ func buildCommonRunArgs(config RunConfig) ([]string, error) {
+@@ -362,11 +362,7 @@ func buildCommonRunArgs(config RunConfig) ([]string, error) {
  	// Build tmux-wrapped command
  	var quotedArgs []string
  	for _, a := range harnessArgs {
@@ -10,11 +10,11 @@ diff --git a/pkg/runtime/common.go b/pkg/runtime/common.go
 -		} else {
 -			quotedArgs = append(quotedArgs, a)
 -		}
-+		quotedArgs = append(quotedArgs, shellQuoteArg(a))
++		quotedArgs = append(quotedArgs, tmuxShellQuoteArg(a))
  	}
  	cmdLine := strings.Join(quotedArgs, " ")
  
-@@ -385,6 +381,22 @@ func buildCommonRunArgs(config RunConfig) ([]string, error) {
+@@ -388,6 +384,26 @@ func buildCommonRunArgs(config RunConfig) ([]string, error) {
  	return args, nil
  }
  
@@ -34,6 +34,10 @@ diff --git a/pkg/runtime/common.go b/pkg/runtime/common.go
 +	return "'" + strings.ReplaceAll(arg, "'", "'\"'\"'") + "'"
 +}
 +
++func tmuxShellQuoteArg(arg string) string {
++	return shellQuoteArg(shellQuoteArg(arg))
++}
++
  // runtimeLog is the structured logger for runtime command execution.
  var runtimeLog = slog.Default().With(slog.String("subsystem", "runtime"))
  
@@ -48,7 +52,7 @@ diff --git a/pkg/runtime/common_test.go b/pkg/runtime/common_test.go
  	"path/filepath"
  	"strings"
  	"testing"
-@@ -475,6 +476,41 @@ func TestBuildCommonRunArgs(t *testing.T) {
+@@ -488,6 +489,69 @@ func TestBuildCommonRunArgs(t *testing.T) {
  
  }
  
@@ -80,11 +84,39 @@ diff --git a/pkg/runtime/common_test.go b/pkg/runtime/common_test.go
 +	if strings.Contains(tmuxCmd, fmt.Sprintf("%q", task)) {
 +		t.Fatalf("prompt was double-quoted and remains shell-active: %s", tmuxCmd)
 +	}
++	if !strings.Contains(tmuxCmd, tmuxShellQuoteArg(task)) {
++		t.Fatalf("prompt was not quoted for the outer shell and tmux shell: %s", tmuxCmd)
++	}
 +
 +	cmd := exec.Command("sh", "-n", "-c", tmuxCmd)
 +	if output, err := cmd.CombinedOutput(); err != nil {
 +		t.Fatalf("tmux command is not shell-safe: %v\n%s\ncommand: %s", err, string(output), tmuxCmd)
 +	}
++}
++
++func TestTmuxShellQuoteArgSurvivesOuterAndTmuxShell(t *testing.T) {
++	task := "Clarify `printf SCION_QUOTE_EXPANDED >&2` $HOME quote: don't substitute"
++
++	firstShell := shellEvalSingleArg(t, tmuxShellQuoteArg(task))
++	if firstShell != shellQuoteArg(task) {
++		t.Fatalf("outer shell did not preserve tmux shell quoting:\nwant: %s\ngot:  %s", shellQuoteArg(task), firstShell)
++	}
++
++	secondShell := shellEvalSingleArg(t, firstShell)
++	if secondShell != task {
++		t.Fatalf("tmux shell did not preserve prompt literally:\nwant: %s\ngot:  %s", task, secondShell)
++	}
++}
++
++func shellEvalSingleArg(t *testing.T, quoted string) string {
++	t.Helper()
++
++	cmd := exec.Command("sh", "-c", "set -- "+quoted+"; printf '%s' \"$1\"")
++	output, err := cmd.CombinedOutput()
++	if err != nil {
++		t.Fatalf("shell evaluation failed: %v\n%s\nquoted: %s", err, string(output), quoted)
++	}
++	return string(output)
 +}
 +
  func TestRunSimpleCommand(t *testing.T) {
