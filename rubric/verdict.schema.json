@@ -6,6 +6,11 @@
   "additionalProperties": false,
   "required": ["scores", "verdict"],
   "properties": {
+    "review_type": {
+      "type": "string",
+      "enum": ["implementation", "spec", "final", "unknown"],
+      "default": "implementation"
+    },
     "scores": {
       "type": "object",
       "additionalProperties": false,
@@ -29,6 +34,32 @@
       "type": "array",
       "items": { "type": "string" },
       "default": []
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "change": { "type": "string" },
+        "conformance": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "spec_completeness": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "task_coverage": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "operational_verification": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "checked_artifacts": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "unresolved_questions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "gaps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        }
+      }
     },
     "summary": {
       "type": "string",

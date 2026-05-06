@@ -77,6 +77,12 @@ The same model providers can fill these roles, but their prompts differ:
 planning roles must avoid code changes unless requested; implementation roles
 must treat the approved artifact set as the contract.
 
+Spec-driven reviewer verdicts use the same base `verdict.json` shape as direct
+implementation rounds, with optional `review_type` and `spec` fields. Existing
+non-spec verdicts may omit those fields. Spec-driven verdicts include
+conformance, spec completeness, task coverage, operational verification,
+checked artifacts, unresolved questions, and gaps.
+
 ## State Transitions
 
 ```text

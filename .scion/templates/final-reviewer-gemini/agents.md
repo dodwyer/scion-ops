@@ -25,13 +25,26 @@ The verdict JSON must have this shape:
 
 ```json
 {
+  "review_type": "final",
   "scores": { "correctness": 5, "completeness": 5, "style": 5 },
   "verdict": "accept",
   "blocking_issues": [],
   "nits": [],
+  "spec": {
+    "change": "add-widget",
+    "conformance": 5,
+    "spec_completeness": 5,
+    "task_coverage": 5,
+    "operational_verification": 5,
+    "checked_artifacts": [],
+    "unresolved_questions": [],
+    "gaps": []
+  },
   "summary": "Tests green, no critical issues."
 }
 ```
+
+For non-spec reviews, omit `review_type` and `spec`.
 
 ## Scion CLI Use
 

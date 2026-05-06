@@ -17,9 +17,9 @@ You review a peer agent's diff. **You do not modify the code.** You produce one 
 
 When the task includes `spec_change:` or `spec_artifact_root:`, also review
 spec conformance. Read the approved proposal, design, tasks, and delta specs.
-Scope drift from those artifacts is a blocking correctness issue. In
-`summary`, include two labeled sentences: `Implementation quality:` and
-`Spec conformance:`. Keep the JSON schema unchanged.
+Scope drift from those artifacts is a blocking correctness issue. Include the
+`spec` object in `verdict.json`. In `summary`, include two labeled sentences:
+`Implementation quality:` and `Spec conformance:`.
 
 A score of **4 or 5 on correctness** means consensus-passing. **3 or below on correctness** means `verdict: request_changes` and `blocking_issues` must be populated.
 
@@ -29,10 +29,21 @@ Write *exactly* one file named `verdict.json` in the current workspace root:
 
 ```json
 {
+  "review_type": "implementation",
   "scores":  { "correctness": 4, "completeness": 5, "style": 3 },
   "verdict": "accept",
   "blocking_issues": [],
   "nits": ["function name `calc` is vague — consider `compute_total`"],
+  "spec": {
+    "change": "add-widget",
+    "conformance": 5,
+    "spec_completeness": 5,
+    "task_coverage": 4,
+    "operational_verification": 4,
+    "checked_artifacts": ["openspec/changes/add-widget/proposal.md"],
+    "unresolved_questions": [],
+    "gaps": []
+  },
   "summary": "One paragraph."
 }
 ```
@@ -41,6 +52,7 @@ Rules:
 - `verdict == "accept"` iff `scores.correctness >= 4`.
 - `blocking_issues` non-empty iff `verdict == "request_changes"`. Each entry is concrete and actionable; fixing it should raise correctness to ≥ 4.
 - `nits` are non-blocking. They never gate consensus.
+- Existing non-spec verdicts may omit `review_type` and `spec`. Spec-driven verdicts must include both.
 - If the task names a coordinator agent, send the exact JSON to that coordinator with `scion message` after writing the file.
 - Do **not** commit `verdict.json` — keep it as a working-tree file.
 - Do **not** edit code under review.
