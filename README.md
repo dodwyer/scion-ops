@@ -86,6 +86,7 @@ without a `kubectl port-forward` process:
 
 ```bash
 task up
+task kind:mcp:smoke   # verify the HTTP MCP service responds before registering a client
 ```
 
 Configure Zed with:
@@ -100,7 +101,7 @@ Configure Zed with:
 }
 ```
 
-Smoke test the HTTP service with `task kind:mcp:smoke`. See `docs/zed-mcp.md`.
+See `docs/zed-mcp.md`.
 
 ## Layout
 
