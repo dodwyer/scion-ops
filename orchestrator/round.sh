@@ -24,7 +24,7 @@ AGENT_PROJECT_ROOT="${SCION_OPS_AGENT_PROJECT_ROOT:-/workspace}"
 
 ROUND_ID="${ROUND_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$(printf '%04x' "$RANDOM")}"
 MAX_REVIEW_ROUNDS="${MAX_REVIEW_ROUNDS:-${MAX_ROUNDS:-3}}"
-FINAL_REVIEWER="${FINAL_REVIEWER:-gemini}"
+FINAL_REVIEWER="${FINAL_REVIEWER:-codex}"
 BASE_BRANCH="${BASE_BRANCH:-$(git -C "$PROJECT_ROOT" branch --show-current 2>/dev/null || true)}"
 BROKER="${SCION_KIND_CP_BROKER:-kind-control-plane}"
 if [[ -z "$BASE_BRANCH" ]]; then

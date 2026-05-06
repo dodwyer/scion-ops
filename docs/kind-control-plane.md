@@ -208,10 +208,20 @@ synced as Hub global templates.
 Default model authentication uses subscription credential files restored by
 `task bootstrap`: `CLAUDE_AUTH`, `CLAUDE_CONFIG`, `CODEX_AUTH`, and
 `GEMINI_OAUTH_CREDS`.
+The restored Claude config keeps subscription state and adds `/workspace` as a
+trusted project path for Scion-managed agent pods. Bootstrap also prepares the
+Claude harness settings to skip the bypass-permissions warning in the
+Kubernetes agent sandbox. Host-local Claude MCP server registrations are
+stripped from the agent config so startup depends on Scion's explicit harness
+and template configuration. Claude round templates pass `--print` through
+native Scion `command_args` so multiline prompts are submitted
+non-interactively.
 The default round personas use Scion's `--harness-auth auth-file` path for
-Claude, Codex, and Gemini. Vertex ADC is deliberately opt-in. To use it, set
-`SCION_OPS_BOOTSTRAP_VERTEX_ADC=1` and provide `GOOGLE_CLOUD_PROJECT` plus
-`GOOGLE_CLOUD_REGION`, `CLOUD_ML_REGION`, or `GOOGLE_CLOUD_LOCATION`.
+Claude, Codex, and optional Gemini final review. Codex is the reliable default
+final reviewer; Gemini can be requested explicitly and falls back to Codex when
+capacity or auth prevents a verdict. Vertex ADC is deliberately opt-in. To use
+it, set `SCION_OPS_BOOTSTRAP_VERTEX_ADC=1` and provide `GOOGLE_CLOUD_PROJECT`
+plus `GOOGLE_CLOUD_REGION`, `CLOUD_ML_REGION`, or `GOOGLE_CLOUD_LOCATION`.
 
 The MCP tool contract mirrors that shape: pass `project_root` to
 `scion_ops_project_status`, `scion_ops_start_round`, `scion_ops_round_status`,

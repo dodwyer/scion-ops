@@ -107,6 +107,70 @@ set_file_secret() {
   log "set Hub file secret ${key} -> ${target}"
 }
 
+set_claude_config_secret() {
+  local source="$1"
+  local target="$2"
+  local prepared
+  [[ -f "$source" ]] || die "required credential file not found: $source"
+  prepared="$(mktemp "${TMPDIR:-/tmp}/scion-claude-config.XXXXXX.json")"
+
+  python3 - "$source" "$prepared" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1])
+dest = Path(sys.argv[2])
+config = json.loads(source.read_text())
+projects = config.setdefault("projects", {})
+workspace = projects.setdefault("/workspace", {})
+workspace.setdefault("allowedTools", [])
+workspace.setdefault("mcpContextUris", [])
+workspace.setdefault("mcpServers", {})
+workspace.setdefault("enabledMcpjsonServers", [])
+workspace.setdefault("disabledMcpjsonServers", [])
+workspace["hasTrustDialogAccepted"] = True
+workspace.setdefault("projectOnboardingSeenCount", 1)
+workspace.setdefault("hasClaudeMdExternalIncludesApproved", False)
+workspace.setdefault("hasClaudeMdExternalIncludesWarningShown", False)
+workspace.setdefault("exampleFiles", [])
+config["hasCompletedOnboarding"] = True
+config["bypassPermissionsModeAccepted"] = True
+config["skipDangerousModePermissionPrompt"] = True
+config["mcpServers"] = {}
+config["enabledMcpjsonServers"] = []
+config["disabledMcpjsonServers"] = []
+config["mcpContextUris"] = []
+dest.write_text(json.dumps(config, indent=2, sort_keys=True) + "\n")
+PY
+
+  if set_file_secret CLAUDE_CONFIG "$prepared" "$target"; then
+    rm -f "$prepared"
+  else
+    rm -f "$prepared"
+    return 1
+  fi
+  log "prepared Claude config for Scion agent startup"
+}
+
+prepare_hub_harness_configs() {
+  local pod="$1"
+  run_in_hub "$pod" "python3 - <<'PY'
+import json
+from pathlib import Path
+
+settings = Path('/home/scion/.scion/harness-configs/claude/home/.claude/settings.json')
+settings.parent.mkdir(parents=True, exist_ok=True)
+try:
+    data = json.loads(settings.read_text()) if settings.exists() else {}
+except json.JSONDecodeError:
+    data = {}
+data['skipDangerousModePermissionPrompt'] = True
+settings.write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
+PY"
+  log "prepared Claude harness settings for non-interactive startup"
+}
+
 clear_secret_if_present() {
   local key="$1"
   if run_scion hub secret get --scope hub "$key" --json --non-interactive >/dev/null 2>&1; then
@@ -142,6 +206,8 @@ sync_harness_configs() {
     log "no host harness configs found; using Hub image defaults"
   fi
 
+  prepare_hub_harness_configs "$pod"
+
   log "sync harness configs from inside Hub pod"
   local hub_url
   hub_url="$(sh_quote "$HUB_IN_CLUSTER")"
@@ -170,6 +236,7 @@ sync_templates() {
 main() {
   require task
   require kubectl
+  require python3
   require tar
   require "$SCION_BIN"
   [[ -d "$PROJECT_ROOT/.git" ]] || git -C "$PROJECT_ROOT" rev-parse --show-toplevel >/dev/null 2>&1 || die "target project is not a git repo: $PROJECT_ROOT"
@@ -192,7 +259,7 @@ main() {
   unset token
 
   set_file_secret CLAUDE_AUTH "${CLAUDE_AUTH_FILE:-${HOME}/.claude/.credentials.json}" "~/.claude/.credentials.json"
-  set_file_secret CLAUDE_CONFIG "${CLAUDE_CONFIG_FILE:-${HOME}/.claude.json}" "~/.claude.json"
+  set_claude_config_secret "${CLAUDE_CONFIG_FILE:-${HOME}/.claude.json}" "~/.claude.json"
   set_file_secret CODEX_AUTH "${CODEX_AUTH_FILE:-${HOME}/.codex/auth.json}" "~/.codex/auth.json"
   set_file_secret GEMINI_OAUTH_CREDS "${GEMINI_OAUTH_CREDS_FILE:-${HOME}/.gemini/oauth_creds.json}" "~/.gemini/oauth_creds.json"
   if truthy "${SCION_OPS_BOOTSTRAP_VERTEX_ADC:-}"; then

@@ -52,6 +52,18 @@ The default LLM auth path uses provider subscription credential files:
 selected through Scion's `auth-file` harness auth. Vertex ADC is not restored
 by default; enable it deliberately with `SCION_OPS_BOOTSTRAP_VERTEX_ADC=1` and
 provide `GOOGLE_CLOUD_PROJECT` plus a Google Cloud region variable.
+When restoring `CLAUDE_CONFIG`, bootstrap preserves the subscription state and
+marks Scion's `/workspace` agent checkout as trusted so Claude starts
+non-interactively in Kubernetes. Bootstrap also prepares the synced Claude
+harness settings to skip the bypass-permissions warning inside Scion's
+sandboxed agent pods. Host-local Claude MCP server registrations are stripped
+from the agent config; Scion rounds should use the repo's explicit harness and
+template configuration. Claude round templates pass `--print` through native
+Scion `command_args` so multiline prompts are submitted as a single
+non-interactive model turn.
+Rounds default to a Codex final reviewer for the reliable path; Gemini remains
+available as an explicit final reviewer and falls back to Codex if capacity or
+auth prevents a verdict.
 
 ## Kubernetes Shape
 

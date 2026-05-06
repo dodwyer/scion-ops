@@ -1,7 +1,9 @@
 schema_version: "1"
 description: "Implementer (Claude) — drafts changes to satisfy the task and tests."
 default_harness_config: claude
-model: claude-opus-4-7
+model: claude-sonnet-4-6
+command_args:
+  - --print
 system_prompt: system-prompt.md
 agent_instructions: agents.md
 max_turns: 60
