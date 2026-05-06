@@ -65,7 +65,7 @@ kind cluster:
 host:
   repo checkout and target project checkouts
   container image build source
-  kind native host ports for Hub and Zed
+  kind native host ports for Hub and MCP
 ```
 
 The Kubernetes resources are native Kustomize manifests under `deploy/kind`.
