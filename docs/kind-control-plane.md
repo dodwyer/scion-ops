@@ -166,6 +166,10 @@ task kind:mcp:smoke
 Hub is available at `http://192.168.122.103:18090`; MCP is available at
 `http://192.168.122.103:8765/mcp`.
 
+The kind Hub sets `SCION_SERVER_HUB_HUBID` to `scion-ops-kind`. Scion
+namespaces Hub-scoped secrets by Hub ID, so this value must stay stable across
+Hub pod rollouts or bootstrap credentials will become invisible after restart.
+
 ## Smoke Test
 
 Run:
@@ -221,6 +225,7 @@ Deleting the kind cluster deletes cluster-local Scion state.
 | State | Current local-kind source | Lost on cluster deletion |
 |---|---|---|
 | Hub database/state | `scion-hub-state` PVC | yes |
+| Hub ID | `SCION_SERVER_HUB_HUBID=scion-ops-kind` in `deploy/kind/control-plane/hub-deployment.yaml` | no |
 | Hub dev token | `scion-hub-state` PVC | yes |
 | Broker registration | Hub state for co-located broker | yes |
 | MCP workspace | host checkout mounted into kind node | no |
