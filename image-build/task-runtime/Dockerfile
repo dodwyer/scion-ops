@@ -9,6 +9,9 @@ ARG KUBECTL_VERSION=v1.33.1
 
 USER root
 RUN set -eux; \
+  apt-get update; \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends openssh-client; \
+  rm -rf /var/lib/apt/lists/*; \
   arch="$(dpkg --print-architecture)"; \
   case "${arch}" in \
     amd64|arm64) tool_arch="${arch}" ;; \
@@ -24,4 +27,5 @@ RUN set -eux; \
   task --version; \
   uv --version; \
   kind --version; \
-  kubectl version --client=true
+  kubectl version --client=true; \
+  ssh -V
