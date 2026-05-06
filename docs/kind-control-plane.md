@@ -81,7 +81,9 @@ kubectl --context kind-scion-ops apply -k deploy/kind/control-plane
 ```
 
 Kustomize is intentional for the current resource size. Do not introduce Helm
-until the values model and upgrade behavior are worth packaging.
+until the values model and upgrade behavior are worth packaging. The packaging
+decision and Helm review triggers are documented in
+`docs/kubernetes-packaging.md`.
 
 Config payloads remain source files under `deploy/kind/control-plane/config`
 and are included with Kustomize `configMapGenerator`; scripts do not carry
