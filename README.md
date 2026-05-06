@@ -100,6 +100,10 @@ Configure Zed with:
 }
 ```
 
+The URL above uses the default kind listen address and MCP port. If you
+override `SCION_OPS_KIND_LISTEN_ADDRESS` or `SCION_OPS_MCP_PORT`, update the
+Zed URL to match.
+
 Smoke test the HTTP service with `task kind:mcp:smoke`. See `docs/zed-mcp.md`.
 
 ## Layout
