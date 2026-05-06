@@ -52,6 +52,8 @@ The kind node is created with an `extraMount` from the host workspace tree to
 This is what lets one MCP server operate on multiple local git checkouts. The
 target repo must be under the mounted host workspace tree; otherwise recreate
 kind with `SCION_OPS_WORKSPACE_HOST_PATH` set to a common parent.
+This is a local kind behavior only. Cluster deployments should use the
+PVC-backed Git checkout model in `docs/workspace-persistence.md`.
 
 For GitHub URLs that are not checked out locally yet, the MCP Deployment uses
 the `scion-ops-mcp-checkouts` PVC at `/home/scion/checkouts/github`. That keeps
