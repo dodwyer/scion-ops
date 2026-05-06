@@ -87,7 +87,9 @@ tasks:
   round:
     desc: Start a Scion consensus round after Kubernetes Hub credential bootstrap.
     cmds:
-      - bash orchestrator/run-round.sh "{{.CLI_ARGS}}"
+      - |
+        set -- {{.CLI_ARGS}}
+        bash orchestrator/run-round.sh "$@"
 
   down:
     desc: Destroy the kind Kubernetes deployment.
@@ -285,15 +287,21 @@ tasks:
 
   watch:
     cmds:
-      - bash orchestrator/watch.sh "{{.CLI_ARGS}}"
+      - |
+        set -- {{.CLI_ARGS}}
+        bash orchestrator/watch.sh "$@"
 
   abort:
     cmds:
-      - bash orchestrator/abort.sh "{{.CLI_ARGS}}"
+      - |
+        set -- {{.CLI_ARGS}}
+        bash orchestrator/abort.sh "$@"
 
   look:
     cmds:
-      - '{{.SCION_BIN}} look "{{.CLI_ARGS}}"'
+      - |
+        set -- {{.CLI_ARGS}}
+        '{{.SCION_BIN}}' look "$@"
 
   tail:
     cmds:
