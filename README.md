@@ -100,6 +100,9 @@ Configure Zed with:
 }
 ```
 
+The `192.168.122.103` address is only an example; use the MCP host and port
+reported by your local `task up` run if they differ.
+
 Smoke test the HTTP service with `task kind:mcp:smoke`. See `docs/zed-mcp.md`.
 
 ## Layout
