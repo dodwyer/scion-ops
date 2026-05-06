@@ -114,6 +114,7 @@ Hub:
 | Tool | Responsibility |
 |---|---|
 | `scion_ops_project_status` | Confirm target project root, branch, origin, Hub link, and git status. |
+| `scion_ops_validate_spec_change` | Validate an OpenSpec change folder before implementation starts. |
 | `scion_ops_start_spec_round` | Start a planning round from `project_root`, `goal`, and optional `change`. |
 | `scion_ops_start_implementation_round` | Start a delivery round from `project_root` and approved `change`. |
 | `scion_ops_round_status` | Read current Hub state for a round. |
@@ -123,6 +124,22 @@ Hub:
 `scion_ops_start_round` remains useful for direct implementation prompts, but
 the spec-driven path should prefer the explicit spec and implementation round
 tools so the artifact contract is visible in the request.
+
+## Validation
+
+Use the validator before an implementation round starts:
+
+```bash
+task spec:validate -- --project-root /path/to/project --change <change>
+```
+
+The validator checks that `openspec/changes/<change>/` exists, that
+`proposal.md`, `design.md`, and `tasks.md` are present and non-empty, that
+`tasks.md` includes checkbox tasks, and that at least one
+`specs/**/spec.md` delta spec contains requirements and scenarios.
+
+MCP clients use the same validation path through
+`scion_ops_validate_spec_change(project_root, change)`.
 
 ## PR Flow
 

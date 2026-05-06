@@ -27,6 +27,7 @@ REQUIRED_TOOLS = {
     "scion_ops_round_events",
     "scion_ops_watch_round_events",
     "scion_ops_start_round",
+    "scion_ops_validate_spec_change",
     "scion_ops_look",
 }
 
