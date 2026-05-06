@@ -1,0 +1,7 @@
+schema_version: "1"
+description: "Spec goal clarifier - narrows the user goal before spec drafting."
+default_harness_config: claude
+system_prompt: system-prompt.md
+agent_instructions: agents.md
+max_turns: 30
+max_duration: 6m

@@ -1,0 +1,7 @@
+schema_version: "1"
+description: "Spec finalizer - integrates review feedback into a PR-ready spec branch."
+default_harness_config: codex
+system_prompt: system-prompt.md
+agent_instructions: agents.md
+max_turns: 50
+max_duration: 8m
