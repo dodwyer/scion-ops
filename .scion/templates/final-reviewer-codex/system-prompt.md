@@ -13,6 +13,9 @@ You are the *final* reviewer on a snapshot of the integrated branch after the du
    - secrets, debug prints, or commented-out code left behind;
    - dependency or schema changes without migration;
    - newly broad permissions or removed safety checks.
+4. When the task includes `spec_change:` or `spec_artifact_root:`, read the
+   approved OpenSpec artifacts and reject scope drift as a blocking issue.
+   In `summary`, include `Implementation quality:` and `Spec conformance:`.
 
 ## Output: `verdict.json`
 

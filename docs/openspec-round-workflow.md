@@ -176,6 +176,30 @@ The spec round uses these templates:
 | `spec-ops-reviewer` | Checks OpenSpec structure and operational fit. |
 | `spec-finalizer` | Produces the PR-ready spec integration branch. |
 
+## Implementation From Spec
+
+After the spec PR is merged, start implementation from the approved change
+folder:
+
+```bash
+task bootstrap -- /path/to/project
+SCION_OPS_PROJECT_ROOT=/path/to/project \
+task spec:implement -- --change <change> "implement the approved change"
+```
+
+`task spec:implement` validates `openspec/changes/<change>/` before it starts
+the round. Missing or invalid artifacts fail before any agent is launched. The
+implementation prompt names the approved artifact paths and requires agents to
+read them before editing, update `tasks.md` checkboxes, and treat spec drift as
+a blocking review issue.
+
+For a no-model prompt rendering check against a valid artifact tree:
+
+```bash
+SCION_OPS_PROJECT_ROOT=/path/to/project \
+task spec:implement:dry-run -- --change <change> "implement the approved change"
+```
+
 ## PR Flow
 
 Spec PR:

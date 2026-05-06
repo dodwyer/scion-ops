@@ -172,6 +172,17 @@ When spawning or messaging implementers, require:
 - `git push -u origin HEAD` when `origin` is configured,
 - `sciontool status task_completed "<summary>"`.
 
+When the task prompt contains `spec_change:` or `spec_artifact_root:`, this is
+an implementation-from-spec round. In every implementer, reviewer, integrator,
+and final-review prompt, include the approved artifact paths and state that:
+
+- `proposal.md`, `design.md`, `tasks.md`, and `specs/**/spec.md` are the source
+  of truth,
+- agents must read those artifacts before editing,
+- `tasks.md` checkboxes should be updated for completed work,
+- scope drift from the approved spec is blocking,
+- reviewers must distinguish implementation quality from spec conformance.
+
 Claude, Codex, and Gemini child agents must be started with
 `--harness-auth auth-file --no-upload` so Scion explicitly selects the
 Hub-projected subscription credential files: `CLAUDE_AUTH`, `CLAUDE_CONFIG`,
