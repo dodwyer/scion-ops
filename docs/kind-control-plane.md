@@ -223,7 +223,9 @@ plus `GOOGLE_CLOUD_REGION`, `CLOUD_ML_REGION`, or `GOOGLE_CLOUD_LOCATION`.
 The MCP tool contract mirrors that shape: pass `project_root` to
 `scion_ops_project_status`, `scion_ops_start_round`, `scion_ops_round_status`,
 `scion_ops_watch_round_events`, and git diff/status tools when operating on a
-target project.
+target project. If the target is only known by GitHub URL, call
+`scion_ops_prepare_github_repo` first and use the returned MCP-visible
+`project_root`.
 
 ## Persistence
 
@@ -236,6 +238,7 @@ Deleting the kind cluster deletes cluster-local Scion state.
 | Hub dev token | `scion-hub-state` PVC | yes |
 | Broker registration | Hub state for co-located broker | yes |
 | MCP workspace | host checkout mounted into kind node | no |
+| MCP-prepared GitHub checkouts | `scion-ops-mcp-checkouts` PVC | yes |
 | Agent artifacts | Hub agent records and pushed git branches | pod-local state is ephemeral |
 | Subscription credentials | Hub-scoped Claude, Codex, and Gemini secrets restored by `task bootstrap` | yes |
 | Vertex ADC credentials | optional Hub-scoped secrets restored only when `SCION_OPS_BOOTSTRAP_VERTEX_ADC=1`; cleared by default bootstrap | yes |

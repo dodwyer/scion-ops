@@ -53,6 +53,11 @@ This is what lets one MCP server operate on multiple local git checkouts. The
 target repo must be under the mounted host workspace tree; otherwise recreate
 kind with `SCION_OPS_WORKSPACE_HOST_PATH` set to a common parent.
 
+For GitHub URLs that are not checked out locally yet, the MCP Deployment uses
+the `scion-ops-mcp-checkouts` PVC at `/home/scion/checkouts/github`. That keeps
+repo preparation writable without changing permissions on the host workspace
+mount.
+
 Existing kind clusters cannot be mutated to add the mount. Check it with:
 
 ```bash
