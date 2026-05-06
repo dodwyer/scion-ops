@@ -114,9 +114,11 @@ Hub:
 | Tool | Responsibility |
 |---|---|
 | `scion_ops_project_status` | Confirm target project root, branch, origin, Hub link, and git status. |
+| `scion_ops_spec_status` | List OpenSpec changes and validate a selected change. |
 | `scion_ops_validate_spec_change` | Validate an OpenSpec change folder before implementation starts. |
 | `scion_ops_start_spec_round` | Start a planning round from `project_root`, `goal`, and optional `change`. |
-| `scion_ops_start_implementation_round` | Start a delivery round from `project_root` and approved `change`. |
+| `scion_ops_start_impl_round` | Start a delivery round from `project_root` and approved `change`. |
+| `scion_ops_start_implementation_round` | Alias for `scion_ops_start_impl_round`. |
 | `scion_ops_round_status` | Read current Hub state for a round. |
 | `scion_ops_watch_round_events` | Stream state changes and task summaries without polling sleeps. |
 | `scion_ops_round_artifacts` | Discover pushed branches and PR-ready outputs for a round. |
