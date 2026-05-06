@@ -40,8 +40,11 @@ task storage:status        # inspect Podman storage before image work
 ```
 
 `task build` and `task dev:scion:deploy` first ensure the configured Scion
-source has the repo-owned runtime patch set from `patches/scion/`. Inspect or
-apply it directly with:
+source has the repo-owned runtime patch set from `patches/scion/`. These
+commands check the patch files in `patches/scion/` against the configured
+`SCION_SRC` checkout: `status` reports whether each patch is applied, `check`
+verifies they are already applied, and `apply` applies any pending patches.
+Inspect or apply them directly with:
 
 ```bash
 task scion:patch:status
