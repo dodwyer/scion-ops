@@ -925,6 +925,16 @@ def _github_https_remote(remote_url: str) -> str:
     return ""
 
 
+def _parse_json_result(result: dict[str, Any]) -> dict[str, Any]:
+    if not result.get("output"):
+        return {}
+    try:
+        payload = json.loads(result["output"])
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 @mcp.tool()
 def scion_ops_hub_status(project_root: str = "") -> dict[str, Any]:
     """Show Scion Hub API health, grove, broker providers, and agents."""
@@ -1332,6 +1342,37 @@ def scion_ops_project_status(project_root: str) -> dict[str, Any]:
             "bootstrap": "Run `task bootstrap -- <project_root>` from the scion-ops repo if grove_id is empty or preflight fails.",
             "start_round_tool": "scion_ops_start_round",
         },
+    }
+
+
+@mcp.tool()
+def scion_ops_validate_spec_change(project_root: str, change: str) -> dict[str, Any]:
+    """Validate an OpenSpec change artifact set in a target project."""
+    root = _project_root(project_root)
+    change = _clean_name(change, "change")
+    result = _run(
+        [
+            "python3",
+            str(_repo_root() / "scripts" / "validate-openspec-change.py"),
+            "--project-root",
+            str(root),
+            "--change",
+            change,
+            "--json",
+        ],
+        timeout=20,
+        cwd=_repo_root(),
+    )
+    payload = _parse_json_result(result)
+    command_result = _command_result(result)
+    if payload and not payload.get("ok"):
+        command_result["error_kind"] = "openspec_validation"
+    return {
+        **command_result,
+        "source": "openspec_validator",
+        "project_root": str(root),
+        "change": change,
+        "validation": payload,
     }
 
 
