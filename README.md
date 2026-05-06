@@ -39,6 +39,10 @@ task dev:test              # smoke test without reapplying setup
 task storage:status        # inspect Podman storage before image work
 ```
 
+For normal full rebuilds, rootless Podman should report the `overlay` storage
+driver. `vfs` is suitable only for very small experiments because it copies
+layers instead of sharing them and can consume disk quickly.
+
 `task bootstrap` is the default credential and template restore path. It links
 the target repo as a Hub grove, provides the kind broker, stores shared
 subscription credentials as Hub secrets, and syncs the scion-ops templates from
@@ -65,7 +69,7 @@ kind cluster:
 host:
   repo checkout and target project checkouts
   container image build source
-  kind native host ports for Hub and Zed
+  kind native host ports for Hub and MCP
 ```
 
 The Kubernetes resources are native Kustomize manifests under `deploy/kind`.
@@ -130,3 +134,8 @@ SCION_OPS_PROJECT_ROOT=/home/david/workspace/github/example/project task round -
 The MCP tool `scion_ops_start_round` accepts the same target as `project_root`.
 Agents work from the target repo's Hub grove and branch context; uncommitted
 local work is not included unless it is committed or pushed before the round.
+
+If a round reaches its watchdog limit, scion-ops stops the round agents and
+keeps their Hub records for inspection. Use `task abort -- <round_id>` when the
+diagnostics are no longer needed. Set `SCION_OPS_WATCHDOG_DELETE=1` only when
+automatic timeout cleanup is preferred over post-run inspection.

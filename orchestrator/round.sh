@@ -20,6 +20,7 @@ SCION_OPS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_ROOT_INPUT="${SCION_OPS_PROJECT_ROOT:-$SCION_OPS_ROOT}"
 PROJECT_ROOT="$(cd "$PROJECT_ROOT_INPUT" && pwd -P)"
 PROJECT_ROOT="$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null)" || die "target project is not a git repo: $PROJECT_ROOT"
+AGENT_PROJECT_ROOT="${SCION_OPS_AGENT_PROJECT_ROOT:-/workspace}"
 
 ROUND_ID="${ROUND_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$(printf '%04x' "$RANDOM")}"
 MAX_REVIEW_ROUNDS="${MAX_REVIEW_ROUNDS:-${MAX_ROUNDS:-3}}"
@@ -38,7 +39,7 @@ round_id: $ROUND_ID
 max_review_rounds: $MAX_REVIEW_ROUNDS
 base_branch: $BASE_BRANCH
 final_reviewer: $FINAL_REVIEWER
-project_root: $PROJECT_ROOT
+project_root: $AGENT_PROJECT_ROOT
 
 original_task:
 $PROMPT
@@ -53,7 +54,8 @@ printf 'Round id: %s\n' "$ROUND_ID"
 printf 'Base branch: %s\n' "$BASE_BRANCH"
 printf 'Final reviewer: %s\n' "$FINAL_REVIEWER"
 printf 'Broker: %s\n' "$BROKER"
-printf 'Project root: %s\n' "$PROJECT_ROOT"
+printf 'Grove root: %s\n' "$PROJECT_ROOT"
+printf 'Agent project root: %s\n' "$AGENT_PROJECT_ROOT"
 
 "$SCION_BIN" --grove "$PROJECT_ROOT" start "$RUNNER_NAME" \
   --type consensus-runner \

@@ -19,6 +19,11 @@ BASE_BRANCH="${BASE_BRANCH:-}"
 LOG_FILE="${LOG_FILE:-/tmp/scion-round.log}"
 PID_FILE="${PID_FILE:-/tmp/scion-round.pid}"
 WATCHDOG_PID_FILE="${WATCHDOG_PID_FILE:-/tmp/scion-round-watchdog.pid}"
+WATCHDOG_DELETE="${SCION_OPS_WATCHDOG_DELETE:-0}"
+case "$WATCHDOG_DELETE" in
+  1|true|TRUE|yes|YES|on|ON) WATCHDOG_DELETE=1 ;;
+  *) WATCHDOG_DELETE=0 ;;
+esac
 
 ROUND_ID="${ROUND_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$(printf '%04x' "$RANDOM")}"
 RUNNER_NAME="round-${ROUND_ID,,}-consensus"   # scion lowercases agent slugs
@@ -67,9 +72,14 @@ echo "$ROUND_PID" > "$PID_FILE"
 # 2. Watchdog: after MAX_MINUTES, kill everything related to this round.
 (
   sleep $((MAX_MINUTES * 60))
-  if "$SCION_OPS_ROOT/orchestrator/abort.sh" "$ROUND_ID" >/dev/null 2>&1; then
-    printf '\n[watchdog %s] aborted round %s after %s minutes\n' \
-      "$(date +%H:%M:%S)" "$ROUND_ID" "$MAX_MINUTES" >> "$LOG_FILE"
+  if SCION_OPS_ABORT_DELETE="$WATCHDOG_DELETE" "$SCION_OPS_ROOT/orchestrator/abort.sh" "$ROUND_ID" >/dev/null 2>&1; then
+    if [[ "$WATCHDOG_DELETE" == "1" ]]; then
+      action="aborted and deleted"
+    else
+      action="stopped for inspection"
+    fi
+    printf '\n[watchdog %s] %s round %s after %s minutes\n' \
+      "$(date +%H:%M:%S)" "$action" "$ROUND_ID" "$MAX_MINUTES" >> "$LOG_FILE"
   fi
   kill "$ROUND_PID" 2>/dev/null || true
 ) >> "$LOG_FILE" 2>&1 &

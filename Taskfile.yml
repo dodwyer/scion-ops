@@ -306,4 +306,4 @@ tasks:
       - git diff --check
       - task --list
       - python3 -c "import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in ('mcp_servers/scion_ops.py', 'scripts/kind-control-plane-smoke.py', 'scripts/smoke-mcp-server.py')]"
-      - bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-dev-scion.sh scripts/kind-round-preflight.sh scripts/storage-status.sh orchestrator/run-round.sh orchestrator/round.sh
+      - bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-dev-scion.sh scripts/kind-round-preflight.sh scripts/storage-status.sh orchestrator/run-round.sh orchestrator/round.sh orchestrator/abort.sh

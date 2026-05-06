@@ -6,6 +6,12 @@ set -eo pipefail
 
 ROUND_FILTER="${1:-}"
 SCION_BIN="${SCION_BIN:-scion}"
+DELETE_AGENTS="${SCION_OPS_ABORT_DELETE:-1}"
+
+case "$DELETE_AGENTS" in
+  1|true|TRUE|yes|YES|on|ON) DELETE_AGENTS=1 ;;
+  *) DELETE_AGENTS=0 ;;
+esac
 
 names=$("$SCION_BIN" list --format json 2>/dev/null \
   | sed -n '/^\[/,/^\]/p' \
@@ -25,10 +31,14 @@ done <<<"$names"
 
 sleep 2
 
-while IFS= read -r n; do
-  [[ -n "$n" ]] || continue
-  echo "deleting  $n"
-  "$SCION_BIN" delete "$n" --non-interactive --yes 2>/dev/null | tail -1 || true
-done <<<"$names"
+if [[ "$DELETE_AGENTS" == "1" ]]; then
+  while IFS= read -r n; do
+    [[ -n "$n" ]] || continue
+    echo "deleting  $n"
+    "$SCION_BIN" delete "$n" --non-interactive --yes 2>/dev/null | tail -1 || true
+  done <<<"$names"
+else
+  echo "kept stopped agents for inspection."
+fi
 
 echo "done."

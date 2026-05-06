@@ -1235,11 +1235,25 @@ def scion_ops_abort_round(round_id: str, confirm: bool = False, project_root: st
 
 @mcp.tool()
 def scion_ops_round_artifacts(round_id: str, project_root: str = "") -> dict[str, Any]:
-    """Find local branches and agent workspaces associated with a round id."""
+    """Find local/remote branches and agent workspaces associated with a round id."""
     round_id = _clean_name(round_id, "round_id")
     root = _project_root(project_root) if project_root else _repo_root()
     branch_patterns = sorted({f"*{round_id}*", f"*{round_id.lower()}*"})
     branch_result = _run(["git", "branch", "--list", *branch_patterns], timeout=15, cwd=root)
+    remote_result = _run(
+        ["git", "ls-remote", "--heads", "origin", *branch_patterns],
+        timeout=25,
+        cwd=root,
+    )
+    remote_branches: list[dict[str, str]] = []
+    if remote_result["ok"]:
+        for line in remote_result["output"].splitlines():
+            parts = line.split()
+            if len(parts) == 2 and parts[1].startswith("refs/heads/"):
+                remote_branches.append({
+                    "sha": parts[0],
+                    "branch": parts[1].removeprefix("refs/heads/"),
+                })
     agents_dir = root / ".scion" / "agents"
     workspaces: list[str] = []
     prompts: list[str] = []
@@ -1255,9 +1269,11 @@ def scion_ops_round_artifacts(round_id: str, project_root: str = "") -> dict[str
         "source": "local_git",
         "project_root": str(root),
         "branches": [line.strip(" *+") for line in branch_result["output"].splitlines() if line.strip()],
+        "remote_branches": remote_branches,
         "workspaces": workspaces,
         "prompts": prompts,
         "branch_result": _command_result(branch_result),
+        "remote_branch_result": _command_result(remote_result),
     }
 
 

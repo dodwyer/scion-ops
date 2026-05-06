@@ -29,6 +29,7 @@ BUILD_HARNESSES=1
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOCAL_IMG_BUILD="$REPO_ROOT/image-build"
+TASK_VERSION="${TASK_VERSION:-v3.44.0}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -140,6 +141,11 @@ if [[ "$BUILD_BASE" == "1" ]]; then
         "$SCION_SRC" \
         --build-arg "BASE_IMAGE=${REGISTRY}/core-base:${TAG}" \
         --build-arg "GIT_COMMIT=$(git -C "$SCION_SRC" rev-parse HEAD 2>/dev/null || echo unknown)"
+  build "scion-base" \
+        "$LOCAL_IMG_BUILD/task-runtime/Dockerfile" \
+        "$LOCAL_IMG_BUILD/task-runtime" \
+        --build-arg "BASE_IMAGE=${REGISTRY}/scion-base:${TAG}" \
+        --build-arg "TASK_VERSION=${TASK_VERSION}"
 fi
 
 # 3. harness images
