@@ -18,6 +18,7 @@ task build      # build all Scion and scion-ops images
 task up         # create/update kind and apply the Kubernetes control plane
 task bootstrap  # restore Hub credentials, harness configs, and templates
 task test       # smoke test Hub, broker, MCP, and Kubernetes agent dispatch
+task verify     # run the project's verification checks
 task down       # destroy the local kind deployment
 ```
 
