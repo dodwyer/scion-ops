@@ -6,6 +6,7 @@ resources:
   - hub-pvc.yaml
   - hub-service.yaml
   - hub-deployment.yaml
+  - mcp-checkouts-pvc.yaml
   - mcp-service.yaml
   - mcp-deployment.yaml
 

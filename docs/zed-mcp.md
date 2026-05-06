@@ -104,6 +104,10 @@ paths. If a target repo is outside the mounted tree, recreate kind with
 `SCION_OPS_WORKSPACE_HOST_PATH` set to a parent directory that contains both
 scion-ops and the target repo.
 
+Repo URLs prepared through `scion_ops_prepare_github_repo` are cloned into the
+MCP checkout PVC at `/home/scion/checkouts/github` by default. Use the returned
+`project_root`; it is the path visible to the MCP server and round launcher.
+
 ## Tool State
 
 The MCP pod reads Hub state through the in-cluster `scion-hub` Service and
@@ -124,6 +128,21 @@ The external agent should call `scion_ops_project_status` first, then
 `scion_ops_start_round` with the same `project_root`. The target repo should be
 on a clean branch with any important local work committed or pushed; Kubernetes
 agents work from git branches, not uncommitted editor state.
+
+When the target repo is not checked out yet, pass a GitHub URL:
+
+```text
+Use scion-ops to prepare repo_url=https://github.com/example/project.git,
+then start a round:
+"improve README.md"
+```
+
+The external agent should call `scion_ops_prepare_github_repo` first and use
+the returned `project_root` for `scion_ops_project_status`,
+`scion_ops_start_round`, and follow-up monitoring. Existing checkouts are reused
+only when their `origin` matches the requested repository. A mismatched checkout,
+non-git directory, auth failure, or workspace mount problem is reported as a
+blocked state for the operator to resolve.
 
 ## Spec-Driven Rounds
 

@@ -120,6 +120,7 @@ Hub:
 
 | Tool | Responsibility |
 |---|---|
+| `scion_ops_prepare_github_repo` | Resolve a GitHub URL into a visible local checkout before status or round start. |
 | `scion_ops_project_status` | Confirm target project root, branch, origin, Hub link, and git status. |
 | `scion_ops_spec_status` | List OpenSpec changes and validate a selected change. |
 | `scion_ops_validate_spec_change` | Validate an OpenSpec change folder before implementation starts. |

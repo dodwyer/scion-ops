@@ -58,6 +58,8 @@ spec:
               value: /home/david/workspace
             - name: SCION_OPS_CONTAINER_WORKSPACE_ROOT
               value: /workspace
+            - name: SCION_OPS_REPO_CHECKOUT_ROOT
+              value: /home/scion/checkouts/github
             - name: SCION_OPS_MCP_TRANSPORT
               value: streamable-http
             - name: SCION_OPS_MCP_HOST
@@ -100,6 +102,8 @@ spec:
           volumeMounts:
             - name: workspace
               mountPath: /workspace
+            - name: checkouts
+              mountPath: /home/scion/checkouts
             - name: hub-state
               mountPath: /hub-state
               readOnly: true
@@ -108,6 +112,9 @@ spec:
           hostPath:
             path: /workspace
             type: Directory
+        - name: checkouts
+          persistentVolumeClaim:
+            claimName: scion-ops-mcp-checkouts
         - name: hub-state
           persistentVolumeClaim:
             claimName: scion-hub-state

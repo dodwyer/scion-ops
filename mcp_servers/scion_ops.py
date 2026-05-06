@@ -39,6 +39,7 @@ DEFAULT_TIMEOUT_SECONDS = 45
 NAME_RE = re.compile(r"^[A-Za-z0-9._:/@+-]+$")
 DEFAULT_HOST_WORKSPACE_ROOT = "/home/david/workspace"
 DEFAULT_CONTAINER_WORKSPACE_ROOT = "/workspace"
+DEFAULT_REPO_CHECKOUT_SUBDIR = "github"
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -272,8 +273,8 @@ def _path_mappings() -> list[tuple[Path, Path]]:
     return mappings
 
 
-def _map_project_path(path: Path) -> Path:
-    if path.exists():
+def _map_project_path(path: Path, *, require_exists: bool = True) -> Path:
+    if require_exists and path.exists():
         return path
     path_str = str(path)
     for host_root, container_root in _path_mappings():
@@ -284,9 +285,35 @@ def _map_project_path(path: Path) -> Path:
             candidate = container_root / path_str[len(host.rstrip("/")) + 1 :]
         else:
             continue
-        if candidate.exists():
+        if not require_exists or candidate.exists():
             return candidate
     return path
+
+
+def _host_path_for_project_path(path: Path) -> Path:
+    path_str = str(path)
+    for host_root, container_root in _path_mappings():
+        container = str(container_root)
+        if path_str == container:
+            return host_root
+        if path_str.startswith(container.rstrip("/") + "/"):
+            return host_root / path_str[len(container.rstrip("/")) + 1 :]
+    return path
+
+
+def _path_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _path_under_workspace_root(path: Path) -> bool:
+    for host_root, container_root in _path_mappings():
+        if _path_within(path, host_root) or _path_within(path, container_root):
+            return True
+    return False
 
 
 def _project_root(project_root: str = "", *, require_git: bool = True) -> Path:
@@ -308,6 +335,122 @@ def _project_root(project_root: str = "", *, require_git: bool = True) -> Path:
     if not path.exists():
         raise ValueError(f"project_root is not visible to MCP: {path}")
     return path
+
+
+@dataclass(frozen=True)
+class GitHubRepoRef:
+    owner: str
+    repo: str
+    input_kind: str
+    clone_url: str
+    https_url: str
+    ssh_url: str
+
+
+def _strip_dot_git(name: str) -> str:
+    return name[:-4] if name.endswith(".git") else name
+
+
+def _github_repo_ref(repo_url: str) -> GitHubRepoRef:
+    raw = repo_url.strip()
+    if not raw:
+        raise ValueError("repo_url is required")
+
+    input_kind = "https"
+    path = ""
+    if raw.startswith("git@github.com:"):
+        input_kind = "ssh"
+        path = raw.removeprefix("git@github.com:")
+    else:
+        parsed = urllib.parse.urlparse(raw)
+        if parsed.scheme == "https" and parsed.hostname == "github.com":
+            path = parsed.path.lstrip("/")
+        elif parsed.scheme == "ssh" and parsed.hostname == "github.com":
+            input_kind = "ssh"
+            path = parsed.path.lstrip("/")
+        else:
+            raise ValueError("repo_url must be a GitHub HTTPS or SSH URL")
+
+    parts = [part for part in path.rstrip("/").split("/") if part]
+    if len(parts) != 2:
+        raise ValueError("repo_url must identify exactly one GitHub repository")
+    owner = parts[0]
+    repo = _strip_dot_git(parts[1])
+    name_re = re.compile(r"^[A-Za-z0-9_.-]+$")
+    if not name_re.fullmatch(owner) or not name_re.fullmatch(repo):
+        raise ValueError("repo_url contains unsupported owner or repository characters")
+    https_url = f"https://github.com/{owner}/{repo}.git"
+    ssh_url = f"git@github.com:{owner}/{repo}.git"
+    clone_url = ssh_url if input_kind == "ssh" else https_url
+    return GitHubRepoRef(
+        owner=owner,
+        repo=repo,
+        input_kind=input_kind,
+        clone_url=clone_url,
+        https_url=https_url,
+        ssh_url=ssh_url,
+    )
+
+
+def _github_remote_key(remote_url: str) -> str:
+    try:
+        ref = _github_repo_ref(remote_url.strip())
+    except ValueError:
+        return ""
+    return f"{ref.owner.lower()}/{ref.repo.lower()}"
+
+
+def _configured_checkout_root(checkout_root: str = "") -> Path:
+    host_root = Path(os.environ.get("SCION_OPS_HOST_WORKSPACE_ROOT", DEFAULT_HOST_WORKSPACE_ROOT)).expanduser()
+    configured_env = os.environ.get("SCION_OPS_REPO_CHECKOUT_ROOT", "").strip()
+    configured = checkout_root.strip() or configured_env
+    if configured:
+        requested = Path(configured).expanduser()
+        if not requested.is_absolute():
+            requested = host_root / requested
+    else:
+        requested = host_root / DEFAULT_REPO_CHECKOUT_SUBDIR
+    if not requested.is_absolute():
+        requested = (_repo_root() / requested).resolve()
+    actual = _map_project_path(requested, require_exists=False).resolve()
+    if not _path_under_workspace_root(actual) and not (configured_env and not checkout_root.strip()):
+        raise ValueError(f"checkout_root is outside the configured workspace tree: {requested}")
+    return actual
+
+
+def _git_summary(root: Path) -> dict[str, Any]:
+    _run(["git", "config", "--global", "--add", "safe.directory", str(root)], timeout=10, cwd=_repo_root())
+    status = _run(["git", "status", "--short", "--branch"], timeout=15, cwd=root)
+    branch = _run(["git", "branch", "--show-current"], timeout=10, cwd=root)
+    remote = _run(["git", "remote", "get-url", "origin"], timeout=10, cwd=root)
+    status_lines = status["output"].splitlines()
+    dirty_lines = [
+        line
+        for line in status_lines
+        if line.strip() and not line.startswith("##") and not line.startswith("warning:")
+    ]
+    return {
+        "branch": branch["output"].strip(),
+        "origin": remote["output"].strip(),
+        "dirty": bool(dirty_lines),
+        "status": _command_result(status),
+        "branch_result": _command_result(branch),
+        "origin_result": _command_result(remote),
+    }
+
+
+def _clone_failure_kind(result: dict[str, Any]) -> str:
+    if result.get("timed_out"):
+        return "clone_timeout"
+    output = result.get("output", "").lower()
+    if (
+        "authentication failed" in output
+        or "permission denied" in output
+        or "could not read from remote repository" in output
+        or "repository not found" in output
+    ):
+        return "git_auth"
+    return "clone"
 
 
 @dataclass(frozen=True)
@@ -1386,24 +1529,159 @@ def scion_ops_round_artifacts(round_id: str, project_root: str = "") -> dict[str
 
 
 @mcp.tool()
+def scion_ops_prepare_github_repo(repo_url: str, checkout_root: str = "") -> dict[str, Any]:
+    """Prepare a visible local checkout for a GitHub repository URL."""
+    try:
+        ref = _github_repo_ref(repo_url)
+    except ValueError as exc:
+        return {
+            "ok": False,
+            "source": "github_repo_prepare",
+            "error_kind": "unsupported_url",
+            "error": str(exc),
+            "repo_url": repo_url,
+        }
+
+    try:
+        root = _configured_checkout_root(checkout_root)
+    except ValueError as exc:
+        return {
+            "ok": False,
+            "source": "github_repo_prepare",
+            "error_kind": "workspace_mount",
+            "error": str(exc),
+            "repo_url": repo_url,
+            "owner": ref.owner,
+            "repo": ref.repo,
+        }
+
+    project_root = (root / ref.owner / ref.repo).resolve()
+    host_project_root = _host_path_for_project_path(project_root)
+    base_payload: dict[str, Any] = {
+        "source": "github_repo_prepare",
+        "repo_url": repo_url,
+        "owner": ref.owner,
+        "repo": ref.repo,
+        "input_kind": ref.input_kind,
+        "clone_url": ref.clone_url,
+        "https_url": ref.https_url,
+        "ssh_url": ref.ssh_url,
+        "checkout_root": str(root),
+        "host_checkout_root": str(_host_path_for_project_path(root)),
+        "project_root": str(project_root),
+        "host_project_root": str(host_project_root),
+        "mcp_visible": project_root.exists(),
+        "next": {
+            "project_status_tool": "scion_ops_project_status",
+            "start_round_tool": "scion_ops_start_round",
+            "start_spec_round_tool": "scion_ops_start_spec_round",
+        },
+    }
+
+    expected_remote = f"{ref.owner.lower()}/{ref.repo.lower()}"
+    if project_root.exists():
+        if not project_root.is_dir():
+            return {
+                **base_payload,
+                "ok": False,
+                "action": "blocked",
+                "error_kind": "git_state",
+                "error": f"checkout path exists but is not a directory: {project_root}",
+                "mcp_visible": True,
+            }
+        revparse = _run(["git", "rev-parse", "--show-toplevel"], timeout=10, cwd=project_root)
+        if not revparse["ok"]:
+            return {
+                **base_payload,
+                "ok": False,
+                "action": "blocked",
+                "error_kind": "git_state",
+                "error": f"checkout path exists but is not a git repository: {project_root}",
+                "mcp_visible": True,
+                "revparse_result": _command_result(revparse),
+            }
+        git_root = Path(revparse["output"].strip()).resolve()
+        summary = _git_summary(git_root)
+        actual_remote = _github_remote_key(summary["origin"])
+        if actual_remote != expected_remote:
+            return {
+                **base_payload,
+                **summary,
+                "ok": False,
+                "action": "blocked",
+                "error_kind": "git_state",
+                "error": "existing checkout origin does not match repo_url",
+                "project_root": str(git_root),
+                "host_project_root": str(_host_path_for_project_path(git_root)),
+                "mcp_visible": True,
+            }
+        return {
+            **base_payload,
+            **summary,
+            "ok": True,
+            "action": "reused",
+            "project_root": str(git_root),
+            "host_project_root": str(_host_path_for_project_path(git_root)),
+            "mcp_visible": True,
+        }
+
+    try:
+        project_root.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        return {
+            **base_payload,
+            "ok": False,
+            "action": "blocked",
+            "error_kind": "workspace_mount",
+            "error": f"failed to create checkout parent {project_root.parent}: {exc}",
+        }
+
+    clone = _run(["git", "clone", ref.clone_url, str(project_root)], timeout=180, cwd=project_root.parent)
+    if not clone["ok"]:
+        return {
+            **base_payload,
+            "ok": False,
+            "action": "clone_failed",
+            "error_kind": _clone_failure_kind(clone),
+            "error": clone.get("error") or "git clone failed",
+            "clone_result": {**clone, "source": "local_git", "error_kind": _clone_failure_kind(clone)},
+            "mcp_visible": project_root.exists(),
+        }
+
+    summary = _git_summary(project_root)
+    return {
+        **base_payload,
+        **summary,
+        "ok": True,
+        "action": "cloned",
+        "clone_result": _command_result(clone),
+        "mcp_visible": project_root.exists(),
+    }
+
+
+@mcp.tool()
 def scion_ops_project_status(project_root: str) -> dict[str, Any]:
     """Resolve a target project path and show its git, grove, and Hub context."""
     root = _project_root(project_root)
-    status = _run(["git", "status", "--short", "--branch"], timeout=15, cwd=root)
-    branch = _run(["git", "branch", "--show-current"], timeout=10, cwd=root)
-    remote = _run(["git", "remote", "get-url", "origin"], timeout=10, cwd=root)
+    summary = _git_summary(root)
     grove_id = _read_text_file(root / ".scion" / "grove-id")
     hub = _hub_config(root).redacted()
     return {
-        "ok": status["ok"],
+        "ok": summary["status"]["ok"],
         "source": "local_git",
         "project_root": str(root),
-        "branch": branch["output"].strip(),
-        "origin": remote["output"].strip(),
+        "host_project_root": str(_host_path_for_project_path(root)),
+        "mcp_visible": root.exists(),
+        "branch": summary["branch"],
+        "origin": summary["origin"],
+        "dirty": summary["dirty"],
         "grove_id": grove_id,
         "hub": hub,
-        "status": _command_result(status),
+        "status": summary["status"],
+        "branch_result": summary["branch_result"],
+        "origin_result": summary["origin_result"],
         "next": {
+            "prepare_github_repo_tool": "scion_ops_prepare_github_repo",
             "bootstrap": "Run `task bootstrap -- <project_root>` from the scion-ops repo if grove_id is empty or preflight fails.",
             "start_round_tool": "scion_ops_start_round",
             "spec_status_tool": "scion_ops_spec_status",
