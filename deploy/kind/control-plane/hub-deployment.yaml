@@ -56,8 +56,16 @@ spec:
               value: scion
             - name: KUBECONFIG
               value: /home/scion/.kube/config
+            - name: TMPDIR
+              value: /home/scion/.scion/tmp
             - name: SCION_SERVER_HUB_HUBID
               value: scion-ops-kind
+            - name: SCION_SERVER_SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: scion-hub-web-session
+                  key: session-secret
+                  optional: true
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
