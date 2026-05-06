@@ -56,6 +56,8 @@ cmd_build() {
   [[ -d "$SCION_SRC" ]] || die "SCION_SRC does not exist: $SCION_SRC"
   [[ -f "$SCION_SRC/go.mod" ]] || die "SCION_SRC is not a Go module: $SCION_SRC"
 
+  "$REPO_ROOT/scripts/scion-runtime-patches.sh" ensure --src "$SCION_SRC"
+
   log "build Scion binaries from $SCION_SRC"
   mkdir -p "$BIN_DIR"
   (

@@ -140,3 +140,25 @@ Hub/Kubernetes agents work from git branches, not uncommitted editor buffers.
 
 Exit criteria: a Claude/Codex/Gemini consensus round passes through the
 Kubernetes Hub from a Zed MCP request against the selected target project.
+
+## Repo-Owned Scion Runtime Patches
+
+Issue: #67
+
+Decision: keep the Scion runtime fixes required by scion-ops as patch files
+under `patches/scion/`, and have build entry points ensure those patches are
+present in the configured local Scion checkout before building images or Hub
+dev binaries.
+
+Reason: the tested Kubernetes round path currently depends on runtime behavior
+that is not guaranteed by an arbitrary upstream Scion checkout. The user does
+not want this work pushed to public Scion repositories, so scion-ops must own a
+reproducible local build path instead of relying on hidden workstation edits.
+
+Constraint: this mutates the configured local Scion checkout. It is acceptable
+only for the local kind product path, and failures must be explicit when a
+patch cannot apply cleanly.
+
+Exit criteria: either the required behavior is available in the default Scion
+source used by scion-ops builds, or scion-ops vendors/pins a Scion source in a
+way that no longer requires patching a separate checkout.

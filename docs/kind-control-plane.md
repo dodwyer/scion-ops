@@ -118,6 +118,20 @@ with:
 task dev:scion:clear
 ```
 
+Before building Scion binaries or images, scion-ops ensures the configured
+Scion checkout has the required runtime patch set from `patches/scion/`.
+The default source is `~/workspace/github/GoogleCloudPlatform/scion`; override
+it with `SCION_SRC` or `task build -- --src <path>`.
+
+```bash
+task scion:patch:status
+task scion:patch:apply
+task scion:patch:check
+```
+
+`task build` and `task dev:scion:deploy` run the same patch ensure step, so a
+clean checkout fails or converges before images or Hub dev binaries are built.
+
 MCP source changes are mounted from the workspace, so they usually need only:
 
 ```bash
