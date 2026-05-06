@@ -108,9 +108,10 @@ folder by `change` name. They should not rewrite the spec intent unless
 implementation discovers a real conflict; in that case the round updates the
 artifacts and reports the reason.
 
-Archive and accepted-spec sync are a later lifecycle step. Until that is
-implemented, accepted change folders remain the implementation contract and
-`openspec/specs/` is updated only where explicitly requested.
+Archive and accepted-spec sync completes the lifecycle. Active change folders
+represent work still in progress. Archived folders represent accepted history.
+The accepted spec markers in `openspec/specs/` make completed deltas
+discoverable by future rounds without scanning active work.
 
 ## MCP Entry Points
 
@@ -122,6 +123,7 @@ Hub:
 | `scion_ops_project_status` | Confirm target project root, branch, origin, Hub link, and git status. |
 | `scion_ops_spec_status` | List OpenSpec changes and validate a selected change. |
 | `scion_ops_validate_spec_change` | Validate an OpenSpec change folder before implementation starts. |
+| `scion_ops_archive_spec_change` | Archive an accepted change and sync accepted specs. |
 | `scion_ops_start_spec_round` | Start a planning round from `project_root`, `goal`, and optional `change`. |
 | `scion_ops_start_impl_round` | Start a delivery round from `project_root` and approved `change`. |
 | `scion_ops_start_implementation_round` | Alias for `scion_ops_start_impl_round`. |
@@ -207,6 +209,25 @@ For a no-model prompt rendering check against a valid artifact tree:
 SCION_OPS_PROJECT_ROOT=/path/to/project \
 task spec:implement:dry-run -- --change <change> "implement the approved change"
 ```
+
+## Archive Lifecycle
+
+After the implementation PR is accepted, archive the completed change:
+
+```bash
+task spec:archive -- --project-root /path/to/project --change <change>
+task spec:archive -- --project-root /path/to/project --change <change> --yes
+```
+
+The first command is a dry run. The `--yes` command validates the active change,
+syncs each accepted delta spec into `openspec/specs/**/spec.md` under a
+`scion-ops:accepted-change` marker, then moves the change folder to
+`openspec/changes/archive/YYYY-MM-DD-<change>/`.
+
+MCP clients use the same flow with
+`scion_ops_archive_spec_change(project_root, change, confirm=false)` for a plan
+and `confirm=true` to apply. `scion_ops_spec_status` reports active and
+archived changes.
 
 ## PR Flow
 
