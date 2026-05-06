@@ -1,0 +1,92 @@
+diff --git a/pkg/runtime/common.go b/pkg/runtime/common.go
+--- a/pkg/runtime/common.go
++++ b/pkg/runtime/common.go
+@@ -351,11 +351,7 @@ func buildCommonRunArgs(config RunConfig) ([]string, error) {
+ 	// Build tmux-wrapped command
+ 	var quotedArgs []string
+ 	for _, a := range harnessArgs {
+-		if strings.ContainsAny(a, " \t\n\"'$") {
+-			quotedArgs = append(quotedArgs, fmt.Sprintf("%q", a))
+-		} else {
+-			quotedArgs = append(quotedArgs, a)
+-		}
++		quotedArgs = append(quotedArgs, shellQuoteArg(a))
+ 	}
+ 	cmdLine := strings.Join(quotedArgs, " ")
+ 
+@@ -385,6 +381,22 @@ func buildCommonRunArgs(config RunConfig) ([]string, error) {
+ 	return args, nil
+ }
+ 
++func shellQuoteArg(arg string) string {
++	if arg == "" {
++		return "''"
++	}
++	if !strings.ContainsAny(arg, " \t\n\"'`$\\;&|<>(){}[]*!?~#") {
++		return arg
++	}
++
++	// The tmux launcher still runs under sh -c, so every unsafe argument
++	// must be protected from shell expansion. Single quotes preserve
++	// backticks, dollars, semicolons, and newlines; embedded single quotes
++	// are represented by closing the quoted string, adding a quoted single
++	// quote, then reopening it.
++	return "'" + strings.ReplaceAll(arg, "'", "'\"'\"'") + "'"
++}
++
+ // runtimeLog is the structured logger for runtime command execution.
+ var runtimeLog = slog.Default().With(slog.String("subsystem", "runtime"))
+ 
+diff --git a/pkg/runtime/common_test.go b/pkg/runtime/common_test.go
+--- a/pkg/runtime/common_test.go
++++ b/pkg/runtime/common_test.go
+@@ -18,6 +18,7 @@ import (
+ 	"context"
+ 	"fmt"
+ 	"os"
++	"os/exec"
+ 	"path/filepath"
+ 	"strings"
+ 	"testing"
+@@ -475,6 +476,41 @@ func TestBuildCommonRunArgs(t *testing.T) {
+ 
+ }
+ 
++func TestBuildCommonRunArgsShellQuotesPrompt(t *testing.T) {
++	task := "Clarify `task scion:patch:check`\n\n```bash\necho $HOME\n```\nquote: don't substitute"
++
++	args, err := buildCommonRunArgs(RunConfig{
++		Harness:      &harness.ClaudeCode{},
++		Name:         "test-agent",
++		UnixUsername: "scion",
++		Image:        "scion-agent:latest",
++		Task:         task,
++		CommandArgs:  []string{"--print"},
++	})
++	if err != nil {
++		t.Fatalf("buildCommonRunArgs failed: %v", err)
++	}
++
++	var tmuxCmd string
++	for i := 0; i < len(args)-2; i++ {
++		if args[i] == "sh" && args[i+1] == "-c" {
++			tmuxCmd = args[i+2]
++			break
++		}
++	}
++	if tmuxCmd == "" {
++		t.Fatalf("expected sh -c tmux command in args: %v", args)
++	}
++	if strings.Contains(tmuxCmd, fmt.Sprintf("%q", task)) {
++		t.Fatalf("prompt was double-quoted and remains shell-active: %s", tmuxCmd)
++	}
++
++	cmd := exec.Command("sh", "-n", "-c", tmuxCmd)
++	if output, err := cmd.CombinedOutput(); err != nil {
++		t.Fatalf("tmux command is not shell-safe: %v\n%s\ncommand: %s", err, string(output), tmuxCmd)
++	}
++}
++
+ func TestRunSimpleCommand(t *testing.T) {
+ 
+ 	out, err := runSimpleCommand(context.Background(), "echo", "hello")
