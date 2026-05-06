@@ -1009,7 +1009,7 @@ def scion_ops_round_status(
         ),
         "",
     )
-    transcript: dict[str, Any] | None = None
+    transcript: dict[str, Any] = {}
     if include_transcript and consensus:
         transcript = scion_ops_look(consensus, num_lines=num_lines, project_root=project_root)
     return {
@@ -1048,7 +1048,7 @@ def scion_ops_round_events(
         "changed": bool(events),
         "events": events,
         "cursor": _encode_cursor(snapshot),
-        "terminal": _round_terminal_status(snapshot),
+        "terminal": _round_terminal_status(snapshot) or {},
         "agent_count": len(snapshot["agents"]),
         "message_count": len(snapshot["messages"]),
         "notification_count": len(snapshot["notifications"]),
@@ -1108,7 +1108,7 @@ def scion_ops_watch_round_events(
                 "changed": bool(events),
                 "events": events,
                 "cursor": _encode_cursor(snapshot),
-                "terminal": terminal,
+                "terminal": terminal or {},
                 "timed_out": False,
                 "agent_count": len(snapshot["agents"]),
                 "message_count": len(snapshot["messages"]),
@@ -1129,7 +1129,7 @@ def scion_ops_watch_round_events(
         "changed": False,
         "events": [],
         "cursor": _encode_cursor(snapshot),
-        "terminal": _round_terminal_status(snapshot),
+        "terminal": _round_terminal_status(snapshot) or {},
         "timed_out": True,
         "agent_count": len(snapshot["agents"]),
         "message_count": len(snapshot["messages"]),
@@ -1175,7 +1175,7 @@ def scion_ops_start_round(
     parsed_round_id = match.group(1) if match else env.get("ROUND_ID", "")
     runner = f"round-{parsed_round_id.lower()}-consensus" if parsed_round_id else ""
     event_cursor = ""
-    event_cursor_error: dict[str, Any] | None = None
+    event_cursor_error: dict[str, Any] = {}
     if parsed_round_id:
         try:
             event_cursor = _encode_cursor(_round_event_snapshot(parsed_round_id, str(target_root)))

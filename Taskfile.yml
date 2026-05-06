@@ -52,6 +52,18 @@ tasks:
     cmds:
       - bash scripts/build-images.sh {{.CLI_ARGS}}
 
+  build:base:
+    cmds:
+      - bash scripts/build-images.sh --only base {{.CLI_ARGS}}
+
+  build:mcp:
+    cmds:
+      - bash scripts/build-images.sh --only mcp {{.CLI_ARGS}}
+
+  build:harness:
+    cmds:
+      - bash scripts/build-images.sh --only {{.CLI_ARGS}}
+
   up:
     desc: Create or update the kind Kubernetes deployment.
     cmds:
@@ -90,6 +102,58 @@ tasks:
   update:
     cmds:
       - task: up
+
+  update:hub:
+    cmds:
+      - task kind:load-images -- localhost/scion-base:latest
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-hub
+      - task: kind:hub:status
+
+  update:mcp:
+    cmds:
+      - task kind:load-images -- localhost/scion-ops-mcp:latest
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-ops-mcp
+      - task: kind:mcp:status
+
+  load:image:
+    cmds:
+      - task kind:load-images -- {{.CLI_ARGS}}
+
+  dev:scion:build:
+    cmds:
+      - bash scripts/kind-dev-scion.sh build
+
+  dev:scion:deploy:
+    cmds:
+      - bash scripts/kind-dev-scion.sh deploy
+
+  dev:scion:status:
+    cmds:
+      - bash scripts/kind-dev-scion.sh status
+
+  dev:scion:clear:
+    prompt: This removes Hub dev binaries and restarts Hub. Continue?
+    cmds:
+      - bash scripts/kind-dev-scion.sh clear
+
+  dev:mcp:restart:
+    cmds:
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-ops-mcp
+      - task: kind:mcp:status
+
+  dev:test:
+    cmds:
+      - task test -- --skip-setup
+
+  storage:status:
+    cmds:
+      - bash scripts/storage-status.sh
+
+  storage:prune:
+    prompt: This prunes dangling local Podman image layers. Continue?
+    cmds:
+      - podman image prune -f
+      - task: storage:status
 
   destroy:
     cmds:
@@ -242,4 +306,4 @@ tasks:
       - git diff --check
       - task --list
       - python3 -c "import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in ('mcp_servers/scion_ops.py', 'scripts/kind-control-plane-smoke.py', 'scripts/smoke-mcp-server.py')]"
-      - bash -n scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh orchestrator/run-round.sh orchestrator/round.sh
+      - bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-dev-scion.sh scripts/kind-round-preflight.sh scripts/storage-status.sh orchestrator/run-round.sh orchestrator/round.sh
