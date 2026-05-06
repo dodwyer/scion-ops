@@ -935,6 +935,61 @@ def _parse_json_result(result: dict[str, Any]) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _parse_started_round_id(output: str, fallback: str = "") -> str:
+    for pattern in (r"round_id\s*:\s*(\S+)", r"Round id:\s*(\S+)"):
+        match = re.search(pattern, output, flags=re.IGNORECASE)
+        if match:
+            return match.group(1)
+    return fallback
+
+
+def _start_round_response(
+    result: dict[str, Any],
+    *,
+    target_root: Path,
+    parsed_round_id: str,
+    runner: str,
+    next_hints: dict[str, str],
+) -> dict[str, Any]:
+    event_cursor = ""
+    event_cursor_error: dict[str, Any] = {}
+    if parsed_round_id:
+        try:
+            event_cursor = _encode_cursor(_round_event_snapshot(parsed_round_id, str(target_root)))
+        except HubAPIError as exc:
+            event_cursor_error = _hub_error_payload(exc, "start_round_event_cursor")
+    return {
+        **_command_result(result),
+        "project_root": str(target_root),
+        "round_id": parsed_round_id,
+        "consensus_agent": runner,
+        "event_cursor": event_cursor,
+        "event_cursor_error": event_cursor_error,
+        "next": next_hints,
+    }
+
+
+def _validate_spec_change_result(root: Path, change: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    result = _run(
+        [
+            "python3",
+            str(_repo_root() / "scripts" / "validate-openspec-change.py"),
+            "--project-root",
+            str(root),
+            "--change",
+            change,
+            "--json",
+        ],
+        timeout=20,
+        cwd=_repo_root(),
+    )
+    payload = _parse_json_result(result)
+    command_result = _command_result(result)
+    if payload and not payload.get("ok"):
+        command_result["error_kind"] = "openspec_validation"
+    return command_result, payload
+
+
 @mcp.tool()
 def scion_ops_hub_status(project_root: str = "") -> dict[str, Any]:
     """Show Scion Hub API health, grove, broker providers, and agents."""
@@ -1198,29 +1253,19 @@ def scion_ops_start_round(
         env["FINAL_REVIEWER"] = final_reviewer
 
     result = _run(["task", "round", "--", prompt], timeout=60, env=env)
-    match = re.search(r"round_id\s*:\s*(\S+)", result["output"])
-    parsed_round_id = match.group(1) if match else env.get("ROUND_ID", "")
+    parsed_round_id = _parse_started_round_id(result["output"], env.get("ROUND_ID", ""))
     runner = f"round-{parsed_round_id.lower()}-consensus" if parsed_round_id else ""
-    event_cursor = ""
-    event_cursor_error: dict[str, Any] = {}
-    if parsed_round_id:
-        try:
-            event_cursor = _encode_cursor(_round_event_snapshot(parsed_round_id, str(target_root)))
-        except HubAPIError as exc:
-            event_cursor_error = _hub_error_payload(exc, "start_round_event_cursor")
-    return {
-        **_command_result(result),
-        "project_root": str(target_root),
-        "round_id": parsed_round_id,
-        "consensus_agent": runner,
-        "event_cursor": event_cursor,
-        "event_cursor_error": event_cursor_error,
-        "next": {
+    return _start_round_response(
+        result,
+        target_root=target_root,
+        parsed_round_id=parsed_round_id,
+        runner=runner,
+        next_hints={
             "watch_tool": "scion_ops_watch_round_events",
             "events_tool": "scion_ops_round_events",
             "abort_tool": "scion_ops_abort_round",
         },
-    }
+    )
 
 
 @mcp.tool()
@@ -1341,6 +1386,8 @@ def scion_ops_project_status(project_root: str) -> dict[str, Any]:
         "next": {
             "bootstrap": "Run `task bootstrap -- <project_root>` from the scion-ops repo if grove_id is empty or preflight fails.",
             "start_round_tool": "scion_ops_start_round",
+            "spec_status_tool": "scion_ops_spec_status",
+            "start_spec_round_tool": "scion_ops_start_spec_round",
         },
     }
 
@@ -1350,23 +1397,7 @@ def scion_ops_validate_spec_change(project_root: str, change: str) -> dict[str, 
     """Validate an OpenSpec change artifact set in a target project."""
     root = _project_root(project_root)
     change = _clean_name(change, "change")
-    result = _run(
-        [
-            "python3",
-            str(_repo_root() / "scripts" / "validate-openspec-change.py"),
-            "--project-root",
-            str(root),
-            "--change",
-            change,
-            "--json",
-        ],
-        timeout=20,
-        cwd=_repo_root(),
-    )
-    payload = _parse_json_result(result)
-    command_result = _command_result(result)
-    if payload and not payload.get("ok"):
-        command_result["error_kind"] = "openspec_validation"
+    command_result, payload = _validate_spec_change_result(root, change)
     return {
         **command_result,
         "source": "openspec_validator",
@@ -1374,6 +1405,199 @@ def scion_ops_validate_spec_change(project_root: str, change: str) -> dict[str, 
         "change": change,
         "validation": payload,
     }
+
+
+@mcp.tool()
+def scion_ops_spec_status(project_root: str, change: str = "") -> dict[str, Any]:
+    """List OpenSpec changes in a target project and optionally validate one change."""
+    root = _project_root(project_root)
+    changes_dir = root / "openspec" / "changes"
+    changes: list[dict[str, Any]] = []
+    if changes_dir.exists():
+        for path in sorted(item for item in changes_dir.iterdir() if item.is_dir() and item.name != "archive"):
+            changes.append({
+                "change": path.name,
+                "path": str(path.relative_to(root)),
+                "has_proposal": (path / "proposal.md").exists(),
+                "has_design": (path / "design.md").exists(),
+                "has_tasks": (path / "tasks.md").exists(),
+                "spec_file_count": len(list((path / "specs").glob("**/spec.md"))) if (path / "specs").exists() else 0,
+            })
+    validation: dict[str, Any] = {}
+    validation_result: dict[str, Any] = {}
+    ok = True
+    if change:
+        change = _clean_name(change, "change")
+        validation_result, validation = _validate_spec_change_result(root, change)
+        ok = bool(validation.get("ok"))
+    return {
+        "ok": ok,
+        "source": "local_git",
+        "project_root": str(root),
+        "changes_path": str(changes_dir.relative_to(root)),
+        "changes": changes,
+        "change": change,
+        "validation": validation,
+        "validation_result": validation_result,
+        "next": {
+            "draft_spec_tool": "scion_ops_start_spec_round",
+            "validate_tool": "scion_ops_validate_spec_change",
+            "start_implementation_tool": "scion_ops_start_impl_round",
+            "watch_tool": "scion_ops_watch_round_events",
+        },
+    }
+
+
+@mcp.tool()
+def scion_ops_start_spec_round(
+    goal: str,
+    project_root: str,
+    change: str = "",
+    round_id: str = "",
+    base_branch: str = "",
+) -> dict[str, Any]:
+    """Start a spec-building Scion round for a target project."""
+    goal = goal.strip()
+    if not goal:
+        raise ValueError("goal is required")
+    target_root = _project_root(project_root)
+    env: dict[str, str] = {"SCION_OPS_PROJECT_ROOT": str(target_root)}
+    if change:
+        env["SCION_OPS_SPEC_CHANGE"] = _clean_name(change, "change")
+    if round_id:
+        env["ROUND_ID"] = _clean_name(round_id, "round_id")
+    if base_branch:
+        env["BASE_BRANCH"] = _clean_name(base_branch, "base_branch")
+    else:
+        env["BASE_BRANCH"] = _default_base_branch(str(target_root))
+    result = _run(["task", "spec:round", "--", goal], timeout=60, env=env)
+    parsed_round_id = _parse_started_round_id(result["output"], env.get("ROUND_ID", ""))
+    runner = f"round-{parsed_round_id.lower()}-spec-consensus" if parsed_round_id else ""
+    return _start_round_response(
+        result,
+        target_root=target_root,
+        parsed_round_id=parsed_round_id,
+        runner=runner,
+        next_hints={
+            "status_tool": "scion_ops_round_status",
+            "watch_tool": "scion_ops_watch_round_events",
+            "events_tool": "scion_ops_round_events",
+            "artifacts_tool": "scion_ops_round_artifacts",
+            "abort_tool": "scion_ops_abort_round",
+        },
+    )
+
+
+def _start_impl_round(
+    *,
+    goal: str,
+    project_root: str,
+    change: str,
+    round_id: str,
+    max_minutes: int,
+    max_review_rounds: int,
+    base_branch: str,
+    final_reviewer: str,
+) -> dict[str, Any]:
+    target_root = _project_root(project_root)
+    change = _clean_name(change, "change")
+    validation_result, validation = _validate_spec_change_result(target_root, change)
+    if not validation.get("ok"):
+        return {
+            **validation_result,
+            "source": "openspec_validator",
+            "project_root": str(target_root),
+            "change": change,
+            "validation": validation,
+            "next": {
+                "draft_spec_tool": "scion_ops_start_spec_round",
+                "spec_status_tool": "scion_ops_spec_status",
+            },
+        }
+    env: dict[str, str] = {
+        "MAX_MINUTES": str(_clamp(max_minutes, 1, 240)),
+        "MAX_REVIEW_ROUNDS": str(_clamp(max_review_rounds, 1, 10)),
+        "SCION_OPS_PROJECT_ROOT": str(target_root),
+    }
+    if round_id:
+        env["ROUND_ID"] = _clean_name(round_id, "round_id")
+    if base_branch:
+        env["BASE_BRANCH"] = _clean_name(base_branch, "base_branch")
+    else:
+        env["BASE_BRANCH"] = _default_base_branch(str(target_root))
+    if final_reviewer:
+        final_reviewer = final_reviewer.strip().lower()
+        if final_reviewer not in {"gemini", "codex"}:
+            raise ValueError("final_reviewer must be 'gemini' or 'codex'")
+        env["FINAL_REVIEWER"] = final_reviewer
+    args = ["task", "spec:implement", "--", "--change", change]
+    if goal.strip():
+        args.append(goal.strip())
+    result = _run(args, timeout=60, env=env)
+    parsed_round_id = _parse_started_round_id(result["output"], env.get("ROUND_ID", ""))
+    runner = f"round-{parsed_round_id.lower()}-consensus" if parsed_round_id else ""
+    response = _start_round_response(
+        result,
+        target_root=target_root,
+        parsed_round_id=parsed_round_id,
+        runner=runner,
+        next_hints={
+            "status_tool": "scion_ops_round_status",
+            "watch_tool": "scion_ops_watch_round_events",
+            "events_tool": "scion_ops_round_events",
+            "artifacts_tool": "scion_ops_round_artifacts",
+            "abort_tool": "scion_ops_abort_round",
+        },
+    )
+    return {**response, "change": change, "validation": validation}
+
+
+@mcp.tool()
+def scion_ops_start_impl_round(
+    project_root: str,
+    change: str,
+    goal: str = "",
+    round_id: str = "",
+    max_minutes: int = 30,
+    max_review_rounds: int = 3,
+    base_branch: str = "",
+    final_reviewer: str = "",
+) -> dict[str, Any]:
+    """Start an implementation round from an approved OpenSpec change."""
+    return _start_impl_round(
+        goal=goal,
+        project_root=project_root,
+        change=change,
+        round_id=round_id,
+        max_minutes=max_minutes,
+        max_review_rounds=max_review_rounds,
+        base_branch=base_branch,
+        final_reviewer=final_reviewer,
+    )
+
+
+@mcp.tool()
+def scion_ops_start_implementation_round(
+    project_root: str,
+    change: str,
+    goal: str = "",
+    round_id: str = "",
+    max_minutes: int = 30,
+    max_review_rounds: int = 3,
+    base_branch: str = "",
+    final_reviewer: str = "",
+) -> dict[str, Any]:
+    """Alias for scion_ops_start_impl_round."""
+    return _start_impl_round(
+        goal=goal,
+        project_root=project_root,
+        change=change,
+        round_id=round_id,
+        max_minutes=max_minutes,
+        max_review_rounds=max_review_rounds,
+        base_branch=base_branch,
+        final_reviewer=final_reviewer,
+    )
 
 
 @mcp.tool()

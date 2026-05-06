@@ -124,3 +124,43 @@ The external agent should call `scion_ops_project_status` first, then
 `scion_ops_start_round` with the same `project_root`. The target repo should be
 on a clean branch with any important local work committed or pushed; Kubernetes
 agents work from git branches, not uncommitted editor state.
+
+## Spec-Driven Rounds
+
+Ask for a spec round with the target project and goal:
+
+```text
+Use scion-ops on project_root=/home/david/workspace/github/example/project.
+Start a spec round for change=add-widget:
+"Specify the smallest useful widget improvement. Produce OpenSpec artifacts only."
+Monitor it with event watching and report the PR-ready spec branch.
+```
+
+The external agent should call:
+
+```text
+scion_ops_project_status(project_root)
+scion_ops_start_spec_round(project_root, goal, change)
+scion_ops_watch_round_events(round_id, cursor)
+scion_ops_round_artifacts(project_root, round_id)
+```
+
+After the spec PR is merged, ask for implementation from the approved spec:
+
+```text
+Use scion-ops on project_root=/home/david/workspace/github/example/project.
+Validate change=add-widget, then start an implementation round from that approved spec.
+Monitor it with event watching and report the PR-ready implementation branch.
+```
+
+The external agent should call:
+
+```text
+scion_ops_spec_status(project_root, change)
+scion_ops_start_impl_round(project_root, change, goal)
+scion_ops_watch_round_events(round_id, cursor)
+scion_ops_round_artifacts(project_root, round_id)
+```
+
+`scion_ops_start_impl_round` validates the artifact set before launching
+agents. Missing or invalid specs fail before model work starts.
