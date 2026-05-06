@@ -88,7 +88,8 @@ without a `kubectl port-forward` process:
 task up
 ```
 
-Configure Zed with:
+If Zed can reach the host MCP address directly, add this to `.zed/settings.json`
+or your Zed user settings:
 
 ```json
 {
