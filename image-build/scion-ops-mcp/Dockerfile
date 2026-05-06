@@ -4,11 +4,9 @@ FROM ${BASE_IMAGE}
 
 USER root
 
-ARG TASK_VERSION=v3.44.0
 ENV VIRTUAL_ENV=/opt/scion-ops-mcp/venv
 
-RUN GOBIN=/usr/local/bin go install github.com/go-task/task/v3/cmd/task@${TASK_VERSION} \
-  && python3 -m venv "${VIRTUAL_ENV}" \
+RUN python3 -m venv "${VIRTUAL_ENV}" \
   && "${VIRTUAL_ENV}/bin/pip" install --no-cache-dir "mcp>=1.13,<2" "PyYAML>=6,<7"
 
 ENV PATH="${VIRTUAL_ENV}/bin:${PATH}" \

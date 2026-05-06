@@ -145,7 +145,9 @@ task storage:status
 The build helper warns when Podman uses `vfs` and fails early when available
 space in the Podman graph root is under 40 GiB. Set
 `SCION_OPS_SKIP_STORAGE_CHECK=1` only when the storage state has been checked
-another way.
+another way. Normal full rebuilds should use rootless Podman with the `overlay`
+storage driver so base layers are shared across `core-base`, `scion-base`, MCP,
+and harness images.
 
 ## Local Access
 
@@ -190,6 +192,7 @@ Useful overrides:
 | `SCION_KIND_CP_SMOKE_KEEP_AGENT` | unset, deletes on success |
 | `SCION_KIND_CP_SMOKE_SKIP_SETUP` | unset, applies kind resources |
 | `SCION_KIND_CP_SMOKE_TIMEOUT` | `90` |
+| `SCION_OPS_WATCHDOG_DELETE` | unset, timeout stops agents and keeps Hub records |
 
 ## Project Targeting
 
@@ -221,7 +224,7 @@ Deleting the kind cluster deletes cluster-local Scion state.
 | Hub dev token | `scion-hub-state` PVC | yes |
 | Broker registration | Hub state for co-located broker | yes |
 | MCP workspace | host checkout mounted into kind node | no |
-| Agent artifacts | agent workspaces and pushed git branches | pod-local state is ephemeral |
+| Agent artifacts | Hub agent records and pushed git branches | pod-local state is ephemeral |
 | Subscription credentials | Hub-scoped Claude, Codex, and Gemini secrets restored by `task bootstrap` | yes |
 | Vertex ADC credentials | optional Hub-scoped secrets restored only when `SCION_OPS_BOOTSTRAP_VERTEX_ADC=1`; cleared by default bootstrap | yes |
 | Templates/harness configs | Hub global templates and Hub harness configs restored by `task bootstrap` | yes |

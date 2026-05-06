@@ -25,12 +25,17 @@ printf '  tmp:      %s\n\n' "${image_tmp:-unknown}"
 if [[ "$driver" == "vfs" ]]; then
   warn "Warning: vfs copies layers instead of sharing them efficiently."
   warn "         Full Scion image rebuilds can consume hundreds of GiB."
+  warn "         Rootless Podman should use overlay storage for normal work."
   warn "         Prefer task dev:* or targeted task build:* commands for iteration."
   printf '\n'
 fi
 
 if [[ -n "$graph_root" && -d "$graph_root" ]]; then
   df -h "$graph_root"
+  physical_usage="$( { du -sh "$graph_root" 2>/dev/null || true; } | awk 'NR == 1 {print $1}')"
+  if [[ -n "$physical_usage" ]]; then
+    printf 'Physical graph usage: %s\n' "$physical_usage"
+  fi
   printf '\n'
 fi
 

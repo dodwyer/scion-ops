@@ -41,6 +41,7 @@ HUB_NODE_PORT="30090"
 MCP_NODE_PORT="30876"
 CONTEXT="kind-${CLUSTER_NAME}"
 SCION_SETTINGS_TEMPLATE="${SCION_SETTINGS_TEMPLATE:-${REPO_ROOT}/deploy/kind/scion-settings.base.yaml}"
+KIND_IMAGE_PLATFORM="${SCION_OPS_KIND_IMAGE_PLATFORM:-linux/amd64}"
 export KIND_EXPERIMENTAL_PROVIDER="$KIND_PROVIDER"
 
 usage() {
@@ -80,6 +81,8 @@ Environment:
                                  (default: 192.168.122.103)
   SCION_OPS_KIND_HUB_PORT        Host port for the Hub service (default: 18090)
   SCION_OPS_MCP_PORT             Host port for the MCP service (default: 8765)
+  SCION_OPS_KIND_IMAGE_PLATFORM  Platform for direct kind image imports
+                                 (default: linux/amd64)
 EOF
 }
 
@@ -362,6 +365,11 @@ cmd_load_images() {
 
   for image in "$@"; do
     log "load image $image into $CLUSTER_NAME"
+    if command -v podman >/dev/null 2>&1 && podman image exists "$image" && image_loaded_in_kind "$image"; then
+      log "image $image already loaded in $CLUSTER_NAME"
+      continue
+    fi
+
     local load_output
     if load_output="$(kind load docker-image --name "$CLUSTER_NAME" "$image" 2>&1)"; then
       [[ -n "$load_output" ]] && printf '%s\n' "$load_output"
@@ -380,11 +388,59 @@ cmd_load_images() {
       rm -f "$archive"
       die "failed to export podman image $image"
     fi
-    if ! kind load image-archive --name "$CLUSTER_NAME" "$archive"; then
+    if ! import_image_archive "$archive"; then
       rm -f "$archive"
       die "failed to load podman archive for $image into $CLUSTER_NAME"
     fi
     rm -f "$archive"
+  done
+}
+
+image_loaded_in_kind() {
+  local image="$1"
+  local image_id node runtime
+  local nodes=()
+
+  image_id="$(podman image inspect "$image" --format '{{.Id}}' 2>/dev/null || true)"
+  image_id="${image_id#sha256:}"
+  [[ -n "$image_id" ]] || return 1
+
+  mapfile -t nodes < <(kind get nodes --name "$CLUSTER_NAME" 2>/dev/null)
+  [[ "${#nodes[@]}" -gt 0 ]] || return 1
+
+  for node in "${nodes[@]}"; do
+    [[ -n "$node" ]] || continue
+    runtime="$(container_runtime_for_node "$node")" || return 1
+    "$runtime" exec "$node" ctr --namespace=k8s.io images inspect "$image" 2>/dev/null \
+      | grep -Fq "@sha256:${image_id}" || return 1
+  done
+}
+
+import_image_archive() {
+  local archive="$1"
+  local node runtime snapshotter
+  local nodes=()
+  local import_cmd
+
+  mapfile -t nodes < <(kind get nodes --name "$CLUSTER_NAME" 2>/dev/null)
+  [[ "${#nodes[@]}" -gt 0 ]] || return 1
+
+  for node in "${nodes[@]}"; do
+    [[ -n "$node" ]] || continue
+    runtime="$(container_runtime_for_node "$node")" || return 1
+    snapshotter="${SCION_OPS_KIND_IMAGE_SNAPSHOTTER:-}"
+    if [[ -z "$snapshotter" && "$runtime" == "podman" ]]; then
+      snapshotter="fuse-overlayfs"
+    fi
+
+    import_cmd=(ctr --namespace=k8s.io images import --local --digests --platform "$KIND_IMAGE_PLATFORM")
+    if [[ -n "$snapshotter" ]]; then
+      import_cmd+=(--snapshotter "$snapshotter")
+    fi
+    import_cmd+=(-)
+
+    log "import image archive into $node for $KIND_IMAGE_PLATFORM"
+    "$runtime" exec --privileged -i "$node" "${import_cmd[@]}" < "$archive"
   done
 }
 
@@ -396,7 +452,7 @@ cmd_load_archive() {
   for archive in "$@"; do
     [[ -f "$archive" ]] || die "image archive not found: $archive"
     log "load image archive $archive into $CLUSTER_NAME"
-    kind load image-archive --name "$CLUSTER_NAME" "$archive"
+    import_image_archive "$archive"
   done
 }
 
