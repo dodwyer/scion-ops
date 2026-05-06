@@ -21,6 +21,9 @@ task test       # smoke test Hub, broker, MCP, and Kubernetes agent dispatch
 task down       # destroy the local kind deployment
 ```
 
+Run `task verify` for a lightweight repository sanity check on tracked scripts
+and task wiring.
+
 `task up` is also the deploy and update operation: it reconciles the kind
 cluster, base runtime resources, image loading, and control-plane Kustomize
 target. Hidden aliases `task deploy`, `task update`, and `task destroy` map to
