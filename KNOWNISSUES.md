@@ -26,21 +26,23 @@ can stay simple, native, and reproducible from this repo.
 
 ## kind Hub Dev Auth
 
-Issue: #31
+Issue: #54
 
-Decision: the first in-kind Hub slice runs `scion server start` with explicit
-Hub/Web components and dev auth enabled.
+Decision: the in-kind Hub runs `scion server start` with explicit Hub/Web
+components and dev auth enabled. `task bootstrap` restores the dev-auth token
+as `scion-hub-dev-auth`, restores the web session signing secret as
+`scion-hub-web-session`, and sets Hub `TMPDIR` to the Hub PVC so filesystem
+session data survives Hub pod restarts.
 
 Reason: `--production` prevents workstation defaults from starting extra
-components, while `--dev-auth` keeps the local kind Hub usable before OAuth,
-broker credentials, and secret restore are implemented.
+components, while `--dev-auth` keeps the local kind Hub usable before the
+project supports a non-kind production auth model.
 
-Constraint: this is local-kind only. The web session secret is
-auto-generated on pod start, so browser sessions do not survive Hub pod
-restarts.
+Constraint: this is local-kind only. Browser session continuity depends on
+`task bootstrap` having restored the session Secret and restarted Hub.
 
-Exit criteria: replace dev-only auth/session behavior with Kubernetes Secret
-restore before supporting non-kind Kubernetes deployments.
+Exit criteria: replace dev-only auth/session behavior with the supported
+production auth model before supporting non-kind Kubernetes deployments.
 
 ## kind MCP Workspace HostPath
 

@@ -55,6 +55,27 @@ run_scion() {
   (cd "$PROJECT_ROOT" && SCION_HUB_ENDPOINT="$HUB_PUBLIC" SCION_DEV_TOKEN="$SCION_DEV_TOKEN" "$SCION_BIN" "$@")
 }
 
+wait_for_public_hub() {
+  local attempt
+  log "wait for public Hub endpoint ${HUB_PUBLIC}"
+  for attempt in $(seq 1 30); do
+    if python3 - "$HUB_PUBLIC" <<'PY' >/dev/null 2>&1
+import sys
+import urllib.request
+
+endpoint = sys.argv[1].rstrip("/") + "/healthz"
+with urllib.request.urlopen(endpoint, timeout=2) as response:
+    if response.status != 200:
+        raise SystemExit(1)
+PY
+    then
+      return
+    fi
+    sleep 2
+  done
+  die "Hub at ${HUB_PUBLIC} did not become ready"
+}
+
 hub_pod() {
   local pod
   pod="$(kubectl_ctx -n "$NAMESPACE" get pod \
@@ -88,10 +109,40 @@ restore_hub_dev_auth_secret() {
   log "restored Kubernetes Secret scion-hub-dev-auth"
 }
 
-restart_mcp_for_hub_auth_secret() {
-  kubectl_ctx -n "$NAMESPACE" rollout restart deploy/scion-ops-mcp >/dev/null
+restore_hub_web_session_secret() {
+  local existing
+  local session_secret
+  local secret_file
+  existing="$(kubectl_ctx -n "$NAMESPACE" get secret scion-hub-web-session -o jsonpath='{.data.session-secret}' 2>/dev/null || true)"
+  if [[ -n "$existing" ]]; then
+    log "preserved Kubernetes Secret scion-hub-web-session"
+    return
+  fi
+
+  session_secret="$(python3 - <<'PY'
+import secrets
+print(secrets.token_hex(32))
+PY
+)"
+  secret_file="$(mktemp "${TMPDIR:-/tmp}/scion-hub-session.XXXXXX")"
+  chmod 0600 "$secret_file"
+  printf '%s\n' "$session_secret" > "$secret_file"
+  if ! kubectl_ctx -n "$NAMESPACE" create secret generic scion-hub-web-session \
+    --from-file=session-secret="$secret_file" \
+    --dry-run=client \
+    -o yaml | kubectl_ctx -n "$NAMESPACE" apply -f - >/dev/null; then
+    rm -f "$secret_file"
+    return 1
+  fi
+  rm -f "$secret_file"
+  log "restored Kubernetes Secret scion-hub-web-session"
+}
+
+restart_control_plane_for_restored_auth_state() {
+  kubectl_ctx -n "$NAMESPACE" rollout restart deploy/scion-hub deploy/scion-ops-mcp >/dev/null
+  kubectl_ctx -n "$NAMESPACE" rollout status deploy/scion-hub --timeout=120s >/dev/null
   kubectl_ctx -n "$NAMESPACE" rollout status deploy/scion-ops-mcp --timeout=120s >/dev/null
-  log "restarted MCP after Hub auth Secret restore"
+  log "restarted Hub and MCP after auth/session Secret restore"
 }
 
 github_token() {
@@ -272,10 +323,12 @@ main() {
   log "read kind Hub auth"
   load_hub_auth
   restore_hub_dev_auth_secret "$SCION_DEV_TOKEN"
+  restore_hub_web_session_secret
 
   log "wait for Hub and MCP rollouts"
   task kind:control-plane:status >/dev/null
-  restart_mcp_for_hub_auth_secret
+  restart_control_plane_for_restored_auth_state
+  wait_for_public_hub
 
   log "link target grove and provide broker ${BROKER}"
   log "target project: ${PROJECT_ROOT}"

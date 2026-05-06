@@ -169,6 +169,9 @@ Hub pod rollouts or bootstrap credentials will become invisible after restart.
 `task bootstrap` also mirrors the active Hub dev-auth token into the
 `scion-hub-dev-auth` Kubernetes Secret. MCP reads that Secret and no longer
 mounts the Hub state PVC for auth.
+Bootstrap restores `scion-hub-web-session` as the Hub web session signing
+Secret and sets Hub `TMPDIR` to the Hub PVC, so filesystem-backed browser
+session records and the signing key survive Hub pod restarts after bootstrap.
 
 ## Smoke Test
 
@@ -250,6 +253,7 @@ Deleting the kind cluster deletes cluster-local Scion state.
 | Hub database/state | `scion-hub-state` PVC | yes |
 | Hub ID | `SCION_SERVER_HUB_HUBID=scion-ops-kind` in `deploy/kind/control-plane/hub-deployment.yaml` | no |
 | Hub dev token | `scion-hub-state` PVC, mirrored to `scion-hub-dev-auth` by `task bootstrap` | yes |
+| Hub web sessions | `scion-hub-web-session` Secret plus session files under `scion-hub-state` PVC | yes |
 | Broker registration | Hub state for co-located broker | yes |
 | MCP workspace | host checkout mounted into kind node | no |
 | MCP-prepared GitHub checkouts | `scion-ops-mcp-checkouts` PVC | yes |

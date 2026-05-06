@@ -43,7 +43,7 @@ credentials, harness configs, and templates before a round is started.
 
 - kind cluster and workspace mount
 - Kubernetes control-plane rollout
-- kind-hosted Hub dev auth and restored `scion-hub-dev-auth` Secret
+- kind-hosted Hub dev auth and restored Hub auth/session Secrets
 - co-located Runtime Broker status
 - HTTP MCP service readiness
 - Hub-backed MCP status call
@@ -94,7 +94,7 @@ Use the nearest failing tier to classify problems:
 | Class | Signals | First check |
 |---|---|---|
 | Setup | missing tools, broken task surface, invalid manifests or scripts | `task verify` |
-| Hub | unhealthy Hub, missing dev auth Secret, missing grove link, missing Hub secrets | `task kind:hub:status` and `task bootstrap` |
+| Hub | unhealthy Hub, missing dev auth/session Secret, missing grove link, missing Hub secrets | `task kind:hub:status` and `task bootstrap` |
 | Broker | no broker provider, broker auth failure, dispatch rejected before pod creation | `task kind:broker:status` |
 | Kubernetes runtime | no agent pod, pod stuck, image pull, RBAC, or namespace errors | `kubectl --context kind-scion-ops -n scion-agents get pods` |
 | MCP | HTTP service unavailable or missing tool surface | `task kind:mcp:smoke` |
