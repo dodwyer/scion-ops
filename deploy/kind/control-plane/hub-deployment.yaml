@@ -28,16 +28,8 @@ spec:
           image: localhost/scion-base:latest
           imagePullPolicy: IfNotPresent
           command:
-            - /bin/sh
-            - -ec
+            - scion
           args:
-            - |
-              scion_bin=scion
-              if [ -x /home/scion/.scion/dev-bin/scion ]; then
-                scion_bin=/home/scion/.scion/dev-bin/scion
-              fi
-              exec "$scion_bin" "$@"
-            - --
             - --global
             - server
             - start

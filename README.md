@@ -29,8 +29,9 @@ the same lifecycle operations for agents that use those words.
 For local iteration, use the smallest task that matches the changed asset:
 
 ```bash
-task dev:scion:deploy      # rebuild Scion binaries and restart Hub only
 task dev:mcp:restart       # restart MCP after mounted Python source changes
+task build:base            # rebuild only the Scion base image
+task update:hub            # load the base image and restart Hub only
 task build:mcp             # rebuild only the MCP image
 task update:mcp            # load the MCP image and restart MCP only
 task build:harness -- codex
@@ -39,9 +40,9 @@ task dev:test              # smoke test without reapplying setup
 task storage:status        # inspect Podman storage before image work
 ```
 
-`task build` and `task dev:scion:deploy` first ensure the configured Scion
-source has the repo-owned runtime patch set from `patches/scion/`. Inspect or
-apply it directly with:
+`task build` and `task build:base` first ensure the configured Scion source has
+the repo-owned runtime patch set from `patches/scion/`. Inspect or apply it
+directly with:
 
 ```bash
 task scion:patch:status
@@ -101,7 +102,9 @@ The Kubernetes resources are native Kustomize manifests under `deploy/kind`.
 They are intentionally deployable with `kubectl apply -k`; Helm packaging can
 come later only if the values and lifecycle model justify it.
 The kind Hub uses a stable `SCION_SERVER_HUB_HUBID` so Hub-scoped bootstrap
-secrets remain visible after Hub pod rollouts.
+secrets remain visible after Hub pod rollouts. The Hub deployment runs the
+Scion binary from `localhost/scion-base:latest`; persistent Hub state must not
+override the image binary.
 
 ## MCP And Zed
 
@@ -144,7 +147,6 @@ Smoke test the HTTP service with `task kind:mcp:smoke`. See `docs/zed-mcp.md`.
 - `scripts/build-images.sh` — image build helper
 - `scripts/kind-bootstrap.sh` — Hub credential, harness, and template restore
 - `scripts/kind-scion-runtime.sh` — kind substrate helper
-- `scripts/kind-dev-scion.sh` — fast Hub/Broker Scion binary update helper
 - `scripts/scion-runtime-patches.sh` — Scion runtime patch apply/check helper
 - `scripts/storage-status.sh` — Podman storage diagnostic helper
 - `scripts/kind-control-plane-smoke.py` — Kubernetes control-plane smoke
