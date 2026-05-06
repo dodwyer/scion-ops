@@ -119,6 +119,8 @@ Smoke test the HTTP service with `task kind:mcp:smoke`. See `docs/zed-mcp.md`.
 - `scripts/kind-bootstrap.sh` — Hub credential, harness, and template restore
 - `scripts/kind-scion-runtime.sh` — kind substrate helper
 - `scripts/kind-dev-scion.sh` — fast Hub/Broker Scion binary update helper
+- `scripts/kind-round-preflight.sh` — validate kind Hub state before a consensus round
+- `scripts/smoke-mcp-server.py` — MCP server smoke test helper
 - `scripts/storage-status.sh` — Podman storage diagnostic helper
 - `scripts/kind-control-plane-smoke.py` — Kubernetes control-plane smoke
 
