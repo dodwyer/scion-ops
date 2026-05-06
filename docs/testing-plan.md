@@ -68,4 +68,11 @@ it proves broker dispatch and MCP readiness without spending subscription model
 usage. The next full validation is a short `scion_ops_start_round` call against
 a clean target branch after `task bootstrap` passes. That round should use
 Scion's explicit `auth-file` harness authentication path for Claude, Codex,
-and Gemini, including Claude's companion `CLAUDE_CONFIG` state file.
+and optional Gemini final review, including Claude's companion `CLAUDE_CONFIG`
+state file with Scion's `/workspace` checkout marked trusted and
+bypass-permissions startup accepted for the Kubernetes agent sandbox. The
+bootstrapped Claude config should not carry host-local MCP server registrations
+into agent pods, and the Claude round templates should use native Scion
+`command_args` to pass `--print` so the prompt is submitted immediately. Codex
+is the default final reviewer; Gemini is an explicit option with Codex fallback
+when capacity or auth prevents a verdict.
