@@ -111,9 +111,9 @@ MCP checkout PVC at `/home/scion/checkouts/github` by default. Use the returned
 ## Tool State
 
 The MCP pod reads Hub state through the in-cluster `scion-hub` Service and
-uses the Hub dev token mounted read-only from the Hub PVC. Treat this MCP
-service as a privileged project-control interface. Do not expose it outside a
-trusted local tunnel, VPN, or authenticated ingress.
+uses the `scion-hub-dev-auth` Kubernetes Secret restored by `task bootstrap`.
+Treat this MCP service as a privileged project-control interface. Do not expose
+it outside a trusted local tunnel, VPN, or authenticated ingress.
 
 ## Rounds
 

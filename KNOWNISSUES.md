@@ -62,22 +62,24 @@ runtime pods.
 Exit criteria: for non-local clusters, replace this with a cloned workspace or
 persistent workspace volume managed by explicit bootstrap/restore tasks.
 
-## kind MCP Hub Dev Token Sharing
+## kind Hub Dev Auth Secret Restore
 
-Issue: #31
+Issue: #53
 
-Decision: the local kind MCP Deployment mounts the Hub PVC read-only and reads
-the Hub dev-auth token from `/hub-state/dev-token`.
+Decision: the local kind Hub remains dev-auth based, but `task bootstrap`
+mirrors the active Hub dev-auth token into the `scion-hub-dev-auth`
+Kubernetes Secret. The MCP Deployment reads that Secret through
+`SCION_DEV_TOKEN_FILE` and does not mount the Hub PVC.
 
-Reason: the current kind Hub slice is intentionally dev-auth based and does not
-yet restore a Kubernetes Secret for Hub auth material. Sharing the generated
-token lets the MCP server use the Hub HTTP API without introducing a separate
-bootstrap system in this slice.
+Reason: the Hub still generates and persists the local dev token in its own
+state, but MCP should consume an explicit Kubernetes auth resource rather than
+read Hub storage. `task kind:hub:auth-export` falls back to the Hub pod only
+before bootstrap has restored the Secret.
 
-Constraint: this is local-kind only. The MCP pod can read Hub state from
-the PVC, so it must be treated as a privileged control-plane component.
+Constraint: this is local-kind only. Dev auth remains unsuitable for
+non-kind Kubernetes deployments.
 
-Exit criteria: replace PVC token sharing with explicit Secret restore before
+Exit criteria: replace dev auth with the supported production auth model before
 supporting non-kind Kubernetes deployments.
 
 ## kind Co-Located Broker First
