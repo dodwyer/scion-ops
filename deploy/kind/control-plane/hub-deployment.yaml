@@ -28,17 +28,16 @@ spec:
           image: localhost/scion-base:latest
           imagePullPolicy: IfNotPresent
           command:
-            - scion
-          env:
-            - name: HOME
-              value: /home/scion
-            - name: USER
-              value: scion
-            - name: LOGNAME
-              value: scion
-            - name: KUBECONFIG
-              value: /home/scion/.kube/config
+            - /bin/sh
+            - -ec
           args:
+            - |
+              scion_bin=scion
+              if [ -x /home/scion/.scion/dev-bin/scion ]; then
+                scion_bin=/home/scion/.scion/dev-bin/scion
+              fi
+              exec "$scion_bin" "$@"
+            - --
             - --global
             - server
             - start
@@ -56,6 +55,15 @@ spec:
             - /home/scion/.scion/hub.db
             - --storage-dir
             - /home/scion/.scion/storage
+          env:
+            - name: HOME
+              value: /home/scion
+            - name: USER
+              value: scion
+            - name: LOGNAME
+              value: scion
+            - name: KUBECONFIG
+              value: /home/scion/.kube/config
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000

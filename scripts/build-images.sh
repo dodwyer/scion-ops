@@ -23,6 +23,9 @@ TAG="latest"
 REGISTRY="localhost"
 HARNESSES=(claude codex gemini)   # skip opencode by default to save time/disk
 BUILD_MCP=1
+BUILD_CORE=1
+BUILD_BASE=1
+BUILD_HARNESSES=1
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOCAL_IMG_BUILD="$REPO_ROOT/image-build"
@@ -35,6 +38,33 @@ while [[ $# -gt 0 ]]; do
     --harness)   HARNESSES=("$2"); shift 2 ;;
     --all-harnesses) HARNESSES=(claude codex gemini opencode); shift ;;
     --skip-mcp)  BUILD_MCP=0; shift ;;
+    --skip-core) BUILD_CORE=0; shift ;;
+    --skip-base) BUILD_BASE=0; shift ;;
+    --skip-harnesses) BUILD_HARNESSES=0; shift ;;
+    --only)
+      BUILD_CORE=0
+      BUILD_BASE=0
+      BUILD_HARNESSES=0
+      BUILD_MCP=0
+      case "$2" in
+        core) BUILD_CORE=1 ;;
+        base) BUILD_BASE=1 ;;
+        harnesses) BUILD_HARNESSES=1 ;;
+        mcp) BUILD_MCP=1 ;;
+        claude|codex|gemini|opencode)
+          BUILD_HARNESSES=1
+          HARNESSES=("$2")
+          ;;
+        all)
+          BUILD_CORE=1
+          BUILD_BASE=1
+          BUILD_HARNESSES=1
+          BUILD_MCP=1
+          ;;
+        *) red "Unknown --only target: $2"; exit 1 ;;
+      esac
+      shift 2
+      ;;
     -h|--help)
       cat <<EOF
 Usage: $(basename "$0") [options]
@@ -44,6 +74,10 @@ Usage: $(basename "$0") [options]
   --harness <name>   Build only this harness (repeatable)
   --all-harnesses    Build claude codex gemini opencode (default: claude codex gemini)
   --skip-mcp         Do not build the scion-ops MCP image
+  --skip-core        Do not build core-base
+  --skip-base        Do not build scion-base
+  --skip-harnesses   Do not build harness images
+  --only <target>    Build only core, base, mcp, harnesses, all, or one harness
 EOF
       exit 0
       ;;
@@ -55,6 +89,28 @@ done
 command -v podman >/dev/null || { red "podman not on PATH"; exit 1; }
 
 IMG_BUILD="$SCION_SRC/image-build"
+
+storage_preflight() {
+  [[ "${SCION_OPS_SKIP_STORAGE_CHECK:-}" == "1" ]] && return
+
+  local driver graph_root available_kb
+  driver="$(podman info --format '{{.Store.GraphDriverName}}' 2>/dev/null || true)"
+  graph_root="$(podman info --format '{{.Store.GraphRoot}}' 2>/dev/null || true)"
+
+  if [[ "$driver" == "vfs" ]]; then
+    printf '\033[33m%s\033[0m\n' "Warning: Podman is using the vfs storage driver; image rebuilds will consume much more disk than overlay-backed storage."
+    printf '\033[33m%s\033[0m\n' "         Use targeted build tasks, or run 'task storage:status' and 'task storage:prune' before a full build."
+  fi
+
+  if [[ -n "$graph_root" && -d "$graph_root" ]]; then
+    available_kb="$(df -Pk "$graph_root" | awk 'NR == 2 {print $4}')"
+    if [[ -n "$available_kb" && "$available_kb" -lt 41943040 ]]; then
+      red "Podman storage has less than 40GiB available at $graph_root."
+      red "Run 'task storage:status' and prune old images before building."
+      exit 1
+    fi
+  fi
+}
 
 build() {
   local name="$1" dockerfile="$2" context="$3"; shift 3
@@ -68,29 +124,37 @@ build() {
   green "    ok  $tag"
 }
 
+storage_preflight
+
 # 1. core-base
-build "core-base" \
-      "$IMG_BUILD/core-base/Dockerfile" \
-      "$IMG_BUILD/core-base"
+if [[ "$BUILD_CORE" == "1" ]]; then
+  build "core-base" \
+        "$IMG_BUILD/core-base/Dockerfile" \
+        "$IMG_BUILD/core-base"
+fi
 
 # 2. scion-base (needs scion source root as context to copy go.mod, cmd/, pkg/, web/)
-build "scion-base" \
-      "$IMG_BUILD/scion-base/Dockerfile" \
-      "$SCION_SRC" \
-      --build-arg "BASE_IMAGE=${REGISTRY}/core-base:${TAG}" \
-      --build-arg "GIT_COMMIT=$(git -C "$SCION_SRC" rev-parse HEAD 2>/dev/null || echo unknown)"
+if [[ "$BUILD_BASE" == "1" ]]; then
+  build "scion-base" \
+        "$IMG_BUILD/scion-base/Dockerfile" \
+        "$SCION_SRC" \
+        --build-arg "BASE_IMAGE=${REGISTRY}/core-base:${TAG}" \
+        --build-arg "GIT_COMMIT=$(git -C "$SCION_SRC" rev-parse HEAD 2>/dev/null || echo unknown)"
+fi
 
 # 3. harness images
-for h in "${HARNESSES[@]}"; do
-  harness_dir="$IMG_BUILD/${h}"
-  if [[ -d "$LOCAL_IMG_BUILD/${h}" ]]; then
-    harness_dir="$LOCAL_IMG_BUILD/${h}"
-  fi
-  build "scion-${h}" \
-        "$harness_dir/Dockerfile" \
-        "$harness_dir" \
-        --build-arg "BASE_IMAGE=${REGISTRY}/scion-base:${TAG}"
-done
+if [[ "$BUILD_HARNESSES" == "1" ]]; then
+  for h in "${HARNESSES[@]}"; do
+    harness_dir="$IMG_BUILD/${h}"
+    if [[ -d "$LOCAL_IMG_BUILD/${h}" ]]; then
+      harness_dir="$LOCAL_IMG_BUILD/${h}"
+    fi
+    build "scion-${h}" \
+          "$harness_dir/Dockerfile" \
+          "$harness_dir" \
+          --build-arg "BASE_IMAGE=${REGISTRY}/scion-base:${TAG}"
+  done
+fi
 
 if [[ "$BUILD_MCP" == "1" ]]; then
   build "scion-ops-mcp" \

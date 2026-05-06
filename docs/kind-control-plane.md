@@ -25,6 +25,22 @@ workspace mount, loads local images, applies the control-plane Kustomize target,
 restarts the control-plane deployments so mutable local image tags are picked
 up, and waits for rollout.
 
+Use focused tasks for iteration:
+
+```bash
+task dev:scion:deploy
+task dev:mcp:restart
+task build:mcp
+task update:mcp
+task build:harness -- claude
+task load:image -- localhost/scion-claude:latest
+task dev:test
+task storage:status
+```
+
+These tasks keep the lifecycle defaults intact while avoiding unnecessary image
+builds, kind image loads, and control-plane restarts.
+
 ## Kubernetes Resources
 
 Resources are native manifests managed by Kustomize:
@@ -81,6 +97,55 @@ tools operate on the mounted git checkout selected by `project_root`.
 
 The broker creates agent pods in `scion-agents` using in-cluster Kubernetes API
 access. It does not use host Podman or Docker sockets.
+
+## Development Loop
+
+Scion Hub/Broker changes can be tested without rebuilding `scion-base`.
+
+```bash
+task dev:scion:deploy
+task dev:scion:status
+task dev:test
+```
+
+`task dev:scion:deploy` builds `scion` and `sciontool` from the upstream Scion
+checkout, copies them into the Hub PVC at `/home/scion/.scion/dev-bin`, and
+restarts only the Hub deployment. The Hub manifest selects that PVC-backed
+binary when it exists; otherwise it runs the image binary. Remove the override
+with:
+
+```bash
+task dev:scion:clear
+```
+
+MCP source changes are mounted from the workspace, so they usually need only:
+
+```bash
+task dev:mcp:restart
+task kind:mcp:smoke
+```
+
+Image-level changes stay explicit:
+
+```bash
+task build:base
+task update:hub
+task build:mcp
+task update:mcp
+task build:harness -- codex
+task load:image -- localhost/scion-codex:latest
+```
+
+Before full image work, check storage:
+
+```bash
+task storage:status
+```
+
+The build helper warns when Podman uses `vfs` and fails early when available
+space in the Podman graph root is under 40 GiB. Set
+`SCION_OPS_SKIP_STORAGE_CHECK=1` only when the storage state has been checked
+another way.
 
 ## Local Access
 

@@ -26,6 +26,19 @@ cluster, base runtime resources, image loading, and control-plane Kustomize
 target. Hidden aliases `task deploy`, `task update`, and `task destroy` map to
 the same lifecycle operations for agents that use those words.
 
+For local iteration, use the smallest task that matches the changed asset:
+
+```bash
+task dev:scion:deploy      # rebuild Scion binaries and restart Hub only
+task dev:mcp:restart       # restart MCP after mounted Python source changes
+task build:mcp             # rebuild only the MCP image
+task update:mcp            # load the MCP image and restart MCP only
+task build:harness -- codex
+task load:image -- localhost/scion-codex:latest
+task dev:test              # smoke test without reapplying setup
+task storage:status        # inspect Podman storage before image work
+```
+
 `task bootstrap` is the default credential and template restore path. It links
 the target repo as a Hub grove, provides the kind broker, stores shared
 subscription credentials as Hub secrets, and syncs the scion-ops templates from
@@ -99,6 +112,8 @@ Smoke test the HTTP service with `task kind:mcp:smoke`. See `docs/zed-mcp.md`.
 - `scripts/build-images.sh` — image build helper
 - `scripts/kind-bootstrap.sh` — Hub credential, harness, and template restore
 - `scripts/kind-scion-runtime.sh` — kind substrate helper
+- `scripts/kind-dev-scion.sh` — fast Hub/Broker Scion binary update helper
+- `scripts/storage-status.sh` — Podman storage diagnostic helper
 - `scripts/kind-control-plane-smoke.py` — Kubernetes control-plane smoke
 
 ## Rounds
