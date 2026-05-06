@@ -103,7 +103,8 @@ host:
 
 The Kubernetes resources are native Kustomize manifests under `deploy/kind`.
 They are intentionally deployable with `kubectl apply -k`; Helm packaging can
-come later only if the values and lifecycle model justify it.
+come later only if the values and lifecycle model justify it. See
+`docs/kubernetes-packaging.md` for the review triggers.
 The kind Hub uses a stable `SCION_SERVER_HUB_HUBID` so Hub-scoped bootstrap
 secrets remain visible after Hub pod rollouts. The Hub deployment runs the
 Scion binary from `localhost/scion-base:latest`; persistent Hub state must not
@@ -155,6 +156,7 @@ Smoke test the HTTP service with `task kind:mcp:smoke`. See `docs/zed-mcp.md`.
 - `deploy/kind/` — Kubernetes resources for kind, Hub, broker, and MCP
 - `docs/kind-control-plane.md` — Kubernetes deployment model
 - `docs/kind-scion-runtime.md` — kind runtime substrate details
+- `docs/kubernetes-packaging.md` — Kustomize versus Helm packaging decision
 - `docs/openspec-round-workflow.md` — spec-driven round workflow design
 - `docs/testing-plan.md` — verification plan
 - `docs/workspace-persistence.md` — target project workspace persistence model

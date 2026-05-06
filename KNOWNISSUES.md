@@ -3,26 +3,28 @@
 Track intentional exceptions, unresolved risks, and design decisions that need
 revisit before they become hidden assumptions.
 
-## Kustomize-First Kubernetes Control Plane
+## Kubernetes Packaging Review Trigger
 
-Issue: #31
+Issue: #57
 
 Decision: keep the supported local Kubernetes deployment as native manifests
-and Kustomize, not Helm.
+and Kustomize. The dated packaging decision record is
+`docs/kubernetes-packaging.md`.
 
 Reason: the first implementation target is a local kind environment with a
 small resource set, minimal templating requirements, and an existing
 `kubectl apply -k deploy/kind` workflow. This keeps the day-zero path
 inspectable and avoids designing a chart values API before the resource model is
-proven. Kubernetes is the only supported deployment path; this decision is
-about packaging, not whether the control plane runs in Kubernetes.
+proven. Kubernetes is the only supported deployment path; this decision is about
+packaging, not whether the control plane runs in Kubernetes.
 
 Constraint: if configuration expands beyond a small local overlay, or if we
 need install/upgrade lifecycle from the console, move to Helm managed through a
 helmfile rather than ad hoc `helm install` commands.
 
-Exit criteria: Kustomize remains acceptable only while the control-plane config
-can stay simple, native, and reproducible from this repo.
+Exit criteria: re-open the packaging decision when the triggers in
+`docs/kubernetes-packaging.md` are met, especially when a non-kind cluster
+deployment target is added.
 
 ## kind Hub Dev Auth
 
