@@ -44,9 +44,9 @@ source has the repo-owned runtime patch set from `patches/scion/`. Inspect or
 apply it directly with:
 
 ```bash
-task scion:patch:status
-task scion:patch:apply
-task scion:patch:check
+task scion:patch:status   # print per-patch state (applied/pending/blocked)
+task scion:patch:check    # exit non-zero if any patch is unapplied
+task scion:patch:apply    # apply pending patches; already-applied are skipped
 ```
 
 The default source remains `~/workspace/github/GoogleCloudPlatform/scion`; set
