@@ -2,6 +2,30 @@
 
 The supported verification path is Kubernetes-only.
 
+## Smoke Tiers
+
+| Tier | Command | Model spend | Purpose |
+|---|---|---:|---|
+| Static | `task verify` | no | Check task surface, syntax, and repo-local validators. |
+| Cheap control plane | `task test` | no | Prove kind, Hub, broker, MCP, and Kubernetes no-auth agent dispatch. |
+| Release round | `task release:smoke` | yes | Prove subscription-backed Claude, Codex, and final reviewer credentials in Kubernetes. |
+
+Keep `task test` as the frequent local health check. It must stay no-auth and
+no-spend so it is safe to run during normal iteration. Run
+`task release:smoke` only before a release, after credential changes, or when
+debugging model-backed round dispatch.
+
+`task release:smoke` defaults to:
+
+- `SCION_OPS_RELEASE_SMOKE_MAX_MINUTES=8`
+- `SCION_OPS_RELEASE_SMOKE_MAX_REVIEW_ROUNDS=1`
+- `SCION_OPS_RELEASE_SMOKE_FINAL_REVIEWER=gemini`
+
+The command bootstraps the selected target repo unless
+`SCION_OPS_RELEASE_SMOKE_BOOTSTRAP=0` is set. Use
+`SCION_OPS_RELEASE_SMOKE_FINAL_REVIEWER=codex` when the release check should
+avoid Gemini capacity or auth.
+
 ## Lifecycle Check
 
 Use this sequence for a full local validation:
@@ -63,18 +87,20 @@ task verify
 This checks whitespace, task listing, and Python syntax without trying to
 recreate the Kubernetes cluster.
 
-## Known Test Gap
+## Failure Classes
 
-The Kubernetes smoke still uses the checked-in generic no-auth smoke config, so
-it proves broker dispatch and MCP readiness without spending subscription model
-usage. The next full validation is a short `scion_ops_start_round` call against
-a clean target branch after `task bootstrap` passes. That round should use
-Scion's explicit `auth-file` harness authentication path for Claude, Codex,
-and optional Gemini final review, including Claude's companion `CLAUDE_CONFIG`
-state file with Scion's `/workspace` checkout marked trusted and
-bypass-permissions startup accepted for the Kubernetes agent sandbox. The
-bootstrapped Claude config should not carry host-local MCP server registrations
-into agent pods, and the Claude round templates should use native Scion
-`command_args` to pass `--print` so the prompt is submitted immediately. Codex
-is the default final reviewer; Gemini is an explicit option with Codex fallback
-when capacity or auth prevents a verdict.
+Use the nearest failing tier to classify problems:
+
+| Class | Signals | First check |
+|---|---|---|
+| Setup | missing tools, broken task surface, invalid manifests or scripts | `task verify` |
+| Hub | unhealthy Hub, missing dev auth, missing grove link, missing Hub secrets | `task kind:hub:status` and `task bootstrap` |
+| Broker | no broker provider, broker auth failure, dispatch rejected before pod creation | `task kind:broker:status` |
+| Kubernetes runtime | no agent pod, pod stuck, image pull, RBAC, or namespace errors | `kubectl --context kind-scion-ops -n scion-agents get pods` |
+| MCP | HTTP service unavailable or missing tool surface | `task kind:mcp:smoke` |
+| Model credentials | Claude, Codex, or Gemini agent starts but cannot authenticate or produce output | `task release:smoke` plus `scion_ops_watch_round_events` |
+
+The release tier uses Scion's explicit `auth-file` harness authentication path
+for Claude, Codex, and optional Gemini final review. It validates that
+`CLAUDE_AUTH`, `CLAUDE_CONFIG`, `CODEX_AUTH`, and `GEMINI_OAUTH_CREDS` have
+been restored as Hub secrets by `task bootstrap`.

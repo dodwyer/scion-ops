@@ -18,6 +18,7 @@ task build      # build all Scion and scion-ops images
 task up         # create/update kind and apply the Kubernetes control plane
 task bootstrap  # restore Hub credentials, harness configs, and templates
 task test       # smoke test Hub, broker, MCP, and Kubernetes agent dispatch
+task release:smoke  # opt-in subscription-backed round smoke
 task down       # destroy the local kind deployment
 ```
 
@@ -166,6 +167,13 @@ SCION_OPS_PROJECT_ROOT=/home/david/workspace/github/example/project task round -
 The MCP tool `scion_ops_start_round` accepts the same target as `project_root`.
 Agents work from the target repo's Hub grove and branch context; uncommitted
 local work is not included unless it is committed or pushed before the round.
+
+Use `task test` for frequent no-spend health checks. Use `task release:smoke`
+only when you want release confidence from a bounded subscription-backed round:
+it bootstraps the target repo, starts a short Claude/Codex round, and defaults
+to Gemini final review. Override with
+`SCION_OPS_RELEASE_SMOKE_FINAL_REVIEWER=codex` when Gemini capacity or auth is
+not part of the check.
 
 If a round reaches its watchdog limit, scion-ops stops the round agents and
 keeps their Hub records for inspection. Use `task abort -- <round_id>` when the

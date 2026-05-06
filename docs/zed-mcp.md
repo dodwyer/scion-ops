@@ -129,6 +129,19 @@ The external agent should call `scion_ops_project_status` first, then
 on a clean branch with any important local work committed or pushed; Kubernetes
 agents work from git branches, not uncommitted editor state.
 
+For a release smoke through MCP, keep it explicit because it uses subscription
+credentials:
+
+```text
+Use scion-ops on project_root=/home/david/workspace/github/example/project.
+Start a short release smoke round with max_minutes=8, max_review_rounds=1, and final_reviewer=gemini:
+"Make the smallest safe README wording improvement, verify it, push the branch, and report the PR-ready branch name."
+Monitor it with event watching.
+```
+
+The external agent should call `scion_ops_start_round` with those bounded
+arguments, then `scion_ops_watch_round_events`.
+
 When the target repo is not checked out yet, pass a GitHub URL:
 
 ```text

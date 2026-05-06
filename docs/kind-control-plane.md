@@ -179,6 +179,17 @@ This dispatches the checked-in no-auth generic smoke config through the Kubernet
 Hub and co-located broker, verifies that an agent pod appears in kind, checks
 MCP Hub status through HTTP, and deletes the smoke agent after success.
 
+`task test` is deliberately no-auth and no-spend. For release confidence, run
+the opt-in model-backed tier:
+
+```bash
+task release:smoke
+```
+
+That command bootstraps the selected target, starts a short Claude/Codex round,
+and defaults to Gemini final review. It is intended for release checks or model
+credential changes, not every local edit.
+
 Useful overrides:
 
 | Variable | Default |
