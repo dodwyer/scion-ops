@@ -96,6 +96,19 @@ tasks:
     cmds:
       - python3 scripts/validate-openspec-change.py {{.CLI_ARGS}}
 
+  spec:round:
+    desc: Start a spec-building Scion round for a target project.
+    cmds:
+      - |
+        set -- {{.CLI_ARGS}}
+        bash orchestrator/spec-round.sh "$@"
+
+  spec:round:dry-run:
+    cmds:
+      - |
+        set -- {{.CLI_ARGS}}
+        SCION_OPS_DRY_RUN=1 bash orchestrator/spec-round.sh "$@"
+
   down:
     desc: Destroy the kind Kubernetes deployment.
     prompt: This deletes the {{.KIND_CLUSTER_NAME}} kind cluster and all cluster-local Scion state. Continue?
@@ -318,4 +331,4 @@ tasks:
       - task --list
       - python3 -c "import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in ('mcp_servers/scion_ops.py', 'scripts/kind-control-plane-smoke.py', 'scripts/smoke-mcp-server.py', 'scripts/validate-openspec-change.py', 'scripts/test-openspec-change-validator.py')]"
       - python3 scripts/test-openspec-change-validator.py
-      - bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh scripts/scion-runtime-patches.sh scripts/storage-status.sh orchestrator/run-round.sh orchestrator/round.sh orchestrator/abort.sh
+      - bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh scripts/scion-runtime-patches.sh scripts/storage-status.sh orchestrator/run-round.sh orchestrator/round.sh orchestrator/spec-round.sh orchestrator/abort.sh

@@ -141,6 +141,41 @@ The validator checks that `openspec/changes/<change>/` exists, that
 MCP clients use the same validation path through
 `scion_ops_validate_spec_change(project_root, change)`.
 
+## Spec Round Launch
+
+Use `task spec:round` to launch the spec-building personas against the selected
+target project:
+
+```bash
+task bootstrap -- /path/to/project
+SCION_OPS_PROJECT_ROOT=/path/to/project task spec:round -- "draft the spec goal"
+```
+
+Optionally provide a stable change name:
+
+```bash
+SCION_OPS_PROJECT_ROOT=/path/to/project \
+SCION_OPS_SPEC_CHANGE=add-widget \
+task spec:round -- "draft the spec goal"
+```
+
+For a no-model prompt rendering check:
+
+```bash
+task spec:round:dry-run -- "draft the spec goal"
+```
+
+The spec round uses these templates:
+
+| Template | Role |
+|---|---|
+| `spec-consensus-runner` | Coordinates the spec protocol and final branch. |
+| `spec-goal-clarifier` | Narrows scope, assumptions, and blocking questions. |
+| `spec-repo-explorer` | Inspects the target repo so the spec follows local patterns. |
+| `spec-author` | Writes only `openspec/changes/<change>/` artifacts. |
+| `spec-ops-reviewer` | Checks OpenSpec structure and operational fit. |
+| `spec-finalizer` | Produces the PR-ready spec integration branch. |
+
 ## PR Flow
 
 Spec PR:

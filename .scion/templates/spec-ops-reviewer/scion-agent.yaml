@@ -1,0 +1,7 @@
+schema_version: "1"
+description: "Spec operations reviewer - checks artifact quality and operational fit."
+default_harness_config: codex
+system_prompt: system-prompt.md
+agent_instructions: agents.md
+max_turns: 40
+max_duration: 7m

@@ -1,0 +1,6 @@
+schema_version: "1"
+description: "Spec consensus runner - coordinates OpenSpec artifact rounds without implementation changes."
+default_harness_config: claude
+system_prompt: system-prompt.md
+max_turns: 80
+max_duration: 12m

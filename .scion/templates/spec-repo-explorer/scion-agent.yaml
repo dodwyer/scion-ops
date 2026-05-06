@@ -1,0 +1,7 @@
+schema_version: "1"
+description: "Spec repo explorer - inspects the target repo to ground the spec."
+default_harness_config: codex
+system_prompt: system-prompt.md
+agent_instructions: agents.md
+max_turns: 30
+max_duration: 6m
