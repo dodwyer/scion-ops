@@ -28,8 +28,9 @@ up, and waits for rollout.
 Use focused tasks for iteration:
 
 ```bash
-task dev:scion:deploy
 task dev:mcp:restart
+task build:base
+task update:hub
 task build:mcp
 task update:mcp
 task build:harness -- claude
@@ -100,28 +101,10 @@ access. It does not use host Podman or Docker sockets.
 
 ## Development Loop
 
-Scion Hub/Broker changes can be tested without rebuilding `scion-base`.
-
-```bash
-task dev:scion:deploy
-task dev:scion:status
-task dev:test
-```
-
-`task dev:scion:deploy` builds `scion` and `sciontool` from the upstream Scion
-checkout, copies them into the Hub PVC at `/home/scion/.scion/dev-bin`, and
-restarts only the Hub deployment. The Hub manifest selects that PVC-backed
-binary when it exists; otherwise it runs the image binary. Remove the override
-with:
-
-```bash
-task dev:scion:clear
-```
-
-Before building Scion binaries or images, scion-ops ensures the configured
-Scion checkout has the required runtime patch set from `patches/scion/`.
-The default source is `~/workspace/github/GoogleCloudPlatform/scion`; override
-it with `SCION_SRC` or `task build -- --src <path>`.
+Before building Scion images, scion-ops ensures the configured Scion checkout
+has the required runtime patch set from `patches/scion/`. The default source is
+`~/workspace/github/GoogleCloudPlatform/scion`; override it with `SCION_SRC` or
+`task build -- --src <path>`.
 
 ```bash
 task scion:patch:status
@@ -129,8 +112,8 @@ task scion:patch:apply
 task scion:patch:check
 ```
 
-`task build` and `task dev:scion:deploy` run the same patch ensure step, so a
-clean checkout fails or converges before images or Hub dev binaries are built.
+`task build` and `task build:base` run the same patch ensure step, so a clean
+checkout fails or converges before Hub images are built.
 
 MCP source changes are mounted from the workspace, so they usually need only:
 

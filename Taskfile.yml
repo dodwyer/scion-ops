@@ -119,23 +119,6 @@ tasks:
     cmds:
       - task kind:load-images -- {{.CLI_ARGS}}
 
-  dev:scion:build:
-    cmds:
-      - bash scripts/kind-dev-scion.sh build
-
-  dev:scion:deploy:
-    cmds:
-      - bash scripts/kind-dev-scion.sh deploy
-
-  dev:scion:status:
-    cmds:
-      - bash scripts/kind-dev-scion.sh status
-
-  dev:scion:clear:
-    prompt: This removes Hub dev binaries and restarts Hub. Continue?
-    cmds:
-      - bash scripts/kind-dev-scion.sh clear
-
   scion:patch:status:
     desc: Show whether the configured Scion source has required runtime patches.
     cmds:
@@ -321,4 +304,4 @@ tasks:
       - git diff --check
       - task --list
       - python3 -c "import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in ('mcp_servers/scion_ops.py', 'scripts/kind-control-plane-smoke.py', 'scripts/smoke-mcp-server.py')]"
-      - bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-dev-scion.sh scripts/kind-round-preflight.sh scripts/scion-runtime-patches.sh scripts/storage-status.sh orchestrator/run-round.sh orchestrator/round.sh orchestrator/abort.sh
+      - bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh scripts/scion-runtime-patches.sh scripts/storage-status.sh orchestrator/run-round.sh orchestrator/round.sh orchestrator/abort.sh
