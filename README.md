@@ -138,6 +138,7 @@ Smoke test the HTTP service with `task kind:mcp:smoke`. See `docs/zed-mcp.md`.
 - `deploy/kind/` — Kubernetes resources for kind, Hub, broker, and MCP
 - `docs/kind-control-plane.md` — Kubernetes deployment model
 - `docs/kind-scion-runtime.md` — kind runtime substrate details
+- `docs/openspec-round-workflow.md` — spec-driven round workflow design
 - `docs/testing-plan.md` — verification plan
 - `docs/zed-mcp.md` — Kubernetes-hosted MCP registration
 - `mcp_servers/scion_ops.py` — streamable HTTP MCP server
