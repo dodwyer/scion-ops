@@ -40,6 +40,10 @@ task dev:test              # smoke test without reapplying setup
 task storage:status        # inspect Podman storage before image work
 ```
 
+The default image-based Hub update path is `task build:base` followed by
+`task update:hub`: rebuild the base image from the Scion source, then load it
+into kind and restart the Hub pod without a full cluster reconciliation.
+
 `task build` and `task build:base` first ensure the configured Scion source has
 the repo-owned runtime patch set from `patches/scion/`. Inspect or apply it
 directly with:
