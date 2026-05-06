@@ -161,6 +161,7 @@ Smoke test the HTTP service with `task kind:mcp:smoke`. See `docs/zed-mcp.md`.
 - `docs/testing-plan.md` — verification plan
 - `docs/workspace-persistence.md` — target project workspace persistence model
 - `docs/zed-mcp.md` — Kubernetes-hosted MCP registration
+- `docs/zed-openspec-example.md` — end-to-end Zed MCP OpenSpec walkthrough
 - `mcp_servers/scion_ops.py` — streamable HTTP MCP server
 - `orchestrator/` — consensus round launcher and agent utilities
 - `patches/scion/` — Scion runtime patches required by this deployment
