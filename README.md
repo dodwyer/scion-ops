@@ -13,7 +13,7 @@ upstream Scion checkout at `~/workspace/github/GoogleCloudPlatform/scion` unless
 you pass `task build -- --src <path>`.
 
 ```bash
-task x          # build, create/update, bootstrap, deploy, and smoke test
+task x          # build, create/update, bootstrap, and smoke test
 task build      # build all Scion and scion-ops images
 task up         # create/update kind and apply the Kubernetes control plane
 task bootstrap  # restore Hub credentials, harness configs, and templates
