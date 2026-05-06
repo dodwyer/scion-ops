@@ -105,7 +105,7 @@ def hint_for_output(output: str, default: str) -> str:
     if category == "hub_auth":
         return 'Refresh kind Hub auth:\n  eval "$(task kind:hub:auth-export)"'
     if category == "broker_dispatch":
-        return "Check the co-located broker:\n  task kind:broker:status"
+        return "Check the dedicated broker:\n  task kind:broker:status"
     if category == "image":
         return IMAGE_HINT
     if category == "kubernetes":
@@ -336,7 +336,7 @@ def bootstrap_grove(
         ],
         env=env,
         category="broker_dispatch",
-        hint="Check the co-located broker:\n  task kind:broker:status",
+        hint="Check the dedicated broker:\n  task kind:broker:status",
         timeout=120,
     )
 
@@ -362,7 +362,7 @@ def verify_broker(
         ],
         env=env,
         category="broker_dispatch",
-        hint="Check the co-located broker:\n  task kind:broker:status",
+        hint="Check the dedicated broker:\n  task kind:broker:status",
         timeout=60,
     )
     try:
@@ -379,7 +379,15 @@ def verify_broker(
         raise SmokeFailure(
             "broker_dispatch",
             f"broker {broker} is not online: {status}",
-            hint="Check the co-located broker:\n  task kind:broker:status",
+            hint="Check the dedicated broker:\n  task kind:broker:status",
+            output=json.dumps(data, indent=2),
+        )
+    connection = str(data.get("connectionState") or data.get("connection_state") or "").lower()
+    if connection and connection != "connected":
+        raise SmokeFailure(
+            "broker_dispatch",
+            f"broker {broker} control channel is not connected: {connection}",
+            hint="Check the dedicated broker:\n  task kind:broker:status",
             output=json.dumps(data, indent=2),
         )
 

@@ -1,0 +1,14 @@
+schema_version: "1"
+active_profile: kind
+image_registry: localhost
+server:
+  broker:
+    host: 127.0.0.1
+runtimes:
+  kubernetes:
+    type: kubernetes
+    context: in-cluster
+    namespace: scion-agents
+profiles:
+  kind:
+    runtime: kubernetes

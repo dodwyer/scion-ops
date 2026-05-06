@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: scion-agents
 resources:
   - broker-rbac.yaml
+  - broker-deployment.yaml
   - hub-pvc.yaml
   - hub-service.yaml
   - hub-deployment.yaml
@@ -19,6 +20,15 @@ configMapGenerator:
   - name: scion-broker-kubeconfig
     files:
       - config=config/broker-kubeconfig.yaml
+  - name: scion-broker-entrypoint
+    files:
+      - broker-entrypoint.sh=config/broker-entrypoint.sh
+  - name: scion-broker-bootstrap-server
+    files:
+      - server.yaml=config/broker-bootstrap-server.yaml
+  - name: scion-broker-bootstrap-settings
+    files:
+      - settings.yaml=config/broker-bootstrap-settings.yaml
   - name: scion-hub-settings
     files:
       - settings.yaml=config/hub-settings.yaml

@@ -44,7 +44,7 @@ credentials, harness configs, and templates before a round is started.
 - kind cluster and workspace mount
 - Kubernetes control-plane rollout
 - kind-hosted Hub dev auth and restored Hub auth/session Secrets
-- co-located Runtime Broker status
+- dedicated Runtime Broker registration and control-channel status
 - HTTP MCP service readiness
 - Hub-backed MCP status call
 - no-auth generic agent dispatch through the broker

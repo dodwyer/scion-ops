@@ -13,7 +13,11 @@ CLUSTER_NAME="${KIND_CLUSTER_NAME:-scion-ops}"
 CONTEXT="${KIND_CONTEXT:-kind-${CLUSTER_NAME}}"
 NAMESPACE="${SCION_K8S_NAMESPACE:-scion-agents}"
 BROKER="${SCION_KIND_CP_BROKER:-kind-control-plane}"
+BROKER_CREDENTIAL_NAME="${SCION_KIND_CP_BROKER_CREDENTIAL_NAME:-in-cluster}"
+BROKER_CREDENTIAL_SECRET="${SCION_KIND_CP_BROKER_CREDENTIAL_SECRET:-scion-broker-credentials}"
+BROKER_BOOTSTRAP_HOME="${SCION_BROKER_BOOTSTRAP_HOME:-/tmp/scion-broker-bootstrap}"
 HUB_IN_CLUSTER="${SCION_OPS_KIND_IN_CLUSTER_HUB_URL:-http://127.0.0.1:8090}"
+HUB_FOR_BROKER="${SCION_OPS_KIND_BROKER_HUB_URL:-http://scion-hub:8090}"
 HUB_PUBLIC="${SCION_HUB_ENDPOINT:-${HUB_ENDPOINT:-${SCION_OPS_KIND_HUB_URL:-http://${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}:${SCION_OPS_KIND_HUB_PORT:-18090}}}}"
 SCION_BIN="${SCION_BIN:-scion}"
 HARNESS_CONFIG_ROOT="${SCION_OPS_HARNESS_CONFIG_ROOT:-${HOME}/.scion/harness-configs}"
@@ -85,10 +89,31 @@ hub_pod() {
   printf '%s\n' "$pod"
 }
 
+broker_pod() {
+  local pod
+  pod="$(kubectl_ctx -n "$NAMESPACE" get pod \
+    -l app.kubernetes.io/name=scion-broker \
+    -o jsonpath='{.items[0].metadata.name}')"
+  [[ -n "$pod" ]] || die "scion-broker pod not found in ${CONTEXT}/${NAMESPACE}; run task up"
+  printf '%s\n' "$pod"
+}
+
 run_in_hub() {
   local pod="$1"
   local command="$2"
   kubectl_ctx -n "$NAMESPACE" exec "$pod" -c hub -- sh -lc "$command"
+}
+
+run_in_broker() {
+  local pod="$1"
+  local command="$2"
+  kubectl_ctx -n "$NAMESPACE" exec "$pod" -c broker -- sh -lc "$command"
+}
+
+wait_for_control_plane_rollouts() {
+  kubectl_ctx -n "$NAMESPACE" rollout status deploy/scion-hub --timeout=120s >/dev/null
+  kubectl_ctx -n "$NAMESPACE" rollout status deploy/scion-broker --timeout=120s >/dev/null
+  kubectl_ctx -n "$NAMESPACE" rollout status deploy/scion-ops-mcp --timeout=120s >/dev/null
 }
 
 restore_hub_dev_auth_secret() {
@@ -139,10 +164,125 @@ PY
 }
 
 restart_control_plane_for_restored_auth_state() {
-  kubectl_ctx -n "$NAMESPACE" rollout restart deploy/scion-hub deploy/scion-ops-mcp >/dev/null
-  kubectl_ctx -n "$NAMESPACE" rollout status deploy/scion-hub --timeout=120s >/dev/null
-  kubectl_ctx -n "$NAMESPACE" rollout status deploy/scion-ops-mcp --timeout=120s >/dev/null
-  log "restarted Hub and MCP after auth/session Secret restore"
+  kubectl_ctx -n "$NAMESPACE" rollout restart deploy/scion-hub deploy/scion-broker deploy/scion-ops-mcp >/dev/null
+  wait_for_control_plane_rollouts
+  log "restarted Hub, broker, and MCP after auth/session Secret restore"
+}
+
+restore_broker_credentials_secret() {
+  local pod="$1"
+  local credential_file
+  credential_file="$(mktemp "${TMPDIR:-/tmp}/scion-broker-credentials.XXXXXX.json")"
+  chmod 0600 "$credential_file"
+
+  if ! kubectl_ctx -n "$NAMESPACE" exec "$pod" -c broker -- \
+    cat "${BROKER_BOOTSTRAP_HOME}/.scion/hub-credentials/${BROKER_CREDENTIAL_NAME}.json" >"$credential_file"; then
+    rm -f "$credential_file"
+    return 1
+  fi
+
+  python3 - "$credential_file" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text())
+missing = [key for key in ("brokerId", "secretKey", "hubEndpoint") if not data.get(key)]
+if missing:
+    raise SystemExit(f"broker credential file is missing: {', '.join(missing)}")
+PY
+
+  if ! kubectl_ctx -n "$NAMESPACE" create secret generic "$BROKER_CREDENTIAL_SECRET" \
+    --from-file="${BROKER_CREDENTIAL_NAME}.json=${credential_file}" \
+    --dry-run=client \
+    -o yaml | kubectl_ctx -n "$NAMESPACE" apply -f - >/dev/null; then
+    rm -f "$credential_file"
+    return 1
+  fi
+  rm -f "$credential_file"
+  kubectl_ctx -n "$NAMESPACE" label secret "$BROKER_CREDENTIAL_SECRET" \
+    app.kubernetes.io/name=scion-broker \
+    app.kubernetes.io/component=broker \
+    app.kubernetes.io/part-of=scion-control-plane \
+    --overwrite >/dev/null
+  log "restored Kubernetes Secret ${BROKER_CREDENTIAL_SECRET}"
+}
+
+broker_credentials_secret_exists() {
+  kubectl_ctx -n "$NAMESPACE" get secret "$BROKER_CREDENTIAL_SECRET" >/dev/null 2>&1
+}
+
+broker_control_channel_ready() {
+  local pod
+  pod="$(broker_pod)"
+  kubectl_ctx -n "$NAMESPACE" logs "$pod" -c broker 2>/dev/null |
+    grep -q "Connected to Hub control channel"
+}
+
+broker_connection_ready() {
+  local info
+  broker_credentials_secret_exists || return 1
+  broker_control_channel_ready || return 1
+
+  if ! info="$(run_scion hub brokers info "$BROKER" --json --non-interactive 2>/dev/null)"; then
+    return 1
+  fi
+
+  BROKER_INFO="$info" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["BROKER_INFO"])
+if isinstance(data, dict) and isinstance(data.get("broker"), dict):
+    data = data["broker"]
+
+status = str(data.get("status") or data.get("brokerStatus") or "").lower()
+connection = str(data.get("connectionState") or data.get("connection_state") or "").lower()
+
+if status == "online" and connection in ("", "connected"):
+    raise SystemExit(0)
+raise SystemExit(1)
+PY
+}
+
+wait_for_broker_connection() {
+  local attempt
+  log "wait for dedicated broker ${BROKER} to connect to Hub"
+  for attempt in $(seq 1 30); do
+    if broker_connection_ready; then
+      return
+    fi
+    sleep 2
+  done
+  die "broker ${BROKER} did not become connected"
+}
+
+ensure_broker_registration() {
+  local pod
+  local hub_url
+  local token
+  local credential_name
+  local bootstrap_home
+
+  if broker_connection_ready; then
+    log "dedicated broker ${BROKER} is already connected"
+    return
+  fi
+
+  pod="$(broker_pod)"
+  hub_url="$(sh_quote "$HUB_FOR_BROKER")"
+  token="$(sh_quote "$SCION_DEV_TOKEN")"
+  credential_name="$(sh_quote "$BROKER_CREDENTIAL_NAME")"
+  bootstrap_home="$(sh_quote "$BROKER_BOOTSTRAP_HOME")"
+
+  log "register dedicated broker ${BROKER} with Hub"
+  run_in_broker "$pod" "HOME=${bootstrap_home} SCION_HUB_ENDPOINT=${hub_url} HUB_ENDPOINT=${hub_url} SCION_DEV_TOKEN=${token} scion --global broker register --hub ${hub_url} --name ${credential_name} --force --auto-provide --non-interactive --yes >/tmp/scion-broker-register.log 2>&1 || { cat /tmp/scion-broker-register.log >&2; exit 1; }"
+  restore_broker_credentials_secret "$pod"
+
+  kubectl_ctx -n "$NAMESPACE" rollout restart deploy/scion-broker >/dev/null
+  kubectl_ctx -n "$NAMESPACE" rollout status deploy/scion-broker --timeout=120s >/dev/null
+  wait_for_broker_connection
 }
 
 github_token() {
@@ -325,10 +465,11 @@ main() {
   restore_hub_dev_auth_secret "$SCION_DEV_TOKEN"
   restore_hub_web_session_secret
 
-  log "wait for Hub and MCP rollouts"
-  task kind:control-plane:status >/dev/null
+  log "wait for control-plane rollouts"
+  wait_for_control_plane_rollouts
   restart_control_plane_for_restored_auth_state
   wait_for_public_hub
+  ensure_broker_registration
 
   log "link target grove and provide broker ${BROKER}"
   log "target project: ${PROJECT_ROOT}"

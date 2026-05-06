@@ -56,8 +56,12 @@ deploy/kind/
   smoke/
     generic-smoke-agent.yaml
   control-plane/
+    broker-deployment.yaml
     broker-rbac.yaml
     config/
+      broker-bootstrap-server.yaml
+      broker-bootstrap-settings.yaml
+      broker-entrypoint.sh
       broker-kubeconfig.yaml
       hub-settings.yaml
     hub-deployment.yaml
@@ -84,11 +88,10 @@ literal Kubernetes YAML bodies.
 
 ## Control-Plane Shape
 
-The Hub Deployment runs:
+The Kubernetes control plane includes:
 
-- Scion Hub/API/Web
-- Scion's co-located Runtime Broker
-- PVC-backed mutable Scion state
+- a Hub Deployment for Scion Hub/API/Web and PVC-backed Hub state
+- a dedicated Runtime Broker Deployment
 - an in-cluster Kubernetes runtime profile
 
 The MCP Deployment runs the scion-ops streamable HTTP MCP server and reads Hub
@@ -97,7 +100,9 @@ host workspace tree via a kind node `extraMount` and Kubernetes `hostPath`, so
 tools operate on the mounted git checkout selected by `project_root`.
 
 The broker creates agent pods in `scion-agents` using in-cluster Kubernetes API
-access. It does not use host Podman or Docker sockets.
+access. It restores Hub HMAC credentials from the `scion-broker-credentials`
+Secret and connects back to the Hub over Scion's control channel. It does not
+use host Podman or Docker sockets.
 
 ## Development Loop
 
@@ -182,7 +187,7 @@ task test
 ```
 
 This dispatches the checked-in no-auth generic smoke config through the Kubernetes-hosted
-Hub and co-located broker, verifies that an agent pod appears in kind, checks
+Hub and dedicated broker, verifies that an agent pod appears in kind, checks
 MCP Hub status through HTTP, and deletes the smoke agent after success.
 
 `task test` is deliberately no-auth and no-spend. For release confidence, run
@@ -254,7 +259,7 @@ Deleting the kind cluster deletes cluster-local Scion state.
 | Hub ID | `SCION_SERVER_HUB_HUBID=scion-ops-kind` in `deploy/kind/control-plane/hub-deployment.yaml` | no |
 | Hub dev token | `scion-hub-state` PVC, mirrored to `scion-hub-dev-auth` by `task bootstrap` | yes |
 | Hub web sessions | `scion-hub-web-session` Secret plus session files under `scion-hub-state` PVC | yes |
-| Broker registration | Hub state for co-located broker | yes |
+| Broker registration | Hub state plus `scion-broker-credentials` Secret restored by `task bootstrap` | yes |
 | MCP workspace | host checkout mounted into kind node | no |
 | MCP-prepared GitHub checkouts | `scion-ops-mcp-checkouts` PVC | yes |
 | Agent artifacts | Hub agent records and pushed git branches | pod-local state is ephemeral |
