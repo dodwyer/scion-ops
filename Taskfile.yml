@@ -152,6 +152,12 @@ tasks:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-hub
       - task: kind:hub:status
 
+  update:broker:
+    cmds:
+      - task kind:load-images -- localhost/scion-base:latest
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-broker
+      - task: kind:broker:status
+
   update:mcp:
     cmds:
       - task kind:load-images -- localhost/scion-ops-mcp:latest
@@ -239,13 +245,13 @@ tasks:
 
   kind:control-plane:restart:
     cmds:
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-hub deploy/scion-ops-mcp
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-hub deploy/scion-broker deploy/scion-ops-mcp
 
   kind:control-plane:status:
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-hub --timeout=120s
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-broker --timeout=120s
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-mcp --timeout=120s
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' exec deploy/scion-hub -c hub -- scion --global broker status --json
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' get deploy,svc,pvc,cm -l app.kubernetes.io/part-of=scion-control-plane
 
   kind:control-plane:logs:
@@ -276,7 +282,6 @@ tasks:
   kind:hub:status:
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-hub --timeout=120s
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' exec deploy/scion-hub -c hub -- scion --global broker status --json
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' get deploy,svc,pvc,cm -l app.kubernetes.io/part-of=scion-control-plane
 
   kind:hub:logs:
@@ -297,12 +302,12 @@ tasks:
 
   kind:broker:status:
     cmds:
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-hub --timeout=120s
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' exec deploy/scion-hub -c hub -- scion --global broker status --json
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-broker --timeout=120s
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' exec deploy/scion-broker -c broker -- scion --global broker status --json
 
   kind:broker:logs:
     cmds:
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' logs -f deploy/scion-hub -c hub
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' logs -f deploy/scion-broker -c broker
 
   kind:mcp:status:
     cmds:
@@ -359,4 +364,4 @@ tasks:
       - python3 scripts/test-openspec-change-validator.py
       - python3 scripts/test-openspec-archive.py
       - python3 scripts/test-verdict-schema.py
-      - bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh scripts/release-smoke-round.sh scripts/scion-runtime-patches.sh scripts/storage-status.sh orchestrator/run-round.sh orchestrator/round.sh orchestrator/spec-round.sh orchestrator/spec-implementation-round.sh orchestrator/abort.sh
+      - bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh scripts/release-smoke-round.sh scripts/scion-runtime-patches.sh scripts/storage-status.sh deploy/kind/control-plane/config/broker-entrypoint.sh orchestrator/run-round.sh orchestrator/round.sh orchestrator/spec-round.sh orchestrator/spec-implementation-round.sh orchestrator/abort.sh

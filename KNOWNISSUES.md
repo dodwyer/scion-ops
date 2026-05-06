@@ -84,24 +84,26 @@ non-kind Kubernetes deployments.
 Exit criteria: replace dev auth with the supported production auth model before
 supporting non-kind Kubernetes deployments.
 
-## kind Co-Located Broker First
+## kind Dedicated Broker Registration
 
-Issue: #31
+Issue: #55
 
-Decision: the first in-kind Runtime Broker slice runs inside the Hub pod by
-enabling Scion's co-located Hub+broker server mode.
+Decision: the in-kind Runtime Broker runs as its own `scion-broker`
+Deployment. Bootstrap uses Scion's native `broker register` flow when the Hub
+does not already show the broker as connected, stores the resulting HMAC
+credential JSON in the `scion-broker-credentials` Kubernetes Secret, restarts
+the broker, and waits for the Hub control-channel connection.
 
-Reason: a separate broker Deployment needs a reliable HMAC credential bootstrap
-or restore path before it can join Hub mode safely. The co-located Scion server
-path already creates the broker record and broker secret in Hub state, which is
-enough for the local kind control plane to prove Kubernetes runtime access
-without custom registration plumbing.
+Reason: the Hub and Runtime Broker now follow Scion's separate-process Hub mode
+instead of the embedded server shortcut, while broker credentials remain
+restorable through Kubernetes-managed state.
 
-Constraint: this is a local-kind control-plane shape. The broker binds
-to loopback inside the Hub pod and is not exposed as a Kubernetes Service.
+Constraint: this remains a local-kind control-plane shape. The broker API binds
+inside the broker pod; Hub dispatch normally reaches it through Scion's
+control-channel path rather than a public Service.
 
-Exit criteria: add a separate broker Deployment only after the project has an
-explicit broker credential restore or registration bootstrap flow.
+Exit criteria: for non-kind clusters, define the longer-lived broker credential
+rotation and backup policy alongside the workspace persistence model.
 
 ## kind Hub Local Storage Uploads
 

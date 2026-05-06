@@ -3,7 +3,7 @@ kind: ServiceAccount
 metadata:
   name: scion-control-plane
   labels:
-    app.kubernetes.io/name: scion-hub
+    app.kubernetes.io/name: scion-broker
     app.kubernetes.io/component: broker
     app.kubernetes.io/part-of: scion-control-plane
 ---
@@ -12,7 +12,7 @@ kind: Role
 metadata:
   name: scion-control-plane-broker
   labels:
-    app.kubernetes.io/name: scion-hub
+    app.kubernetes.io/name: scion-broker
     app.kubernetes.io/component: broker
     app.kubernetes.io/part-of: scion-control-plane
 rules:
@@ -37,7 +37,7 @@ kind: RoleBinding
 metadata:
   name: scion-control-plane-broker
   labels:
-    app.kubernetes.io/name: scion-hub
+    app.kubernetes.io/name: scion-broker
     app.kubernetes.io/component: broker
     app.kubernetes.io/part-of: scion-control-plane
 subjects:
@@ -53,7 +53,7 @@ kind: ClusterRole
 metadata:
   name: scion-control-plane-broker-namespaces
   labels:
-    app.kubernetes.io/name: scion-hub
+    app.kubernetes.io/name: scion-broker
     app.kubernetes.io/component: broker
     app.kubernetes.io/part-of: scion-control-plane
 rules:
@@ -66,7 +66,7 @@ kind: ClusterRoleBinding
 metadata:
   name: scion-control-plane-broker-namespaces
   labels:
-    app.kubernetes.io/name: scion-hub
+    app.kubernetes.io/name: scion-broker
     app.kubernetes.io/component: broker
     app.kubernetes.io/part-of: scion-control-plane
 subjects:

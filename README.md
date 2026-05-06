@@ -1,7 +1,7 @@
 # scion-ops
 
 Kubernetes-only operating layer for running dueling Scion agents against a
-Scion Hub, co-located Runtime Broker, HTTP MCP server, and agent pods.
+Scion Hub, dedicated Runtime Broker, HTTP MCP server, and agent pods.
 
 The supported deployment target is Kubernetes. Local development uses `kind`
 with Podman as the default provider.
@@ -86,8 +86,10 @@ auth prevents a verdict.
 kind cluster:
   scion-hub Deployment
     Hub/API/Web
-    co-located Kubernetes Runtime Broker
     PVC-backed Scion state
+  scion-broker Deployment
+    Kubernetes Runtime Broker
+    Secret-backed Hub HMAC credentials
   scion-ops-mcp Deployment
     streamable HTTP MCP server
     mounted host workspace tree
@@ -110,6 +112,11 @@ the `scion-hub-dev-auth` Kubernetes Secret so MCP authenticates through a
 Kubernetes resource rather than the Hub state PVC. It also restores the
 `scion-hub-web-session` Secret and stores Hub web session files on the Hub PVC
 so browser sessions behave predictably across Hub pod restarts after bootstrap.
+The Runtime Broker runs as its own Deployment and restores its Hub join
+credential from the `scion-broker-credentials` Secret. If the Secret is missing
+or stale, `task bootstrap` runs Scion's native broker registration flow,
+recreates the Secret, restarts the broker, and waits for the Hub control-channel
+connection before providing the target grove.
 
 ## MCP And Zed
 

@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scion-broker
+  labels:
+    app.kubernetes.io/name: scion-broker
+    app.kubernetes.io/component: broker
+    app.kubernetes.io/part-of: scion-control-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: scion-broker
+      app.kubernetes.io/component: broker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: scion-broker
+        app.kubernetes.io/component: broker
+        app.kubernetes.io/part-of: scion-control-plane
+    spec:
+      serviceAccountName: scion-control-plane
+      hostname: kind-control-plane
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: broker
+          image: localhost/scion-base:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - /etc/scion/broker-entrypoint.sh
+          env:
+            - name: HOME
+              value: /home/scion
+            - name: USER
+              value: scion
+            - name: LOGNAME
+              value: scion
+            - name: KUBECONFIG
+              value: /home/scion/.kube/config
+            - name: SCION_BROKER_CREDENTIAL_NAME
+              value: in-cluster
+            - name: SCION_BROKER_PORT
+              value: "9800"
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          ports:
+            - name: broker
+              containerPort: 9800
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1
+              memory: 1Gi
+          volumeMounts:
+            - name: state
+              mountPath: /home/scion/.scion
+            - name: settings
+              mountPath: /home/scion/.scion/settings.yaml
+              subPath: settings.yaml
+              readOnly: true
+            - name: kubeconfig
+              mountPath: /home/scion/.kube
+              readOnly: true
+            - name: broker-credentials
+              mountPath: /run/secrets/scion-broker-credentials
+              readOnly: true
+            - name: entrypoint
+              mountPath: /etc/scion/broker-entrypoint.sh
+              subPath: broker-entrypoint.sh
+              readOnly: true
+            - name: bootstrap-server-config
+              mountPath: /etc/scion/broker-bootstrap-server.yaml
+              subPath: server.yaml
+              readOnly: true
+            - name: bootstrap-settings
+              mountPath: /etc/scion/broker-bootstrap-settings.yaml
+              subPath: settings.yaml
+              readOnly: true
+      volumes:
+        - name: state
+          emptyDir: {}
+        - name: settings
+          configMap:
+            name: scion-hub-settings
+        - name: kubeconfig
+          configMap:
+            name: scion-broker-kubeconfig
+        - name: broker-credentials
+          secret:
+            secretName: scion-broker-credentials
+            optional: true
+        - name: entrypoint
+          configMap:
+            name: scion-broker-entrypoint
+            defaultMode: 0555
+        - name: bootstrap-server-config
+          configMap:
+            name: scion-broker-bootstrap-server
+        - name: bootstrap-settings
+          configMap:
+            name: scion-broker-bootstrap-settings
