@@ -1,0 +1,84 @@
+diff --git a/pkg/runtime/k8s_runtime.go b/pkg/runtime/k8s_runtime.go
+index afc67402..426991b8 100644
+--- a/pkg/runtime/k8s_runtime.go
++++ b/pkg/runtime/k8s_runtime.go
+@@ -741,11 +741,7 @@ func (r *KubernetesRuntime) buildPod(namespace string, config RunConfig) (*corev
+ 
+ 	var quotedArgs []string
+ 	for _, a := range harnessArgs {
+-		if strings.ContainsAny(a, " \t\n\"'$") {
+-			quotedArgs = append(quotedArgs, fmt.Sprintf("%q", a))
+-		} else {
+-			quotedArgs = append(quotedArgs, a)
+-		}
++		quotedArgs = append(quotedArgs, shellQuoteArg(a))
+ 	}
+ 	cmdLine := strings.Join(quotedArgs, " ")
+ 	// Create session with "agent" window running the harness, plus a "shell" window.
+diff --git a/pkg/runtime/k8s_runtime_tmux_test.go b/pkg/runtime/k8s_runtime_tmux_test.go
+index 56268fa1..d0c6126c 100644
+--- a/pkg/runtime/k8s_runtime_tmux_test.go
++++ b/pkg/runtime/k8s_runtime_tmux_test.go
+@@ -17,6 +17,7 @@ package runtime
+ import (
+ 	"context"
+ 	"embed"
++	"os/exec"
+ 	"strings"
+ 	"testing"
+ 	"time"
+@@ -59,6 +60,12 @@ func (m *MockHarness) ResolveAuth(auth api.AuthConfig) (*api.ResolvedAuth, error
+ 	return &api.ResolvedAuth{Method: "mock"}, nil
+ }
+ 
++type ShellPromptHarness struct{ MockHarness }
++
++func (m *ShellPromptHarness) GetCommand(task string, resume bool, args []string) []string {
++	return []string{"/bin/echo", task}
++}
++
+ func TestKubernetesRuntime_Run_Tmux(t *testing.T) {
+ 	// Setup
+ 	clientset := k8sfake.NewSimpleClientset()
+@@ -168,3 +175,41 @@ func TestKubernetesRuntime_Run_Tmux(t *testing.T) {
+ 		t.Fatal("Run timed out waiting for pod ready")
+ 	}
+ }
++
++func TestKubernetesRuntimeBuildPodShellQuotesPrompt(t *testing.T) {
++	task := "Clarify `task scion:patch:check`\n\n```bash\necho $HOME\n```\nquote: don't substitute"
++	clientset := k8sfake.NewSimpleClientset()
++	scheme := k8sruntime.NewScheme()
++	fc := fake.NewSimpleDynamicClient(scheme)
++	client := k8s.NewTestClient(fc, clientset)
++	r := NewKubernetesRuntime(client)
++
++	pod, err := r.buildPod("default", RunConfig{
++		Name:    "shell-safe-agent",
++		Image:   "test-image",
++		Harness: &ShellPromptHarness{},
++		Task:    task,
++	})
++	if err != nil {
++		t.Fatalf("buildPod failed: %v", err)
++	}
++
++	var startCmd string
++	for _, env := range pod.Spec.Containers[0].Env {
++		if env.Name == "SCION_START_CMD" {
++			startCmd = env.Value
++			break
++		}
++	}
++	if startCmd == "" {
++		t.Fatal("SCION_START_CMD env var not set")
++	}
++	if strings.Contains(startCmd, "\"Clarify `task scion:patch:check`") {
++		t.Fatalf("prompt was double-quoted and remains shell-active: %s", startCmd)
++	}
++
++	cmd := exec.Command("sh", "-n", "-c", startCmd)
++	if output, err := cmd.CombinedOutput(); err != nil {
++		t.Fatalf("Kubernetes tmux command is not shell-safe: %v\n%s\ncommand: %s", err, string(output), startCmd)
++	}
++}
