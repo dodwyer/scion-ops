@@ -64,6 +64,8 @@ spec:
               value: scion
             - name: KUBECONFIG
               value: /home/scion/.kube/config
+            - name: SCION_SERVER_HUB_HUBID
+              value: scion-ops-kind
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000

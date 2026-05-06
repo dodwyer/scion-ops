@@ -75,6 +75,8 @@ host:
 The Kubernetes resources are native Kustomize manifests under `deploy/kind`.
 They are intentionally deployable with `kubectl apply -k`; Helm packaging can
 come later only if the values and lifecycle model justify it.
+The kind Hub uses a stable `SCION_SERVER_HUB_HUBID` so Hub-scoped bootstrap
+secrets remain visible after Hub pod rollouts.
 
 ## MCP And Zed
 
