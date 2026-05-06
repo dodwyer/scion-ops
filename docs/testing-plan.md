@@ -11,8 +11,9 @@ task x
 ```
 
 `task x` expands to `task build`, `task up`, `task bootstrap`, and `task test`.
-The bootstrap step restores shared Hub credentials, harness configs, and
-templates before a round is started.
+The build step ensures the configured Scion checkout has the repo-owned runtime
+patches before building images. The bootstrap step restores shared Hub
+credentials, harness configs, and templates before a round is started.
 
 `task test` runs `scripts/kind-control-plane-smoke.py`. It verifies:
 
@@ -38,6 +39,7 @@ When changing one layer, run the closest check first:
 
 ```bash
 task kind:workspace:status
+task scion:patch:status
 task kind:control-plane:status
 task kind:mcp:smoke
 task kind:broker:status

@@ -39,6 +39,19 @@ task dev:test              # smoke test without reapplying setup
 task storage:status        # inspect Podman storage before image work
 ```
 
+`task build` and `task dev:scion:deploy` first ensure the configured Scion
+source has the repo-owned runtime patch set from `patches/scion/`. Inspect or
+apply it directly with:
+
+```bash
+task scion:patch:status
+task scion:patch:apply
+task scion:patch:check
+```
+
+The default source remains `~/workspace/github/GoogleCloudPlatform/scion`; set
+`SCION_SRC` or pass `task build -- --src <path>` when using another checkout.
+
 For normal full rebuilds, rootless Podman should report the `overlay` storage
 driver. `vfs` is suitable only for very small experiments because it copies
 layers instead of sharing them and can consume disk quickly.
@@ -126,11 +139,13 @@ Smoke test the HTTP service with `task kind:mcp:smoke`. See `docs/zed-mcp.md`.
 - `docs/zed-mcp.md` — Kubernetes-hosted MCP registration
 - `mcp_servers/scion_ops.py` — streamable HTTP MCP server
 - `orchestrator/` — consensus round launcher and agent utilities
+- `patches/scion/` — Scion runtime patches required by this deployment
 - `rubric/` — reviewer prompt and verdict schema
 - `scripts/build-images.sh` — image build helper
 - `scripts/kind-bootstrap.sh` — Hub credential, harness, and template restore
 - `scripts/kind-scion-runtime.sh` — kind substrate helper
 - `scripts/kind-dev-scion.sh` — fast Hub/Broker Scion binary update helper
+- `scripts/scion-runtime-patches.sh` — Scion runtime patch apply/check helper
 - `scripts/storage-status.sh` — Podman storage diagnostic helper
 - `scripts/kind-control-plane-smoke.py` — Kubernetes control-plane smoke
 

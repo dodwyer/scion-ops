@@ -89,6 +89,8 @@ done
 [[ -d "$SCION_SRC/image-build" ]] || { red "scion source not found at $SCION_SRC"; exit 1; }
 command -v podman >/dev/null || { red "podman not on PATH"; exit 1; }
 
+"$REPO_ROOT/scripts/scion-runtime-patches.sh" ensure --src "$SCION_SRC"
+
 IMG_BUILD="$SCION_SRC/image-build"
 
 storage_preflight() {

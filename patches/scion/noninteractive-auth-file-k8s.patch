@@ -1,0 +1,231 @@
+diff --git a/cmd/sciontool/commands/init.go b/cmd/sciontool/commands/init.go
+index ebd8740e..9c11c60b 100644
+--- a/cmd/sciontool/commands/init.go
++++ b/cmd/sciontool/commands/init.go
+@@ -1076,14 +1076,16 @@ func gitCloneWorkspace(uid, gid int, agentHome string) error {
+ 	}
+ 
+ 	// fetchBranch attempts a shallow fetch of a single branch from origin.
+-	// Returns sanitized stderr and whether the fetch succeeded.
++	// Use an explicit remote-tracking refspec so origin/<branch> exists for
++	// the checkout step, including branch names with slashes.
+ 	fetchBranch := func(branchToFetch string) (string, bool) {
+-		fetchCmd := exec.Command("git", "-C", workspacePath, "fetch", "--depth", depthStr, "origin", branchToFetch)
++		fetchCmd := exec.Command("git", "-C", workspacePath, "fetch", "--depth", depthStr, "origin", remoteBranchRefspec(branchToFetch))
+ 		setupGitCmd(fetchCmd)
+-		var stderr bytes.Buffer
+-		fetchCmd.Stderr = &stderr
++		var output bytes.Buffer
++		fetchCmd.Stdout = &output
++		fetchCmd.Stderr = &output
+ 		if err := fetchCmd.Run(); err != nil {
+-			return sanitizeGitOutput(stderr.String(), token), false
++			return strings.TrimSpace(sanitizeGitOutput(output.String(), token)), false
+ 		}
+ 		return "", true
+ 	}
+@@ -1205,7 +1207,7 @@ func gitCloneWorkspace(uid, gid int, agentHome string) error {
+ 
+ 		// 2. Try fetching the branch from origin (shallow clone may not have it)
+ 		if !checked {
+-			fetchCmd := exec.Command("git", "-C", workspacePath, "fetch", "origin", branchName)
++			fetchCmd := exec.Command("git", "-C", workspacePath, "fetch", "origin", remoteBranchRefspec(branchName))
+ 			setupGitCmd(fetchCmd)
+ 			if err := fetchCmd.Run(); err == nil {
+ 				// Branch exists on remote — check it out tracking origin
+@@ -1286,6 +1288,10 @@ func isAuthError(sanitizedStderr string) bool {
+ // When no GITHUB_TOKEN is set, the message calls that out specifically.
+ // Also includes user-facing guidance from the error classification.
+ func formatCloneError(sanitizedStderr, token string) error {
++	sanitizedStderr = strings.TrimSpace(sanitizedStderr)
++	if sanitizedStderr == "" {
++		sanitizedStderr = "no git error output"
++	}
+ 	gitErr := util.ClassifyGitError(sanitizedStderr)
+ 	if token == "" {
+ 		return fmt.Errorf("git clone failed (no GITHUB_TOKEN secret configured — the repository may require authentication): %s", sanitizedStderr)
+@@ -1293,7 +1299,11 @@ func formatCloneError(sanitizedStderr, token string) error {
+ 	if guidance := gitErr.UserGuidance(); guidance != "" {
+ 		return fmt.Errorf("git clone failed (%s): %s", guidance, sanitizedStderr)
+ 	}
+-	return fmt.Errorf("git clone failed (GITHUB_TOKEN may be invalid or lack Contents read access): %s", sanitizedStderr)
++	return fmt.Errorf("git clone failed: %s", sanitizedStderr)
++}
++
++func remoteBranchRefspec(branch string) string {
++	return fmt.Sprintf("+refs/heads/%s:refs/remotes/origin/%s", branch, branch)
+ }
+ 
+ // detectDefaultBranch uses `git ls-remote --symref origin HEAD` to discover
+diff --git a/cmd/sciontool/commands/init_test.go b/cmd/sciontool/commands/init_test.go
+index 95c3bf01..15a4ddc4 100644
+--- a/cmd/sciontool/commands/init_test.go
++++ b/cmd/sciontool/commands/init_test.go
+@@ -711,6 +711,28 @@ func TestGitCloneWorkspace_DefaultEnvValues(t *testing.T) {
+ 	}
+ }
+ 
++func TestRemoteBranchRefspecSupportsSlashBranches(t *testing.T) {
++	got := remoteBranchRefspec("scion/agent-branch")
++	want := "+refs/heads/scion/agent-branch:refs/remotes/origin/scion/agent-branch"
++	if got != want {
++		t.Fatalf("unexpected refspec: got %q, want %q", got, want)
++	}
++}
++
++func TestFormatCloneErrorUnknownDoesNotBlameToken(t *testing.T) {
++	err := formatCloneError("From https://github.com/example/repo\n * branch main -> FETCH_HEAD", "ghp_test")
++	if err == nil {
++		t.Fatal("expected error")
++	}
++	msg := err.Error()
++	if strings.Contains(msg, "GITHUB_TOKEN may be invalid") {
++		t.Fatalf("unknown git failure should not be reported as token failure: %s", msg)
++	}
++	if !strings.Contains(msg, "git clone failed:") {
++		t.Fatalf("expected generic clone failure, got: %s", msg)
++	}
++}
++
+ func TestGitCloneWorkspace_NonZeroUIDChownsWorkspace(t *testing.T) {
+ 	// Verify that gitCloneWorkspace chowns /workspace before cloning when
+ 	// a non-zero uid is provided. We use a temp dir as the workspace and
+diff --git a/pkg/harness/gemini_cli.go b/pkg/harness/gemini_cli.go
+index 8423a86b..212c04a7 100644
+--- a/pkg/harness/gemini_cli.go
++++ b/pkg/harness/gemini_cli.go
+@@ -80,7 +80,7 @@ func (g *GeminiCLI) GetCommand(task string, resume bool, baseArgs []string) []st
+ 	}
+ 	args = append(args, baseArgs...)
+ 	if task != "" {
+-		args = append(args, "--prompt-interactive", task)
++		args = append(args, "--prompt", task)
+ 	}
+ 	return args
+ }
+diff --git a/pkg/harness/gemini_cli_test.go b/pkg/harness/gemini_cli_test.go
+index 755ff3f5..e1bb50a4 100644
+--- a/pkg/harness/gemini_cli_test.go
++++ b/pkg/harness/gemini_cli_test.go
+@@ -113,6 +113,22 @@ func TestGeminiInjectAgentInstructions_RemovesLowercaseFile(t *testing.T) {
+ 	}
+ }
+ 
++func TestGeminiGetCommand(t *testing.T) {
++	g := &GeminiCLI{}
++
++	cmd := g.GetCommand("do something", false, []string{"--model", "gemini-2.5-flash"})
++	want := []string{"gemini", "--yolo", "--model", "gemini-2.5-flash", "--prompt", "do something"}
++	if strings.Join(cmd, "\x00") != strings.Join(want, "\x00") {
++		t.Fatalf("unexpected command: got %v, want %v", cmd, want)
++	}
++
++	cmd = g.GetCommand("", true, nil)
++	want = []string{"gemini", "--yolo", "--resume"}
++	if strings.Join(cmd, "\x00") != strings.Join(want, "\x00") {
++		t.Fatalf("unexpected resume command: got %v, want %v", cmd, want)
++	}
++}
++
+ func TestGeminiResolveAuth_ExplicitAPIKey(t *testing.T) {
+ 	g := &GeminiCLI{}
+ 	auth := api.AuthConfig{
+diff --git a/pkg/runtime/common_test.go b/pkg/runtime/common_test.go
+index 79935ae9..bc6eac80 100644
+--- a/pkg/runtime/common_test.go
++++ b/pkg/runtime/common_test.go
+@@ -89,7 +89,7 @@ func TestBuildCommonRunArgs(t *testing.T) {
+ 				Image: "scion-agent:latest",
+ 			},
+ 			wantIn:  []string{"-e", "GEMINI_API_KEY=sk-123", "-e", "GEMINI_DEFAULT_AUTH_TYPE=gemini-api-key"},
+-			wantOut: []string{"--prompt-interactive"},
++			wantOut: []string{"--prompt"},
+ 		},
+ 		{
+ 			name: "labels",
+@@ -183,7 +183,7 @@ func TestBuildCommonRunArgs(t *testing.T) {
+ 			},
+ 			wantIn: []string{
+ 				"-e FOO=BAR",
+-				"tmux new-session -d -s scion -n agent gemini --yolo --resume --prompt-interactive hello",
++				"tmux new-session -d -s scion -n agent gemini --yolo --resume --prompt hello",
+ 			},
+ 		},
+ 		{
+@@ -196,7 +196,7 @@ func TestBuildCommonRunArgs(t *testing.T) {
+ 				Resume:  true,
+ 			},
+ 			wantIn: []string{
+-				"tmux new-session -d -s scion -n agent gemini --yolo --resume --prompt-interactive hello",
++				"tmux new-session -d -s scion -n agent gemini --yolo --resume --prompt hello",
+ 			},
+ 		},
+ 		{
+@@ -323,7 +323,7 @@ func TestBuildCommonRunArgs(t *testing.T) {
+ 				Task:         "",
+ 			},
+ 			wantIn:  []string{"gemini", "--yolo"},
+-			wantOut: []string{"--prompt-interactive"},
++			wantOut: []string{"--prompt"},
+ 		},
+ 		{
+ 			name: "workspace from volumes",
+diff --git a/pkg/runtime/k8s_runtime.go b/pkg/runtime/k8s_runtime.go
+index a939b0b8..afc67402 100644
+--- a/pkg/runtime/k8s_runtime.go
++++ b/pkg/runtime/k8s_runtime.go
+@@ -380,7 +380,11 @@ func (r *KubernetesRuntime) createAgentSecret(ctx context.Context, namespace, ag
+ 		case "environment":
+ 			data[s.Name] = []byte(s.Value)
+ 		case "file":
+-			data[s.Name] = []byte(s.Value)
++			decoded, err := base64.StdEncoding.DecodeString(s.Value)
++			if err != nil {
++				decoded = []byte(s.Value)
++			}
++			data[s.Name] = decoded
+ 		case "variable":
+ 			varSecrets[s.Target] = s.Value
+ 		}
+@@ -1364,7 +1368,7 @@ func (r *KubernetesRuntime) syncToPod(ctx context.Context, namespace, podName, s
+ 
+ 	// Use sh -c to allow us to ignore certain exit codes if needed, or just to be more flexible.
+ 	// We use -m to avoid utime errors on the mount point.
+-	remoteCmd := fmt.Sprintf("tar -xz -m --no-same-owner --no-same-permissions -C '%s'", destPath)
++	remoteCmd := fmt.Sprintf("tar -xz -m --skip-old-files --no-same-owner --no-same-permissions -C '%s'", destPath)
+ 	cmd := []string{"sh", "-c", remoteCmd}
+ 
+ 	req := r.Client.Clientset.CoreV1().RESTClient().Post().
+diff --git a/pkg/runtime/k8s_secrets_test.go b/pkg/runtime/k8s_secrets_test.go
+index 6c139ebd..6494207e 100644
+--- a/pkg/runtime/k8s_secrets_test.go
++++ b/pkg/runtime/k8s_secrets_test.go
+@@ -403,6 +403,28 @@ func TestCreateAgentSecret(t *testing.T) {
+ 	}
+ }
+ 
++func TestCreateAgentSecret_DecodesBase64FileSecret(t *testing.T) {
++	rt, clientset, _ := newTestK8sRuntime()
++	ctx := context.Background()
++
++	secrets := []api.ResolvedSecret{
++		{Name: "CLAUDE_CONFIG", Type: "file", Target: "/home/scion/.claude.json", Value: "eyJrZXkiOiJ2YWwifQ==", Source: "hub"},
++	}
++
++	name, err := rt.createAgentSecret(ctx, "default", "test-agent", secrets, nil)
++	if err != nil {
++		t.Fatalf("createAgentSecret failed: %v", err)
++	}
++
++	secret, err := clientset.CoreV1().Secrets("default").Get(ctx, name, metav1.GetOptions{})
++	if err != nil {
++		t.Fatalf("failed to get created secret: %v", err)
++	}
++	if string(secret.Data["CLAUDE_CONFIG"]) != `{"key":"val"}` {
++		t.Errorf("expected decoded CLAUDE_CONFIG, got %s", string(secret.Data["CLAUDE_CONFIG"]))
++	}
++}
++
+ func TestCreateAgentSecret_NoSecrets(t *testing.T) {
+ 	rt, _, _ := newTestK8sRuntime()
+ 	ctx := context.Background()
