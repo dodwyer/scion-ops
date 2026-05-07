@@ -19,6 +19,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -1043,6 +1044,8 @@ def _round_terminal_status(snapshot: dict[str, Any]) -> dict[str, Any] | None:
         (" complete:" in summary or " escalated:" in summary or summary.startswith("spec ready:"))
         and not has_placeholder
     )
+    if has_placeholder:
+        return None
     if activity == "completed" or has_terminal_summary:
         return {
             "agent": consensus.get("name"),
@@ -1083,6 +1086,111 @@ def _github_https_remote(remote_url: str) -> str:
         if parsed.username == "git" and path:
             return f"https://github.com/{path}"
     return ""
+
+
+def _github_token() -> str:
+    return os.environ.get("GITHUB_TOKEN", "").strip() or _read_text_file(
+        Path("/run/secrets/scion-github-token/GITHUB_TOKEN")
+    )
+
+
+def _run_git_authenticated(
+    args: list[str],
+    *,
+    timeout: int = DEFAULT_TIMEOUT_SECONDS,
+    cwd: Path | None = None,
+) -> dict[str, Any]:
+    token = _github_token()
+    if not token:
+        return _run(["git", *args], timeout=timeout, cwd=cwd)
+
+    with tempfile.TemporaryDirectory(prefix="scion-git-auth-") as tmp:
+        askpass = Path(tmp) / "askpass.sh"
+        askpass.write_text(
+            "#!/bin/sh\n"
+            "case \"$1\" in\n"
+            "  *Username*) printf '%s\\n' x-access-token ;;\n"
+            "  *) printf '%s\\n' \"$GITHUB_TOKEN\" ;;\n"
+            "esac\n"
+        )
+        askpass.chmod(0o700)
+        return _run(
+            ["git", *args],
+            timeout=timeout,
+            cwd=cwd,
+            env={
+                "GIT_ASKPASS": str(askpass),
+                "GIT_TERMINAL_PROMPT": "0",
+                "GITHUB_TOKEN": token,
+            },
+        )
+
+
+def _remote_branch_sha(root: Path, branch: str) -> tuple[str, dict[str, Any]]:
+    result = _run_git_authenticated(["ls-remote", "--heads", "origin", branch], timeout=25, cwd=root)
+    primary = result
+    if not result["ok"]:
+        remote_url_result = _run(["git", "remote", "get-url", "origin"], timeout=10, cwd=root)
+        https_remote = _github_https_remote(remote_url_result["output"]) if remote_url_result["ok"] else ""
+        if https_remote:
+            result = _run_git_authenticated(["ls-remote", "--heads", https_remote, branch], timeout=25, cwd=root)
+    sha = ""
+    if result["ok"]:
+        for line in result["output"].splitlines():
+            parts = line.split()
+            if len(parts) == 2 and parts[1] == f"refs/heads/{branch}":
+                sha = parts[0]
+                break
+    return sha, {
+        "result": _command_result(result),
+        "primary_result": _command_result(primary),
+    }
+
+
+def _validate_remote_spec_change_result(root: Path, change: str, branch: str) -> dict[str, Any]:
+    remote_url_result = _run(["git", "remote", "get-url", "origin"], timeout=10, cwd=root)
+    if not remote_url_result["ok"]:
+        return {
+            "ok": False,
+            "source": "openspec_remote_validator",
+            "change": change,
+            "branch": branch,
+            "clone_result": {},
+            "validation_result": {},
+            "validation": {},
+            "error": "origin remote is unavailable",
+            "remote_url_result": _command_result(remote_url_result),
+        }
+    clone_url = _github_https_remote(remote_url_result["output"]) or remote_url_result["output"].strip()
+    with tempfile.TemporaryDirectory(prefix="scion-openspec-validate-") as tmp:
+        checkout = Path(tmp) / "checkout"
+        clone_result = _run_git_authenticated(
+            ["clone", "--depth", "1", "--branch", branch, clone_url, str(checkout)],
+            timeout=90,
+            cwd=_repo_root(),
+        )
+        if not clone_result["ok"]:
+            return {
+                "ok": False,
+                "source": "openspec_remote_validator",
+                "change": change,
+                "branch": branch,
+                "clone_result": _command_result(clone_result),
+                "validation_result": {},
+                "validation": {},
+                "remote_url_result": _command_result(remote_url_result),
+            }
+        validation_result, validation = _validate_spec_change_result(checkout, change)
+        return {
+            "ok": bool(validation.get("ok")),
+            "source": "openspec_remote_validator",
+            "change": change,
+            "branch": branch,
+            "clone_result": _command_result(clone_result),
+            "validation_result": validation_result,
+            "validation": validation,
+            "remote_url_result": _command_result(remote_url_result),
+        }
 
 
 def _parse_json_result(result: dict[str, Any]) -> dict[str, Any]:
@@ -1493,8 +1601,8 @@ def scion_ops_round_artifacts(round_id: str, project_root: str = "") -> dict[str
     branch_patterns = sorted({f"*{round_id}*", f"*{round_id.lower()}*"})
     branch_result = _run(["git", "branch", "--list", *branch_patterns], timeout=15, cwd=root)
     remote_url_result = _run(["git", "remote", "get-url", "origin"], timeout=10, cwd=root)
-    remote_result = _run(
-        ["git", "ls-remote", "--heads", "origin", *branch_patterns],
+    remote_result = _run_git_authenticated(
+        ["ls-remote", "--heads", "origin", *branch_patterns],
         timeout=25,
         cwd=root,
     )
@@ -1503,8 +1611,8 @@ def scion_ops_round_artifacts(round_id: str, project_root: str = "") -> dict[str
     if not remote_result["ok"] and remote_url_result["ok"]:
         https_remote = _github_https_remote(remote_url_result["output"])
         if https_remote:
-            remote_fallback_result = _run(
-                ["git", "ls-remote", "--heads", https_remote, *branch_patterns],
+            remote_fallback_result = _run_git_authenticated(
+                ["ls-remote", "--heads", https_remote, *branch_patterns],
                 timeout=25,
                 cwd=root,
             )
@@ -1830,6 +1938,176 @@ def scion_ops_start_spec_round(
     )
 
 
+def _compact_round_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    compact: list[dict[str, Any]] = []
+    for event in events:
+        item = event.get("agent") or event.get("message") or event.get("notification") or {}
+        compact.append({
+            "type": event.get("type"),
+            "name": item.get("name") or item.get("slug") or item.get("agentName") or item.get("agent") or "",
+            "phase": item.get("phase") or "",
+            "activity": item.get("activity") or "",
+            "summary": item.get("taskSummary") or item.get("summary") or item.get("message") or "",
+        })
+    return compact
+
+
+def _round_agents_inactive(agents: list[dict[str, Any]]) -> bool:
+    if not agents:
+        return False
+    inactive_phases = {"stopped", "deleted", "ended"}
+    return all(str(agent.get("phase") or "").lower() in inactive_phases for agent in agents)
+
+
+@mcp.tool()
+def scion_ops_run_spec_round(
+    goal: str,
+    project_root: str,
+    change: str = "",
+    round_id: str = "",
+    base_branch: str = "",
+    timeout_minutes: int = 45,
+    poll_interval_seconds: int = 3,
+    validate: bool = True,
+) -> dict[str, Any]:
+    """Start, monitor, collect artifacts, and validate a spec-building round.
+
+    This is the compact default workflow for external agents: call it once with
+    project_root, goal, and optional change. It uses the event watcher internally
+    and returns the PR-ready spec branch or a concrete blocker.
+    """
+    started = scion_ops_start_spec_round(
+        goal=goal,
+        project_root=project_root,
+        change=change,
+        round_id=round_id,
+        base_branch=base_branch,
+    )
+    parsed_round_id = str(started.get("round_id") or round_id or "")
+    if not started.get("ok") or not parsed_round_id:
+        return {
+            "ok": False,
+            "source": "spec_round_runner",
+            "stage": "start",
+            "start": started,
+            "error": "failed to start spec round",
+        }
+
+    target_root = _project_root(project_root)
+    expected_branch = f"round-{parsed_round_id}-spec-integration"
+    base_sha = ""
+    if base_branch:
+        base_sha, _ = _remote_branch_sha(target_root, base_branch)
+    else:
+        base_sha, _ = _remote_branch_sha(target_root, _default_base_branch(str(target_root)))
+
+    cursor = str(started.get("event_cursor") or "")
+    timeout_minutes = _clamp(timeout_minutes, 1, 240)
+    poll_interval_seconds = _clamp(poll_interval_seconds, 1, 30)
+    deadline = time.monotonic() + (timeout_minutes * 60)
+    events_seen: list[dict[str, Any]] = []
+    terminal: dict[str, Any] = {}
+    ended_without_terminal = False
+    timed_out = False
+    last_watch: dict[str, Any] = {}
+
+    while time.monotonic() < deadline:
+        remaining = max(1, int(deadline - time.monotonic()))
+        watch_window = min(60, remaining)
+        watch = scion_ops_watch_round_events(
+            round_id=parsed_round_id,
+            cursor=cursor,
+            timeout_seconds=watch_window,
+            poll_interval_seconds=poll_interval_seconds,
+            include_existing=False,
+            project_root=project_root,
+        )
+        last_watch = watch
+        cursor = str(watch.get("cursor") or cursor)
+        events_seen.extend(_compact_round_events(watch.get("events", []))[-25:])
+        terminal = watch.get("terminal") or {}
+        if terminal:
+            break
+
+        try:
+            agents, _ = _list_agents(parsed_round_id, project_root)
+        except HubAPIError as exc:
+            return {
+                "ok": False,
+                "source": "spec_round_runner",
+                "stage": "monitor",
+                "round_id": parsed_round_id,
+                **_hub_error_payload(exc, "run_spec_round"),
+            }
+        summaries = [_agent_summary(agent) for agent in agents]
+        if _round_agents_inactive(summaries):
+            ended_without_terminal = True
+            break
+    else:
+        timed_out = True
+
+    artifacts = scion_ops_round_artifacts(parsed_round_id, project_root=project_root)
+    final_branch = next(
+        (
+            item
+            for item in artifacts.get("remote_branches", [])
+            if item.get("branch") == expected_branch
+        ),
+        {},
+    )
+    branch_sha = str(final_branch.get("sha") or "")
+    branch_changed = bool(branch_sha and branch_sha != base_sha)
+
+    validation: dict[str, Any] = {}
+    if validate and change and branch_sha:
+        validation = _validate_remote_spec_change_result(target_root, _clean_name(change, "change"), expected_branch)
+
+    ok = bool(
+        started.get("ok")
+        and not timed_out
+        and not ended_without_terminal
+        and branch_sha
+        and branch_changed
+        and (not validate or not change or validation.get("ok"))
+    )
+    blockers: list[str] = []
+    if timed_out:
+        blockers.append(f"round did not finish within {timeout_minutes} minutes")
+    if ended_without_terminal:
+        blockers.append("round agents stopped before reporting a terminal success summary")
+    if not branch_sha:
+        blockers.append(f"expected branch was not found on origin: {expected_branch}")
+    elif not branch_changed:
+        blockers.append(f"expected branch did not move from base SHA: {expected_branch}")
+    if validate and change and validation and not validation.get("ok"):
+        blockers.append("OpenSpec validation failed on the remote branch")
+
+    return {
+        "ok": ok,
+        "source": "spec_round_runner",
+        "project_root": started.get("project_root"),
+        "round_id": parsed_round_id,
+        "change": change,
+        "pr_ready_branch": expected_branch if ok else "",
+        "expected_branch": expected_branch,
+        "remote_branch_sha": branch_sha,
+        "base_branch_sha": base_sha,
+        "branch_changed": branch_changed,
+        "terminal": terminal,
+        "blockers": blockers,
+        "events": events_seen[-50:],
+        "start": started,
+        "last_watch": last_watch,
+        "artifacts": artifacts,
+        "validation": validation,
+        "next": {
+            "open_pr": f"Create a PR from {expected_branch} into the base branch." if ok else "",
+            "abort_tool": "scion_ops_abort_round",
+            "events_tool": "scion_ops_round_events",
+        },
+    }
+
+
 def _start_impl_round(
     *,
     goal: str,
@@ -2034,7 +2312,10 @@ def monitor_scion_round(round_id: str) -> str:
     """Prompt an agent to monitor a Scion consensus round."""
     round_id = _clean_name(round_id, "round_id")
     return (
-        f"Use the scion-ops MCP tools to monitor round `{round_id}`. Start with "
+        f"Use the scion-ops MCP tools to monitor round `{round_id}`. For new "
+        "spec rounds, prefer scion_ops_run_spec_round so start, monitoring, "
+        "artifact collection, and validation happen in one call. For existing "
+        "rounds, start with "
         "scion_ops_round_events(include_existing=true), then call "
         "scion_ops_watch_round_events with the returned cursor until it reports "
         "a terminal status or blocker. Use scion_ops_look only when an event "

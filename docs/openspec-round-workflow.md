@@ -126,6 +126,7 @@ Hub:
 | `scion_ops_validate_spec_change` | Validate an OpenSpec change folder before implementation starts. |
 | `scion_ops_archive_spec_change` | Archive an accepted change and sync accepted specs. |
 | `scion_ops_start_spec_round` | Start a planning round from `project_root`, `goal`, and optional `change`. |
+| `scion_ops_run_spec_round` | Start, monitor, collect artifacts, and validate a planning round with one compact call. |
 | `scion_ops_start_impl_round` | Start a delivery round from `project_root` and approved `change`. |
 | `scion_ops_start_implementation_round` | Alias for `scion_ops_start_impl_round`. |
 | `scion_ops_round_status` | Read current Hub state for a round. |
@@ -134,7 +135,9 @@ Hub:
 
 `scion_ops_start_round` remains useful for direct implementation prompts, but
 the spec-driven path should prefer the explicit spec and implementation round
-tools so the artifact contract is visible in the request.
+tools so the artifact contract is visible in the request. For Zed and other
+External Agent use, prefer `scion_ops_run_spec_round` unless you need to inspect
+intermediate events manually.
 
 ## Validation
 

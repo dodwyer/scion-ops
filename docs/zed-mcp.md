@@ -171,19 +171,19 @@ Ask for a spec round with the target project and goal:
 
 ```text
 Use scion-ops on project_root=/home/david/workspace/github/example/project.
-Start a spec round for change=add-widget:
+Run a spec round for change=add-widget:
 "Specify the smallest useful widget improvement. Produce OpenSpec artifacts only."
-Monitor it with event watching and report the PR-ready spec branch.
 ```
 
-The external agent should call:
+The external agent should make the compact call:
 
 ```text
-scion_ops_project_status(project_root)
-scion_ops_start_spec_round(project_root, goal, change)
-scion_ops_watch_round_events(round_id, cursor)
-scion_ops_round_artifacts(project_root, round_id)
+scion_ops_run_spec_round(project_root, goal, change)
 ```
+
+That tool starts the round, watches Hub events with default monitoring,
+collects pushed branch artifacts, validates the remote spec branch, and returns
+the PR-ready branch or a concrete blocker.
 
 After the spec PR is merged, ask for implementation from the approved spec:
 
