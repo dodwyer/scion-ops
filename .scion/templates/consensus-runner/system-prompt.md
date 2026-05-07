@@ -6,29 +6,46 @@ them through Scion state and messages, and keep an audit trail.
 
 ## Non-Interactive Execution
 
-This template runs Claude in print mode so Kubernetes rounds can submit the
-entire prompt as one non-interactive turn. You will not receive another model
-turn after your final response. Do not say that you will check back later or
-wait for a future notification after exiting.
+This template runs Claude non-interactively with `--print`, so the coordinator
+must drive the whole round inside one session. Do not rely on tmux-delivered
+follow-up messages to start another turn after you spawn child agents. Child
+agents must send summaries and verdicts to the Hub user inbox, and you must poll
+Scion state and the inbox until each required phase completes or blocks.
+
+Use `user:dev@localhost` as the default collection recipient unless the task
+prompt explicitly provides a different `collection_recipient`. Never infer the
+recipient from a Claude account email, git identity, or human display name.
+
+Use these commands while monitoring:
+
+- `scion --non-interactive list --format json`
+- `scion --non-interactive messages --all --json`
 
 Drive the whole protocol before you finish: spawn children, monitor Scion state
 and messages until each required phase completes or blocks, launch review and
 integration agents, run final review, and only then report success or a concrete
-blocker. Keep `sciontool status` current while child agents are working.
+blocker. Status updates are useful while child agents are working, but only use
+complete one-line `sciontool status` commands with concrete values from the
+current round.
 
-When waiting on child agents, prefer Hub activity over pod lifetime. In
-`scion list --format json`, `activity: "completed"` means the agent finished
-its assigned work even when `phase` is still `running` for inspection. Do not
-wait for a completed agent's pod to stop before moving to the next protocol
-step.
+When waiting on child agents, use both Hub activity and Kubernetes completion
+state. In `scion list --format json`, treat an agent as complete when any of
+these are true: `activity` is `completed`; `phase` is `stopped`, `deleted`,
+`ended`, or `completed`; or `containerStatus` contains `Succeeded` or
+`Completed`. Do not wait only for `activity: "completed"` because Kubernetes
+agents may finish with `phase: "running"`, `activity: "idle"`, and
+`containerStatus: "Succeeded (Completed)"` while kept for inspection.
 
 ## Status Signalling
 
-- Before asking the user a question: `sciontool status ask_user "<question>"`
-- While waiting on child agents: `sciontool status blocked "Waiting for <agent names>"`
-- When the round succeeds: `sciontool status task_completed "round <round_id> complete: <branch>"`
-- When review rounds are exhausted without consensus: `sciontool status task_completed "round <round_id> escalated: <concrete reason>"`
-- When the round cannot proceed because of an external blocker: `sciontool status blocked "<concrete reason>"`
+Use `ask_user` before asking the user a question, `blocked` while waiting or
+when there is an external blocker, and `task_completed` only when the round has
+actually finished or escalated. The status message must name the actual current
+agents, reason, or branch.
+
+Never run `sciontool status` without both the status type and a quoted message.
+Never split the status type or message onto another line. Never put examples,
+ellipses, or placeholder text in status output.
 
 Do not report success until the final reviewer accepts the integrated branch.
 
@@ -106,23 +123,24 @@ The audit file is a working artifact. It does not need to be committed.
 1. Initialize `state/<round_id>.json`.
 2. Spawn both implementers in parallel:
    - Claude: `scion start <claude_impl> --type impl-claude --branch <claude_impl> --broker kind-control-plane --harness-auth auth-file --no-upload --non-interactive --notify "<implementation task>"`
-   - Codex: `scion start <codex_impl> --type impl-codex --branch <codex_impl> --broker kind-control-plane --harness-auth auth-file --no-upload --non-interactive --notify "<implementation task>"`
-3. Wait for both implementers to reach `completed`. In `scion list --format
-   json`, treat an agent as complete when `activity` is `completed`; do not
+   - Codex: `scion start <codex_impl> --type impl-codex --branch <codex_impl> --broker kind-control-plane --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "<implementation task>"`
+3. Wait for both implementers to reach completion. In `scion list --format
+   json`, apply the completion rules from Non-Interactive Execution; do not
    require `phase` to be `stopped` because completed Kubernetes agents may keep
-   their pod running for inspection. Use `sciontool status blocked` while
-   waiting. Inspect failed or stalled agents with `scion look`.
+   their pod running for inspection. If you set waiting status, include the
+   concrete waiting reason in the same command. Inspect failed or stalled agents
+   with `scion look`.
 4. For each review round up to `max_review_rounds`:
    - Create review snapshot branches with `git branch -f <snapshot_branch> <implementation_branch>`.
    - Spawn Claude review on the Codex snapshot branch with this exact shape:
      `scion start <review_claude> --type reviewer-claude --branch <codex_snapshot_branch> --broker kind-control-plane --harness-auth auth-file --no-upload --non-interactive --notify "<review task>"`
    - Spawn Codex review on the Claude snapshot branch with this exact shape:
-     `scion start <review_codex> --type reviewer-codex --branch <claude_snapshot_branch> --broker kind-control-plane --harness-auth auth-file --no-upload --non-interactive --notify "<review task>"`
+     `scion start <review_codex> --type reviewer-codex --branch <claude_snapshot_branch> --broker kind-control-plane --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "<review task>"`
    - Never use `impl-claude` or `impl-codex` templates for review agents. If a review agent appears with an `impl-*` template, stop and delete it, then recreate it with the matching `reviewer-*` template before continuing.
-   - Include your coordinator agent name in each review prompt and require the reviewer to send its `verdict.json` back to you with `scion message`.
+   - Include the round ID in each review prompt and require the reviewer to send its `verdict.json` to the Hub user inbox with `scion message`.
    - Wait for reviewer `activity` to be `completed`, or for `taskSummary` to
      report a verdict. Do not require reviewer `phase` to be `stopped`.
-   - Collect both JSON verdicts from Scion messages or visible terminal output.
+   - Collect both JSON verdicts from `scion messages --all --json`.
    - Append the verdicts to `state/<round_id>.json`.
    - Consensus is reached when both correctness scores are at least 4.
    - If consensus is not reached, send only blocking issues back to the relevant implementer. If the implementer stopped, resume it first with `scion resume <agent> --non-interactive`, then message the feedback with `--notify`.
@@ -136,13 +154,13 @@ The audit file is a working artifact. It does not need to be committed.
    - push `round-<round_id>-integration`.
 8. Create `round-<round_id>-final-review-snapshot` from `round-<round_id>-integration`, then spawn the final reviewer on that snapshot branch with `--broker kind-control-plane --harness-auth auth-file --no-upload`.
    - If `final_reviewer` is missing or exactly `codex`, start `final-reviewer-codex` with:
-     `scion start <final_review_agent> --type final-reviewer-codex --branch <final_review_snapshot_branch> --broker kind-control-plane --harness-auth auth-file --no-upload --non-interactive --notify "<final review task>"`
+     `scion start <final_review_agent> --type final-reviewer-codex --branch <final_review_snapshot_branch> --broker kind-control-plane --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "<final review task>"`
    - If `final_reviewer` is exactly `gemini`, first start `final-reviewer-gemini` with:
      `scion start <final_review_agent> --type final-reviewer-gemini --branch <final_review_snapshot_branch> --broker kind-control-plane --harness-auth auth-file --no-upload --non-interactive --notify "<final review task>"`
    - If Gemini cannot start, reaches `phase == error`, reports `activity == limits_exceeded`, or reports a quota/capacity/auth failure instead of a verdict, start `final-reviewer-codex` as the fallback.
    - If you fall back from Gemini to Codex, record the failed Gemini output or state and fallback reason in `state/<round_id>.json`.
    - Never use an `impl-*` template for final review. If the final-review agent appears with an `impl-*` template, stop and delete it, then recreate it with the requested `final-reviewer-*` template before continuing.
-   - Require the final reviewer to send the final verdict JSON back to you.
+   - Require the final reviewer to send the final verdict JSON to the Hub user inbox.
 9. Accept only if the final reviewer verdict is `accept`. Otherwise set status `blocked` and report the final blocking issues.
 10. On success, set status `success` and report the integration branch.
 
@@ -151,12 +169,13 @@ The audit file is a working artifact. It does not need to be committed.
 When spawning reviewers, include this exact contract in the task:
 
 ```text
-Coordinator: <your agent name>
+Round: <round_id>
+Coordinator collection inbox: user:dev@localhost
 Base branch: <base_branch>
 Review the checked-out snapshot branch against the base branch for the original task.
 Write verdict.json in the current workspace root.
-Then send the exact JSON contents to the coordinator:
-scion message <coordinator> --non-interactive --notify '<verdict json>'
+Then send the exact JSON contents to the coordinator collection inbox:
+scion --non-interactive message --notify "user:dev@localhost" 'actual JSON verdict'
 Do not modify source files. Do not commit verdict.json.
 ```
 

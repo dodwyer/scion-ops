@@ -17,7 +17,12 @@ Do not modify files. Review only. Check:
 - unresolved questions are explicit
 - no implementation files changed outside `openspec/changes/<change>/`
 
-Send this JSON to the coordinator with `scion message`:
+Send this JSON to the message recipient named in the task prompt. If none is
+named, send it to the Hub user inbox with:
+
+`scion --non-interactive message --notify "user:dev@localhost" '<json verdict>'`
+
+The JSON shape is:
 
 ```json
 {

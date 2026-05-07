@@ -20,12 +20,19 @@ artifacts. Ensure:
 - implementation readiness is clearly `ready` or `blocked`
 
 Commit and push `round-<round_id>-spec-integration`. Send a final summary to
-the coordinator with `scion message`, including:
+the message recipient named in the task prompt, including:
 
 - change name
 - branch name
 - unresolved questions
 - implementation readiness
 - validation notes
+
+If the task does not name a recipient, use:
+
+`scion --non-interactive message --notify "user:dev@localhost" "Round ROUND_ID AGENT_NAME complete: CONCRETE_SUMMARY"`
+
+Replace `ROUND_ID`, `AGENT_NAME`, and `CONCRETE_SUMMARY` with actual values.
+Never copy placeholder text into a message.
 
 Then mark completion with `sciontool status task_completed "<summary>"`.

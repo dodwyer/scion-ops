@@ -43,5 +43,11 @@ Run a local shell check for those markers if the target project does not carry
 the scion-ops validator script.
 
 Commit the artifact-only change, push your branch when `origin` is configured,
-send a summary to the coordinator with `scion message`, and mark completion
-with `sciontool status task_completed "<summary>"`.
+send a summary to the message recipient named in the task prompt, and mark
+completion with `sciontool status task_completed "<summary>"`. If the task does
+not name a recipient, use:
+
+`scion --non-interactive message --notify "user:dev@localhost" "Round ROUND_ID AGENT_NAME complete: CONCRETE_SUMMARY"`
+
+Replace `ROUND_ID`, `AGENT_NAME`, and `CONCRETE_SUMMARY` with actual values.
+Never copy placeholder text into a message.

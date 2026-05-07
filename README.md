@@ -71,11 +71,17 @@ When restoring `CLAUDE_CONFIG`, bootstrap preserves the subscription state and
 marks Scion's `/workspace` agent checkout as trusted so Claude starts
 non-interactively in Kubernetes. Bootstrap also prepares the synced Claude
 harness settings to skip the bypass-permissions warning inside Scion's
-sandboxed agent pods. Host-local Claude MCP server registrations are stripped
-from the agent config; Scion rounds should use the repo's explicit harness and
-template configuration. Claude round templates pass `--print` through native
-Scion `command_args` so multiline prompts are submitted as a single
-non-interactive model turn.
+sandboxed agent pods. Codex-backed personas use repo-managed Codex harness
+configs in `deploy/kind/harness-configs/`: both `codex` and `codex-exec` run
+`codex exec` as a single non-interactive task while still using the restored
+Codex subscription auth file.
+Host-local Claude MCP server registrations are stripped from the agent config;
+Scion rounds should use the repo's explicit harness and template
+configuration. Claude templates pass `--print` through native Scion
+`command_args` so multiline prompts are submitted as a single non-interactive
+model turn. Coordinators collect child outputs through the Hub user inbox with
+`scion messages --json` instead of depending on interactive tmux prompt
+delivery.
 Rounds default to a Codex final reviewer for the reliable path; Gemini remains
 available as an explicit final reviewer and falls back to Codex if capacity or
 auth prevents a verdict.

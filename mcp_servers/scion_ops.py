@@ -42,7 +42,24 @@ NAME_RE = re.compile(r"^[A-Za-z0-9._:/@+-]+$")
 DEFAULT_HOST_WORKSPACE_ROOT = "/home/david/workspace"
 DEFAULT_CONTAINER_WORKSPACE_ROOT = "/workspace"
 DEFAULT_REPO_CHECKOUT_SUBDIR = "github"
-PLACEHOLDER_SUMMARY_TOKENS = ("<round_id>", "<branch>", "<agent")
+PLACEHOLDER_SUMMARY_TOKENS = (
+    "<round_id>",
+    "<branch>",
+    "<agent",
+    "<summary>",
+    "<json verdict>",
+    "round ...",
+    "round-...",
+    "...-integration",
+    "...-spec-",
+    "concrete reason",
+    "concrete question",
+    "concrete verdict json",
+    "round_id",
+    "agent_name",
+    "concrete_summary",
+    "collection_recipient",
+)
 SPEC_CHILD_TEMPLATES = {
     "spec-goal-clarifier",
     "spec-repo-explorer",
@@ -1971,7 +1988,14 @@ def _short_text(value: Any, limit: int = 220) -> str:
 def _round_agent_inactive(agent: dict[str, Any]) -> bool:
     phase = str(agent.get("phase") or "").lower()
     activity = str(agent.get("activity") or "").lower()
-    return phase in {"stopped", "deleted", "ended"} or activity == "completed"
+    container_status = str(agent.get("containerStatus") or "").lower()
+    return (
+        phase in {"stopped", "deleted", "ended", "completed"}
+        or activity == "completed"
+        or "succeeded" in container_status
+        or "completed" in container_status
+        or container_status == "stopped"
+    )
 
 
 def _round_agents_inactive(agents: list[dict[str, Any]]) -> bool:
@@ -1982,7 +2006,7 @@ def _round_agents_inactive(agents: list[dict[str, Any]]) -> bool:
 
 def _has_placeholder_summary(agent: dict[str, Any]) -> bool:
     summary = str(agent.get("taskSummary") or agent.get("summary") or "")
-    return any(token in summary for token in PLACEHOLDER_SUMMARY_TOKENS)
+    return any(token in summary.lower() for token in PLACEHOLDER_SUMMARY_TOKENS)
 
 
 def _is_spec_consensus_agent(agent: dict[str, Any]) -> bool:
@@ -2004,17 +2028,37 @@ def _is_spec_child_agent(agent: dict[str, Any]) -> bool:
     )
 
 
+def _spec_agents_for_phase(agents: list[dict[str, Any]], *, template: str, name_suffix: str) -> list[dict[str, Any]]:
+    return [
+        agent
+        for agent in agents
+        if str(agent.get("template") or "") == template
+        or str(agent.get("name") or agent.get("slug") or "").endswith(name_suffix)
+    ]
+
+
+def _spec_phase_complete(agents: list[dict[str, Any]], *, template: str, name_suffix: str) -> bool:
+    return any(
+        _round_agent_inactive(agent)
+        for agent in _spec_agents_for_phase(
+            agents,
+            template=template,
+            name_suffix=name_suffix,
+        )
+    )
+
+
 def _agent_health(agent: dict[str, Any]) -> str:
     phase = str(agent.get("phase") or "").lower()
     activity = str(agent.get("activity") or "").lower()
     status = json.dumps(agent.get("containerStatus") or "", default=str).lower()
     status_text = f"{phase} {activity} {status}"
-    if activity == "stalled" or "stalled" in status_text:
-        return "stalled"
     if any(token in status_text for token in ("error", "failed", "crashloop", "imagepull", "backoff")):
         return "error"
     if _round_agent_inactive(agent):
         return "completed"
+    if activity == "stalled" or "stalled" in status_text:
+        return "stalled"
     if phase in {"running", "started"} or activity in {"active", "running", "working"}:
         return "running"
     if phase in {"pending", "created", "queued", "scheduled", "starting"}:
@@ -2188,6 +2232,26 @@ def _spec_round_progress_response(
     progress = _round_agent_progress(summaries)
     consensus_agent = next((agent for agent in summaries if _is_spec_consensus_agent(agent)), {})
     child_agents = [agent for agent in summaries if _is_spec_child_agent(agent)]
+    ops_review_agents = _spec_agents_for_phase(
+        child_agents,
+        template="spec-ops-reviewer",
+        name_suffix="-spec-ops-review",
+    )
+    finalizer_agents = _spec_agents_for_phase(
+        child_agents,
+        template="spec-finalizer",
+        name_suffix="-spec-finalizer",
+    )
+    ops_review_complete = _spec_phase_complete(
+        child_agents,
+        template="spec-ops-reviewer",
+        name_suffix="-spec-ops-review",
+    )
+    finalizer_complete = _spec_phase_complete(
+        child_agents,
+        template="spec-finalizer",
+        name_suffix="-spec-finalizer",
+    )
     placeholder_agents = [agent for agent in summaries if _has_placeholder_summary(agent)]
     placeholder_summary = bool(placeholder_agents)
     terminal = last_watch.get("terminal") or _round_terminal_status({
@@ -2210,7 +2274,12 @@ def _spec_round_progress_response(
     done = False
     status = "running" if summaries else "starting"
     round_finished = bool(terminal) or _round_agents_inactive(summaries)
-    if artifact_state["branch_changed"] and artifact_state["validation_status"] in {"passed", "skipped"}:
+    integration_branch_valid = (
+        artifact_state["branch_changed"]
+        and artifact_state["validation_status"] in {"passed", "skipped"}
+    )
+    protocol_complete = integration_branch_valid and ops_review_complete and finalizer_complete
+    if protocol_complete:
         done = True
         status = "completed"
     elif round_finished and placeholder_summary and not child_agents:
@@ -2240,8 +2309,26 @@ def _spec_round_progress_response(
             blockers.append(f"expected branch was not found on origin: {expected_branch}")
         elif not artifact_state["branch_changed"]:
             blockers.append(f"expected branch did not move from base SHA: {expected_branch}")
+        elif integration_branch_valid:
+            if not ops_review_agents:
+                blockers.append("spec operations reviewer was not spawned")
+            elif not ops_review_complete:
+                blockers.append("spec operations reviewer did not complete")
+            if not finalizer_agents:
+                blockers.append("spec finalizer was not spawned")
+            elif not finalizer_complete:
+                blockers.append("spec finalizer did not complete")
         if terminal and not blockers:
             blockers.append("round reported terminal status before a valid spec branch was available")
+
+    if integration_branch_valid and not protocol_complete and status in {"starting", "running"}:
+        missing = []
+        if not ops_review_complete:
+            missing.append("spec operations review")
+        if not finalizer_complete:
+            missing.append("spec finalizer")
+        if missing:
+            warnings.append(f"integration branch validates; waiting for {', '.join(missing)}")
 
     if progress["unhealthy_agents"] and status in {"starting", "running"}:
         status = "running_degraded"
@@ -2304,6 +2391,14 @@ def _spec_round_progress_response(
         "branch_changed": artifact_state["branch_changed"],
         "validation_status": artifact_state["validation_status"],
         "validation": artifact_state["validation"],
+        "protocol": {
+            "integration_branch_valid": integration_branch_valid,
+            "ops_review_agent_count": len(ops_review_agents),
+            "ops_review_complete": ops_review_complete,
+            "finalizer_agent_count": len(finalizer_agents),
+            "finalizer_complete": finalizer_complete,
+            "complete": protocol_complete,
+        },
         "blockers": blockers,
         "warnings": warnings,
         "terminal": terminal,

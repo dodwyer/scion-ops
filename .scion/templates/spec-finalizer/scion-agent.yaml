@@ -1,6 +1,6 @@
 schema_version: "1"
 description: "Spec finalizer - integrates review feedback into a PR-ready spec branch."
-default_harness_config: codex
+default_harness_config: codex-exec
 system_prompt: system-prompt.md
 agent_instructions: agents.md
 max_turns: 50

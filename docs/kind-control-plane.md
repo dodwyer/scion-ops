@@ -235,11 +235,16 @@ Default model authentication uses subscription credential files restored by
 The restored Claude config keeps subscription state and adds `/workspace` as a
 trusted project path for Scion-managed agent pods. Bootstrap also prepares the
 Claude harness settings to skip the bypass-permissions warning in the
-Kubernetes agent sandbox. Host-local Claude MCP server registrations are
-stripped from the agent config so startup depends on Scion's explicit harness
-and template configuration. Claude round templates pass `--print` through
-native Scion `command_args` so multiline prompts are submitted
-non-interactively.
+Kubernetes agent sandbox. Codex-backed personas use repo-managed Codex harness
+configs in `deploy/kind/harness-configs/`: both `codex` and `codex-exec` run
+`codex exec` as a single non-interactive task while still using the restored
+Codex subscription auth file.
+Host-local Claude MCP server registrations are stripped from the agent config
+so startup depends on Scion's explicit harness and template configuration.
+Claude templates pass `--print` through native Scion `command_args` so
+multiline prompts are submitted non-interactively. Coordinators collect child
+outputs through the Hub user inbox with `scion messages --json` instead of
+depending on interactive tmux prompt delivery.
 The default round personas use Scion's `--harness-auth auth-file` path for
 Claude, Codex, and optional Gemini final review. Codex is the reliable default
 final reviewer; Gemini can be requested explicitly and falls back to Codex when
@@ -272,4 +277,4 @@ Deleting the kind cluster deletes cluster-local Scion state.
 | Agent artifacts | Hub agent records and pushed git branches | pod-local state is ephemeral |
 | Subscription credentials | Hub-scoped Claude, Codex, and Gemini secrets restored by `task bootstrap` | yes |
 | Vertex ADC credentials | optional Hub-scoped secrets restored only when `SCION_OPS_BOOTSTRAP_VERTEX_ADC=1`; cleared by default bootstrap | yes |
-| Templates/harness configs | Hub global templates and Hub harness configs restored by `task bootstrap` | yes |
+| Templates/harness configs | Hub global templates plus Hub and broker harness configs restored by `task bootstrap` | yes |
