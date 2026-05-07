@@ -19,7 +19,7 @@ PROJECT_ROOT="$(cd "$PROJECT_ROOT_INPUT" && pwd -P)"
 PROJECT_ROOT="$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null)" || die "target project is not a git repo: $PROJECT_ROOT"
 AGENT_PROJECT_ROOT="${SCION_OPS_AGENT_PROJECT_ROOT:-/workspace}"
 
-ROUND_ID="${ROUND_ID:-$(date -u +%Y%m%dt%H%M%sz)-$(printf '%04x' "$RANDOM")}"
+ROUND_ID="${ROUND_ID:-$(date -u +%Y%m%dt%H%M%Sz)-$(printf '%04x' "$RANDOM")}"
 ROUND_ID="$(printf '%s' "$ROUND_ID" | tr '[:upper:]' '[:lower:]')"
 CHANGE="${SCION_OPS_SPEC_CHANGE:-}"
 BASE_BRANCH="${BASE_BRANCH:-$(git -C "$PROJECT_ROOT" branch --show-current 2>/dev/null || true)}"
