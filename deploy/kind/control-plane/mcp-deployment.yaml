@@ -74,6 +74,12 @@ spec:
               value: http://scion-hub:8090
             - name: SCION_DEV_TOKEN_FILE
               value: /run/secrets/scion-hub-dev-auth/dev-token
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: scion-github-token
+                  key: GITHUB_TOKEN
+                  optional: true
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
@@ -107,6 +113,9 @@ spec:
             - name: hub-dev-auth
               mountPath: /run/secrets/scion-hub-dev-auth
               readOnly: true
+            - name: github-token
+              mountPath: /run/secrets/scion-github-token
+              readOnly: true
       volumes:
         - name: workspace
           hostPath:
@@ -118,4 +127,8 @@ spec:
         - name: hub-dev-auth
           secret:
             secretName: scion-hub-dev-auth
+            optional: true
+        - name: github-token
+          secret:
+            secretName: scion-github-token
             optional: true

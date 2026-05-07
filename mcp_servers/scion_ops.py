@@ -1034,8 +1034,16 @@ def _round_terminal_status(snapshot: dict[str, Any]) -> dict[str, Any] | None:
     if not consensus:
         return None
     summary = str(consensus.get("taskSummary") or "")
+    phase = str(consensus.get("phase") or "").lower()
     activity = str(consensus.get("activity") or "").lower()
-    if activity == "completed" or " complete:" in summary or " escalated:" in summary:
+    if phase not in {"stopped", "deleted"} and activity != "completed":
+        return None
+    has_placeholder = any(token in summary for token in ("<round_id>", "<branch>", "<agent"))
+    has_terminal_summary = (
+        (" complete:" in summary or " escalated:" in summary or summary.startswith("spec ready:"))
+        and not has_placeholder
+    )
+    if activity == "completed" or has_terminal_summary:
         return {
             "agent": consensus.get("name"),
             "activity": consensus.get("activity"),
@@ -1049,6 +1057,15 @@ def _default_base_branch(project_root: str = "") -> str:
     result = _run(["git", "branch", "--show-current"], timeout=10, cwd=root)
     current = result["output"].strip()
     return current or "HEAD"
+
+
+def _target_round_env(target_root: Path) -> dict[str, str]:
+    env = {"SCION_OPS_PROJECT_ROOT": str(target_root)}
+    grove_id = _read_text_file(target_root / ".scion" / "grove-id")
+    if grove_id:
+        env["SCION_GROVE_ID"] = grove_id
+        env["SCION_OPS_GROVE_ID"] = grove_id
+    return env
 
 
 def _github_https_remote(remote_url: str) -> str:
@@ -1399,9 +1416,9 @@ def scion_ops_start_round(
         raise ValueError("prompt is required")
     target_root = _project_root(project_root) if project_root else _repo_root()
     env: dict[str, str] = {
+        **_target_round_env(target_root),
         "MAX_MINUTES": str(_clamp(max_minutes, 1, 240)),
         "MAX_REVIEW_ROUNDS": str(_clamp(max_review_rounds, 1, 10)),
-        "SCION_OPS_PROJECT_ROOT": str(target_root),
     }
     if round_id:
         env["ROUND_ID"] = _clean_name(round_id, "round_id")
@@ -1786,7 +1803,7 @@ def scion_ops_start_spec_round(
     if not goal:
         raise ValueError("goal is required")
     target_root = _project_root(project_root)
-    env: dict[str, str] = {"SCION_OPS_PROJECT_ROOT": str(target_root)}
+    env: dict[str, str] = _target_round_env(target_root)
     if change:
         env["SCION_OPS_SPEC_CHANGE"] = _clean_name(change, "change")
     if round_id:
@@ -1840,9 +1857,9 @@ def _start_impl_round(
             },
         }
     env: dict[str, str] = {
+        **_target_round_env(target_root),
         "MAX_MINUTES": str(_clamp(max_minutes, 1, 240)),
         "MAX_REVIEW_ROUNDS": str(_clamp(max_review_rounds, 1, 10)),
-        "SCION_OPS_PROJECT_ROOT": str(target_root),
     }
     if round_id:
         env["ROUND_ID"] = _clean_name(round_id, "round_id")

@@ -16,6 +16,10 @@ Use `sciontool status` throughout:
 - `sciontool status blocked "<question or blocker>"` when the round cannot proceed
 - `sciontool status task_completed "round <round_id> spec complete: <branch>"` on success
 
+Substitute real values in all commands. Never send literal angle-bracket
+placeholder text such as `<round_id>`, `<branch>`, or `<agent names>` in
+`sciontool status` or `scion message` output.
+
 When watching children, treat `activity: "completed"` as complete even if
 `phase` is still `running` for inspection.
 
@@ -62,8 +66,18 @@ The final PR-ready branch is `round-<round_id>-spec-integration`.
    `openspec/changes/<change>/design.md`,
    `openspec/changes/<change>/tasks.md`, and
    `openspec/changes/<change>/specs/**/spec.md`, then commits and pushes.
-6. Create or reset `round-<round_id>-spec-integration` from the author branch.
-7. Spawn the operations reviewer against a snapshot or the integration branch.
+   Require the author to satisfy the validator contract:
+   - `tasks.md` has `- [ ]` or `- [x]` checkbox task lines
+   - at least one delta spec has `## ADDED Requirements`,
+     `## MODIFIED Requirements`, or `## REMOVED Requirements`
+   - delta specs use `### Requirement: <name>` and
+     `#### Scenario: <name>` headings
+6. Create or reset `round-<round_id>-spec-integration` from the author branch:
+   - `git fetch origin round-<round_id>-spec-author`
+   - `git checkout -B round-<round_id>-spec-integration origin/round-<round_id>-spec-author`
+   - `git push origin HEAD:round-<round_id>-spec-integration`
+7. Spawn the operations reviewer against a snapshot or the integration branch
+   using template `spec-ops-reviewer`.
    Require a JSON verdict sent back with `scion message`. The reviewer must
    check OpenSpec structure, implementation readiness, unresolved questions,
    `CLAUDE.md`, Kubernetes-only operation, and task simplicity.

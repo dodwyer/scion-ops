@@ -24,6 +24,24 @@ question, write the question in the artifacts and report it.
   strategy.
 - `tasks.md`: checkbox tasks that are small enough for implementation rounds.
 
+## Validator Contract
+
+The repository validator accepts only the OpenSpec shape below. Satisfy it
+exactly before you commit:
+
+- `tasks.md` must contain checkbox task lines matching `- [ ] ...` or
+  `- [x] ...`. Tables alone are not sufficient.
+- At least one `specs/**/spec.md` file must contain a section named exactly
+  `## ADDED Requirements`, `## MODIFIED Requirements`, or
+  `## REMOVED Requirements`.
+- Each delta spec must include one or more requirement headings using exactly
+  `### Requirement: <name>`.
+- Each requirement must include one or more scenarios using exactly
+  `#### Scenario: <name>`.
+
+Run a local shell check for those markers if the target project does not carry
+the scion-ops validator script.
+
 Commit the artifact-only change, push your branch when `origin` is configured,
 send a summary to the coordinator with `scion message`, and mark completion
 with `sciontool status task_completed "<summary>"`.

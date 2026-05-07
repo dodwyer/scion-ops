@@ -16,6 +16,7 @@ BROKER="${SCION_KIND_CP_BROKER:-kind-control-plane}"
 BROKER_CREDENTIAL_NAME="${SCION_KIND_CP_BROKER_CREDENTIAL_NAME:-in-cluster}"
 BROKER_CREDENTIAL_SECRET="${SCION_KIND_CP_BROKER_CREDENTIAL_SECRET:-scion-broker-credentials}"
 BROKER_BOOTSTRAP_HOME="${SCION_BROKER_BOOTSTRAP_HOME:-/tmp/scion-broker-bootstrap}"
+GITHUB_TOKEN_SECRET="${SCION_GITHUB_TOKEN_SECRET:-scion-github-token}"
 HUB_IN_CLUSTER="${SCION_OPS_KIND_IN_CLUSTER_HUB_URL:-http://127.0.0.1:8090}"
 HUB_FOR_BROKER="${SCION_OPS_KIND_BROKER_HUB_URL:-http://scion-hub:8090}"
 HUB_PUBLIC="${SCION_HUB_ENDPOINT:-${HUB_ENDPOINT:-${SCION_OPS_KIND_HUB_URL:-http://${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}:${SCION_OPS_KIND_HUB_PORT:-18090}}}}"
@@ -307,6 +308,27 @@ set_env_secret() {
   log "set Hub environment secret ${key}"
 }
 
+restore_github_token_kubernetes_secret() {
+  local token="$1"
+  [[ -n "$token" ]] || die "GITHUB_TOKEN is empty"
+  kubectl_ctx -n "$NAMESPACE" create secret generic "$GITHUB_TOKEN_SECRET" \
+    --from-literal=GITHUB_TOKEN="$token" \
+    --dry-run=client \
+    -o yaml |
+    kubectl_ctx -n "$NAMESPACE" apply -f - >/dev/null
+  log "restored Kubernetes Secret ${GITHUB_TOKEN_SECRET} for MCP git branch preparation"
+}
+
+restart_mcp_for_github_token() {
+  if [[ -n "${SCION_OPS_MCP_PORT:-}" && -n "${KUBERNETES_SERVICE_HOST:-}" ]]; then
+    log "skip MCP restart from inside MCP pod; restart MCP from the host to reload ${GITHUB_TOKEN_SECRET}"
+    return 0
+  fi
+  kubectl_ctx -n "$NAMESPACE" rollout restart deploy/scion-ops-mcp >/dev/null
+  kubectl_ctx -n "$NAMESPACE" rollout status deploy/scion-ops-mcp --timeout=120s >/dev/null
+  log "restarted MCP to load ${GITHUB_TOKEN_SECRET}"
+}
+
 set_file_secret() {
   local key="$1"
   local source="$2"
@@ -450,6 +472,15 @@ sync_templates() {
   hub_url="$(sh_quote "$HUB_IN_CLUSTER")"
   token="$(sh_quote "$SCION_DEV_TOKEN")"
   run_in_hub "$pod" "SCION_DEV_TOKEN=${token} SCION_HUB_ENDPOINT=${hub_url} scion --global templates sync --all --hub ${hub_url} --non-interactive --yes"
+
+  log "copy synced template storage into broker pod"
+  local broker
+  broker="$(broker_pod)"
+  run_in_broker "$broker" "mkdir -p /home/scion/.scion/storage/templates"
+  kubectl_ctx -n "$NAMESPACE" exec "$pod" -c hub -- \
+    tar -C /home/scion/.scion/storage/templates -cf - . |
+    kubectl_ctx -n "$NAMESPACE" exec -i "$broker" -c broker -- \
+      tar -C /home/scion/.scion/storage/templates -xf -
 }
 
 main() {
@@ -480,6 +511,8 @@ main() {
   token="$(github_token)"
   [[ -n "$token" ]] || die "GITHUB_TOKEN, GH_TOKEN, or a usable gh auth token is required"
   set_env_secret GITHUB_TOKEN "$token"
+  restore_github_token_kubernetes_secret "$token"
+  restart_mcp_for_github_token
   unset token
 
   set_file_secret CLAUDE_AUTH "${CLAUDE_AUTH_FILE:-${HOME}/.claude/.credentials.json}" "~/.claude/.credentials.json"
