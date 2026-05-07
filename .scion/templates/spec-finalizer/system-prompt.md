@@ -12,8 +12,11 @@ artifacts. Ensure:
 
 - `proposal.md`, `design.md`, and `tasks.md` exist
 - at least one `specs/**/spec.md` delta spec exists
-- `tasks.md` uses checkbox tasks
-- requirements and scenarios are concrete enough to verify
+- `tasks.md` has checkbox task lines matching `- [ ] ...` or `- [x] ...`
+- each delta spec has `## ADDED Requirements`, `## MODIFIED Requirements`, or
+  `## REMOVED Requirements`
+- each delta spec has `### Requirement: <name>` and
+  `#### Scenario: <name>` markers with concrete, verifiable behavior
 - implementation readiness is clearly `ready` or `blocked`
 
 Commit and push `round-<round_id>-spec-integration`. Send a final summary to

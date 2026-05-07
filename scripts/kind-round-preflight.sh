@@ -49,6 +49,12 @@ required_templates=(
   reviewer-codex
   final-reviewer-gemini
   final-reviewer-codex
+  spec-consensus-runner
+  spec-goal-clarifier
+  spec-repo-explorer
+  spec-author
+  spec-ops-reviewer
+  spec-finalizer
 )
 
 for template in "${required_templates[@]}"; do

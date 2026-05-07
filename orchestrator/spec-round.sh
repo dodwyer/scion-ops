@@ -29,6 +29,76 @@ fi
 BASE_BRANCH="${BASE_BRANCH:-main}"
 RUNNER_NAME="round-${ROUND_ID}-spec-consensus"
 RUNNER_BRANCH="$RUNNER_NAME"
+COORDINATOR_PROTOCOL_FILE="$SCION_OPS_ROOT/.scion/templates/spec-consensus-runner/system-prompt.md"
+COORDINATOR_PROTOCOL=""
+if [[ -f "$COORDINATOR_PROTOCOL_FILE" ]]; then
+  COORDINATOR_PROTOCOL="$(cat "$COORDINATOR_PROTOCOL_FILE")"
+fi
+
+github_authenticated_remote() {
+  local remote="$1"
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    case "$remote" in
+      https://github.com/*)
+        printf 'https://x-access-token:%s@github.com/%s' "$GITHUB_TOKEN" "${remote#https://github.com/}"
+        return
+        ;;
+      git@github.com:*)
+        printf 'https://x-access-token:%s@github.com/%s' "$GITHUB_TOKEN" "${remote#git@github.com:}"
+        return
+        ;;
+      ssh://git@github.com/*)
+        printf 'https://x-access-token:%s@github.com/%s' "$GITHUB_TOKEN" "${remote#ssh://git@github.com/}"
+        return
+        ;;
+    esac
+  fi
+  printf '%s' "$remote"
+}
+
+ensure_remote_branch() {
+  local branch="$1"
+  local remote push_remote base_ref
+
+  remote="$(git -C "$PROJECT_ROOT" remote get-url origin 2>/dev/null || true)"
+  [[ -n "$remote" ]] || {
+    printf 'Warning: origin remote is missing; cannot pre-create %s\n' "$branch" >&2
+    return 0
+  }
+  push_remote="$(github_authenticated_remote "$remote")"
+
+  if GIT_TERMINAL_PROMPT=0 git -C "$PROJECT_ROOT" ls-remote --exit-code --heads "$push_remote" "$branch" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  base_ref="$BASE_BRANCH"
+  if ! git -C "$PROJECT_ROOT" rev-parse --verify --quiet "${base_ref}^{commit}" >/dev/null; then
+    base_ref="origin/$BASE_BRANCH"
+  fi
+  if ! git -C "$PROJECT_ROOT" rev-parse --verify --quiet "${base_ref}^{commit}" >/dev/null; then
+    base_ref="HEAD"
+  fi
+
+  printf 'Pre-creating round branch: %s\n' "$branch"
+  if ! GIT_TERMINAL_PROMPT=0 git -C "$PROJECT_ROOT" push "$push_remote" "${base_ref}:refs/heads/${branch}" >/dev/null; then
+    printf 'Warning: failed to pre-create %s; Scion will try to create it during agent start\n' "$branch" >&2
+  fi
+}
+
+precreate_round_branches() {
+  local suffix
+  for suffix in spec-consensus spec-clarifier spec-explorer spec-author spec-ops-review spec-finalizer spec-integration; do
+    ensure_remote_branch "round-${ROUND_ID}-${suffix}"
+  done
+}
+
+load_github_token_for_branch_precreate() {
+  local token_file="/run/secrets/scion-github-token/GITHUB_TOKEN"
+  if [[ -z "${GITHUB_TOKEN:-}" && -r "$token_file" ]]; then
+    GITHUB_TOKEN="$(cat "$token_file")"
+    export GITHUB_TOKEN
+  fi
+}
 
 if [[ "${SCION_OPS_ROUND_PREFLIGHT:-1}" != "0" && "${SCION_OPS_DRY_RUN:-0}" != "1" ]]; then
   bash "$SCION_OPS_ROOT/scripts/kind-round-preflight.sh"
@@ -43,9 +113,14 @@ project_root: $AGENT_PROJECT_ROOT
 original_goal:
 $GOAL
 
-Start the spec-building protocol described in your system prompt. Produce only
-OpenSpec artifacts under openspec/changes/<change>/ in the target project. Do
-not implement code, tests, manifests, or runtime changes during this round.
+Coordinator protocol:
+$COORDINATOR_PROTOCOL
+
+Start the spec-building protocol above. Produce only OpenSpec artifacts under
+openspec/changes/<change>/ in the target project. Do not implement code, tests,
+manifests, product docs, or runtime changes during this round. Do not exit until
+the final branch round-${ROUND_ID}-spec-integration exists on origin and contains
+the committed OpenSpec artifacts.
 EOF
 )
 
@@ -67,6 +142,11 @@ Rendered prompt:
 $TASK_PROMPT
 EOF
   exit 0
+fi
+
+if [[ "${SCION_OPS_PRECREATE_ROUND_BRANCHES:-1}" != "0" ]]; then
+  load_github_token_for_branch_precreate
+  precreate_round_branches
 fi
 
 "$SCION_BIN" --grove "$PROJECT_ROOT" start "$RUNNER_NAME" \

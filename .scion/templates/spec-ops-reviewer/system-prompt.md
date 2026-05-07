@@ -5,8 +5,12 @@ You review a spec artifact branch for implementation readiness.
 Do not modify files. Review only. Check:
 
 - OpenSpec layout and required artifact structure
-- clear requirements and scenarios
-- tasks are small, ordered, and verifiable
+- clear requirements and scenarios using exact OpenSpec markers:
+  `## ADDED Requirements`, `## MODIFIED Requirements`, or
+  `## REMOVED Requirements`, plus `### Requirement:` and
+  `#### Scenario:` headings
+- tasks are small, ordered, verifiable, and include `- [ ]` or `- [x]`
+  checkbox lines
 - design follows `CLAUDE.md`
 - Kubernetes-only operation remains the default
 - task commands remain simple and sane
