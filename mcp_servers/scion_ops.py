@@ -1977,6 +1977,8 @@ def _agent_health(agent: dict[str, Any]) -> str:
     activity = str(agent.get("activity") or "").lower()
     status = json.dumps(agent.get("containerStatus") or "", default=str).lower()
     status_text = f"{phase} {activity} {status}"
+    if activity == "stalled" or "stalled" in status_text:
+        return "stalled"
     if any(token in status_text for token in ("error", "failed", "crashloop", "imagepull", "backoff")):
         return "error"
     if _round_agent_inactive(agent):
@@ -2007,7 +2009,7 @@ def _round_agent_progress(agents: list[dict[str, Any]]) -> dict[str, Any]:
     )
     active = [item for item in items if item["health"] in {"running", "pending", "unknown"}]
     completed = [item for item in items if item["health"] == "completed"]
-    unhealthy = [item for item in items if item["health"] == "error"]
+    unhealthy = [item for item in items if item["health"] in {"error", "stalled"}]
     return {
         "agent_count": len(items),
         "health_counts": dict(Counter(str(item.get("health")) for item in items)),
@@ -2175,6 +2177,10 @@ def _spec_round_progress_response(
     if artifact_state["branch_changed"] and artifact_state["validation_status"] in {"passed", "skipped"}:
         done = True
         status = "completed"
+    elif progress["unhealthy_agents"]:
+        done = True
+        status = "blocked"
+        blockers.append("one or more round agents are stalled or unhealthy")
     elif artifact_state["validation_status"] == "failed":
         if round_finished or round_timed_out:
             done = True
