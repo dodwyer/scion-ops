@@ -1906,7 +1906,7 @@ def scion_ops_start_spec_round(
     round_id: str = "",
     base_branch: str = "",
 ) -> dict[str, Any]:
-    """Start a spec-building Scion round for a target project."""
+    """Start an OpenSpec-only spec-building Scion round for a target project."""
     goal = goal.strip()
     if not goal:
         raise ValueError("goal is required")
@@ -1970,11 +1970,13 @@ def scion_ops_run_spec_round(
     poll_interval_seconds: int = 3,
     validate: bool = True,
 ) -> dict[str, Any]:
-    """Start, monitor, collect artifacts, and validate a spec-building round.
+    """Start, monitor, collect artifacts, and validate an OpenSpec-only spec round.
 
     This is the compact default workflow for external agents: call it once with
     project_root, goal, and optional change. It uses the event watcher internally
-    and returns the PR-ready spec branch or a concrete blocker.
+    and returns the PR-ready spec branch or a concrete blocker. Callers should
+    provide the goal only; the spec round contract already restricts output to
+    OpenSpec artifacts.
     """
     started = scion_ops_start_spec_round(
         goal=goal,

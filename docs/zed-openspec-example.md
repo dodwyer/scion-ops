@@ -17,9 +17,9 @@ workspace-prune-preview
 
 Goal: specify and then implement a dry-run workspace prune operation that lists
 MCP-prepared GitHub checkouts, identifies clean inactive checkouts that would be
-safe to delete, and refuses dirty or active workspaces. The spec round must
-produce OpenSpec artifacts only. The implementation round must make the code
-change from the approved spec.
+safe to delete, and refuses dirty or active workspaces. The spec round is
+OpenSpec-only by definition. The implementation round must make the code change
+from the approved spec.
 
 ## 1. Start scion-ops
 
@@ -118,7 +118,7 @@ Open Zed's agent panel and paste this exact request:
 Use scion-ops on project_root=/home/david/workspace/github/livewyer-ops/scion-ops.
 
 Run a spec round for change=workspace-prune-preview:
-"Specify a dry-run workspace prune operation for MCP-prepared GitHub checkouts. It should list checkout candidates, identify clean inactive checkouts that are safe to delete, refuse dirty checkouts and active round workspaces, and not delete anything in this change. Produce OpenSpec artifacts only."
+"Specify a dry-run workspace prune operation for MCP-prepared GitHub checkouts. It should list checkout candidates, identify clean inactive checkouts that are safe to delete, refuse dirty checkouts and active round workspaces, and not delete anything in this change."
 ```
 
 The external agent should use this MCP tool:
@@ -313,8 +313,7 @@ Use a GitHub URL instead of a local path. Paste this into Zed:
 ```text
 Use scion-ops to prepare repo_url=https://github.com/<owner>/<repo>.git.
 Then use the returned project_root for a spec round with change=workspace-prune-preview:
-"Specify a dry-run workspace prune operation. Produce OpenSpec artifacts only."
-Monitor it with event watching and report the PR-ready spec branch.
+"Specify a dry-run workspace prune operation."
 ```
 
 The external agent should call `scion_ops_prepare_github_repo` first and then
