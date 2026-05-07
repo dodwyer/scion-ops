@@ -42,6 +42,14 @@ NAME_RE = re.compile(r"^[A-Za-z0-9._:/@+-]+$")
 DEFAULT_HOST_WORKSPACE_ROOT = "/home/david/workspace"
 DEFAULT_CONTAINER_WORKSPACE_ROOT = "/workspace"
 DEFAULT_REPO_CHECKOUT_SUBDIR = "github"
+PLACEHOLDER_SUMMARY_TOKENS = ("<round_id>", "<branch>", "<agent")
+SPEC_CHILD_TEMPLATES = {
+    "spec-goal-clarifier",
+    "spec-repo-explorer",
+    "spec-author",
+    "spec-ops-reviewer",
+    "spec-finalizer",
+}
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -1040,7 +1048,7 @@ def _round_terminal_status(snapshot: dict[str, Any]) -> dict[str, Any] | None:
     activity = str(consensus.get("activity") or "").lower()
     if phase not in {"stopped", "deleted"} and activity != "completed":
         return None
-    has_placeholder = any(token in summary for token in ("<round_id>", "<branch>", "<agent"))
+    has_placeholder = _has_placeholder_summary(consensus)
     has_terminal_summary = (
         (" complete:" in summary or " escalated:" in summary or summary.startswith("spec ready:"))
         and not has_placeholder
@@ -1972,6 +1980,30 @@ def _round_agents_inactive(agents: list[dict[str, Any]]) -> bool:
     return all(_round_agent_inactive(agent) for agent in agents)
 
 
+def _has_placeholder_summary(agent: dict[str, Any]) -> bool:
+    summary = str(agent.get("taskSummary") or agent.get("summary") or "")
+    return any(token in summary for token in PLACEHOLDER_SUMMARY_TOKENS)
+
+
+def _is_spec_consensus_agent(agent: dict[str, Any]) -> bool:
+    name = str(agent.get("name") or agent.get("slug") or "")
+    return agent.get("template") == "spec-consensus-runner" or name.endswith("-spec-consensus")
+
+
+def _is_spec_child_agent(agent: dict[str, Any]) -> bool:
+    name = str(agent.get("name") or agent.get("slug") or "")
+    return (
+        str(agent.get("template") or "") in SPEC_CHILD_TEMPLATES
+        or any(name.endswith(f"-{suffix}") for suffix in (
+            "spec-clarifier",
+            "spec-explorer",
+            "spec-author",
+            "spec-ops-review",
+            "spec-finalizer",
+        ))
+    )
+
+
 def _agent_health(agent: dict[str, Any]) -> str:
     phase = str(agent.get("phase") or "").lower()
     activity = str(agent.get("activity") or "").lower()
@@ -2154,6 +2186,10 @@ def _spec_round_progress_response(
         }
     summaries = [_agent_summary(agent) for agent in agents]
     progress = _round_agent_progress(summaries)
+    consensus_agent = next((agent for agent in summaries if _is_spec_consensus_agent(agent)), {})
+    child_agents = [agent for agent in summaries if _is_spec_child_agent(agent)]
+    placeholder_agents = [agent for agent in summaries if _has_placeholder_summary(agent)]
+    placeholder_summary = bool(placeholder_agents)
     terminal = last_watch.get("terminal") or _round_terminal_status({
         "agents": summaries,
         "messages": [],
@@ -2177,6 +2213,10 @@ def _spec_round_progress_response(
     if artifact_state["branch_changed"] and artifact_state["validation_status"] in {"passed", "skipped"}:
         done = True
         status = "completed"
+    elif round_finished and placeholder_summary and not child_agents:
+        done = True
+        status = "blocked"
+        blockers.append("spec consensus runner exited with placeholder summary before spawning spec personas")
     elif progress["unhealthy_agents"]:
         done = True
         status = "blocked"
@@ -2267,6 +2307,11 @@ def _spec_round_progress_response(
         "blockers": blockers,
         "warnings": warnings,
         "terminal": terminal,
+        "placeholder_summary": placeholder_summary,
+        "placeholder_agents": [_agent_progress_item(agent) for agent in placeholder_agents],
+        "spawned_spec_agent_count": len(child_agents),
+        "spawned_spec_agents": [_agent_progress_item(agent) for agent in child_agents],
+        "consensus_agent": _agent_progress_item(consensus_agent) if consensus_agent else {},
         "progress": progress,
         "latest_events": events_seen[-20:],
         "latest_event_summaries": _latest_event_summaries(events_seen[-10:]),

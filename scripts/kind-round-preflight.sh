@@ -7,6 +7,15 @@ die() {
   exit 1
 }
 
+assert_template_absent() {
+  local file="$1"
+  local forbidden="$2"
+  [[ -f "$file" ]] || die "template prompt is missing: $file"
+  if grep -Fq "$forbidden" "$file"; then
+    die "template prompt contains forbidden placeholder status text: $forbidden"
+  fi
+}
+
 SCION_BIN="${SCION_BIN:-scion}"
 HUB_ENDPOINT="${SCION_HUB_ENDPOINT:-${HUB_ENDPOINT:-}}"
 PROJECT_ROOT_INPUT="${1:-${SCION_OPS_PROJECT_ROOT:-$(pwd -P)}}"
@@ -63,3 +72,8 @@ for template in "${required_templates[@]}"; do
     --non-interactive) \
     >/dev/null || die "Hub template ${template} is missing; run task bootstrap"
 done
+
+spec_consensus_prompt="${SCION_OPS_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.scion/templates/spec-consensus-runner/system-prompt.md"
+assert_template_absent "$spec_consensus_prompt" 'sciontool status blocked "Waiting for <agent names>"'
+assert_template_absent "$spec_consensus_prompt" 'sciontool status blocked "<question or blocker>"'
+assert_template_absent "$spec_consensus_prompt" 'sciontool status task_completed "round <round_id> spec complete: <branch>"'
