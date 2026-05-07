@@ -2126,6 +2126,7 @@ def _spec_round_progress_response(
     goal: str,
     change: str,
     round_id: str,
+    monitor_round_id: str,
     base_branch: str,
     expected_branch: str,
     cursor: str,
@@ -2138,7 +2139,7 @@ def _spec_round_progress_response(
     round_timed_out: bool = False,
 ) -> dict[str, Any]:
     try:
-        agents, result = _list_agents(round_id, project_root)
+        agents, result = _list_agents(monitor_round_id, project_root)
     except HubAPIError as exc:
         return {
             "ok": False,
@@ -2246,6 +2247,7 @@ def _spec_round_progress_response(
         "source": "spec_round_runner",
         "project_root": project_root,
         "round_id": round_id,
+        "monitor_round_id": monitor_round_id,
         "change": change,
         "base_branch": base_branch,
         "elapsed_seconds": _round_elapsed_seconds(summaries),
@@ -2335,6 +2337,9 @@ def scion_ops_run_spec_round(
             }
 
     expected_branch = f"round-{parsed_round_id}-spec-integration"
+    monitor_round_id = parsed_round_id.lower()
+    if monitor_round_id != parsed_round_id and cursor:
+        cursor = ""
     deadline = time.monotonic() + (timeout_minutes * 60)
     events_seen: list[dict[str, Any]] = []
     last_watch: dict[str, Any] = {}
@@ -2343,7 +2348,7 @@ def scion_ops_run_spec_round(
         remaining = max(1, int(deadline - time.monotonic())) if wait_until_complete else watch_seconds
         watch_window = min(watch_seconds, remaining)
         last_watch = scion_ops_watch_round_events(
-            round_id=parsed_round_id,
+            round_id=monitor_round_id,
             cursor=cursor,
             timeout_seconds=watch_window,
             poll_interval_seconds=poll_interval_seconds,
@@ -2360,6 +2365,7 @@ def scion_ops_run_spec_round(
                 "source": "spec_round_runner",
                 "stage": "monitor",
                 "round_id": parsed_round_id,
+                "monitor_round_id": monitor_round_id,
                 "watch": last_watch,
                 "blockers": [str(last_watch.get("error") or "failed to watch round events")],
             }
@@ -2369,6 +2375,7 @@ def scion_ops_run_spec_round(
             goal=goal,
             change=change,
             round_id=parsed_round_id,
+            monitor_round_id=monitor_round_id,
             base_branch=base_branch,
             expected_branch=expected_branch,
             cursor=cursor,
