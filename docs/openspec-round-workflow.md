@@ -139,6 +139,10 @@ tools so the artifact contract is visible in the request. For Zed and other
 External Agent use, prefer `scion_ops_run_spec_round` unless you need to inspect
 intermediate events manually.
 
+A `spec round` is OpenSpec-only by definition. The round prompt adds the
+artifact-only contract, so users and MCP callers should provide the product goal
+without repeating "Produce OpenSpec artifacts only."
+
 ## Validation
 
 Use the validator before an implementation round starts:
@@ -178,6 +182,9 @@ For a no-model prompt rendering check:
 ```bash
 task spec:round:dry-run -- "draft the spec goal"
 ```
+
+The rendered prompt restricts the round to `openspec/changes/<change>/` and
+forbids code, tests, manifests, product docs, or runtime changes.
 
 The spec round uses these templates:
 

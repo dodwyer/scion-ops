@@ -172,8 +172,11 @@ Ask for a spec round with the target project and goal:
 ```text
 Use scion-ops on project_root=/home/david/workspace/github/example/project.
 Run a spec round for change=add-widget:
-"Specify the smallest useful widget improvement. Produce OpenSpec artifacts only."
+"Specify the smallest useful widget improvement."
 ```
+
+`spec round` implies OpenSpec artifacts only. The MCP caller does not need to
+repeat that in the goal.
 
 The external agent should make the compact call:
 
