@@ -24,6 +24,7 @@ ROUND_ID="$(printf '%s' "$ROUND_ID" | tr '[:upper:]' '[:lower:]')"
 CHANGE="${SCION_OPS_SPEC_CHANGE:-}"
 BASE_BRANCH="${BASE_BRANCH:-$(git -C "$PROJECT_ROOT" branch --show-current 2>/dev/null || true)}"
 BROKER="${SCION_KIND_CP_BROKER:-kind-control-plane}"
+COLLECTION_RECIPIENT="${SCION_OPS_COLLECTION_RECIPIENT:-user:dev@localhost}"
 if [[ -z "$BASE_BRANCH" ]]; then
   BASE_BRANCH="$(git -C "$PROJECT_ROOT" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || true)"
 fi
@@ -110,6 +111,7 @@ round_id: $ROUND_ID
 base_branch: $BASE_BRANCH
 change: $CHANGE
 project_root: $AGENT_PROJECT_ROOT
+collection_recipient: $COLLECTION_RECIPIENT
 
 original_goal:
 $GOAL
@@ -130,6 +132,7 @@ printf 'Round id: %s\n' "$ROUND_ID"
 printf 'Base branch: %s\n' "$BASE_BRANCH"
 printf 'Change: %s\n' "${CHANGE:-<derive in round>}"
 printf 'Broker: %s\n' "$BROKER"
+printf 'Collection recipient: %s\n' "$COLLECTION_RECIPIENT"
 printf 'Grove root: %s\n' "$PROJECT_ROOT"
 printf 'Agent project root: %s\n' "$AGENT_PROJECT_ROOT"
 

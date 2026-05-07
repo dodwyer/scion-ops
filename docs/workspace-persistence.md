@@ -63,7 +63,8 @@ mean the checkout PVC, not a node `hostPath`.
 2. Bootstrap the target.
    `task bootstrap -- <project_root>` or the equivalent MCP flow links the
    checkout as a Hub grove, provides the Kubernetes broker, restores shared
-   credentials, and syncs templates and harness configs through the Hub pod.
+   credentials, and syncs templates plus host and repo-managed harness configs
+   through the Hub pod.
 
 3. Start the round.
    Scion starts agents through Hub mode. Agents clone from Git, create or update

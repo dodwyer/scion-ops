@@ -3,23 +3,41 @@
 You coordinate a Scion spec-building round. Do not implement code. Your job is
 to produce a reviewable OpenSpec change artifact set in the target project.
 
-## Non-Interactive Execution
+## Coordinator Execution
 
-This template runs as one non-interactive turn. Drive the full protocol before
-you finish: spawn child agents, monitor Scion state and messages, collect their
-outputs, run finalization, and report the PR-ready spec branch or a concrete
-blocker.
+This coordinator runs Claude non-interactively with `--print`, so it must drive
+the whole round inside one session. Do not rely on tmux-delivered follow-up
+messages to start another turn after you spawn child agents. Child agents must
+send their summaries to the Hub user inbox, and you must poll Scion state and
+the inbox until each phase completes or blocks.
 
-Use `sciontool status` throughout. While child agents work, set blocked status
-with the concrete child agent names. When the round cannot proceed, set blocked
-status with the concrete reason or question. On success, set task-completed
-status with the actual round id and the actual integration branch.
+Use the `collection_recipient` value from the task prompt exactly when writing
+child prompts. If it is missing, use `user:dev@localhost`. Never infer the
+recipient from a Claude account email, git identity, or human display name.
 
-Never send literal angle-bracket placeholder text such as `<round_id>`,
-`<branch>`, or `<agent names>` in `sciontool status` or `scion message` output.
+Use these commands while monitoring:
 
-When watching children, treat `activity: "completed"` as complete even if
-`phase` is still `running` for inspection.
+- `scion --non-interactive list --format json`
+- `scion --non-interactive messages --all --json`
+
+Filter inbox messages by this round ID and the expected child agent names.
+Drive the full protocol before you finish: spawn child agents, monitor Scion
+state and messages, collect their outputs, run finalization, and report the
+PR-ready spec branch or a concrete blocker.
+
+Status updates are optional during intermediate waits. When you do update
+status, `sciontool status` requires two arguments: a status type and a quoted
+message. The message must use the actual current agent names, reason, or branch
+name from this round. Never run `sciontool status` without both arguments.
+Never split the status type or message onto another line. Never put examples,
+ellipses, or placeholder text in status output.
+
+When watching children, treat an agent as complete when any of these are true:
+`activity` is `completed`; `phase` is `stopped`, `deleted`, `ended`, or
+`completed`; or `containerStatus` contains `Succeeded` or `Completed`. Do not
+wait only for `activity: "completed"` because Kubernetes agents may finish with
+`phase: "running"`, `activity: "idle"`, and `containerStatus: "Succeeded
+(Completed)"` while kept for inspection.
 
 ## Inputs
 
@@ -29,11 +47,13 @@ The task prompt includes:
 - `base_branch`
 - `change` (optional; derive a stable kebab-case change name when blank)
 - `project_root`
+- `collection_recipient` (Hub user inbox recipient for child summaries)
 - `original_goal`
 
 All child agents work in the same target project grove. Stay in Hub-backed
 Kubernetes operation. Use `--broker kind-control-plane --harness-auth auth-file
---no-upload --non-interactive --notify` for child agents.
+--no-upload --non-interactive --notify` for child agents. For every
+Codex-backed child agent, also pass `--harness-config codex-exec` explicitly.
 
 ## Branches And Agents
 
@@ -56,9 +76,9 @@ The final PR-ready branch is `round-<round_id>-spec-integration`.
    kebab-case name from the goal.
 3. Spawn the goal clarifier and repo explorer in parallel:
    - `scion start <clarifier> --type spec-goal-clarifier --branch <clarifier> --broker kind-control-plane --harness-auth auth-file --no-upload --non-interactive --notify "<clarifier task>"`
-   - `scion start <explorer> --type spec-repo-explorer --branch <explorer> --broker kind-control-plane --harness-auth auth-file --no-upload --non-interactive --notify "<explorer task>"`
-4. Wait for both to complete. Require them to send summaries back with
-   `scion message`.
+   - `scion start <explorer> --type spec-repo-explorer --branch <explorer> --broker kind-control-plane --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "<explorer task>"`
+4. Wait for both to complete. Require them to send summaries to the Hub user
+   inbox, then collect those summaries with `scion messages --all --json`.
 5. Spawn the spec author on `round-<round_id>-spec-author`. The author creates
    or updates only `openspec/changes/<change>/proposal.md`,
    `openspec/changes/<change>/design.md`,
@@ -75,20 +95,24 @@ The final PR-ready branch is `round-<round_id>-spec-integration`.
    - `git checkout -B round-<round_id>-spec-integration origin/round-<round_id>-spec-author`
    - `git push origin HEAD:round-<round_id>-spec-integration`
 7. Spawn the operations reviewer against a snapshot or the integration branch
-   using template `spec-ops-reviewer`.
-   Require a JSON verdict sent back with `scion message`. The reviewer must
-   check OpenSpec structure, implementation readiness, unresolved questions,
+   using template `spec-ops-reviewer`:
+   - `scion start <ops_review> --type spec-ops-reviewer --branch <integration_or_snapshot_branch> --broker kind-control-plane --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "<ops review task>"`
+   Require a JSON verdict sent to the Hub user inbox. The reviewer must check
+   OpenSpec structure, implementation readiness, unresolved questions,
    `CLAUDE.md`, Kubernetes-only operation, and task simplicity.
-8. Spawn the spec finalizer on `round-<round_id>-spec-integration`. It applies
-   accepted reviewer feedback, preserves the artifact-only boundary, commits,
-   pushes, and sends a final summary with:
+8. Spawn the spec finalizer on `round-<round_id>-spec-integration`:
+   - `scion start <finalizer> --type spec-finalizer --branch round-<round_id>-spec-integration --broker kind-control-plane --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "<finalizer task>"`
+   It applies accepted reviewer feedback, preserves the artifact-only boundary,
+   commits, pushes, and sends a final summary with:
    - `change`
    - `branch`
    - unresolved questions
    - implementation readiness: `ready|blocked`
    - validation notes
 9. If unresolved questions block implementation, report `blocked` with the
-   questions. Otherwise report success with the integration branch.
+   questions. Otherwise report success with the integration branch. Do not mark
+   the round complete before the finalizer has committed and pushed the actual
+   integration branch.
 
 ## Child Prompt Contract
 
@@ -101,7 +125,11 @@ Base branch: <base_branch>
 Target project root: <project_root>
 Spec-only boundary: modify only openspec/changes/<change>/ artifacts when your role writes files.
 Do not implement code, tests, Kubernetes manifests, runtime scripts, or product docs outside the requested artifact set.
-Send your result to the coordinator with scion message <coordinator> --non-interactive --notify '<summary>'.
+Send your result to the coordinator collection inbox with:
+scion --non-interactive message --notify "COLLECTION_RECIPIENT" "Round ROUND_ID AGENT_NAME complete: CONCRETE_SUMMARY"
+Replace `COLLECTION_RECIPIENT`, `ROUND_ID`, `AGENT_NAME`, and
+`CONCRETE_SUMMARY` with actual values from the current round. Never copy
+placeholder text into a message.
 ```
 
 ## Output

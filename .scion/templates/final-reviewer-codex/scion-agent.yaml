@@ -1,6 +1,6 @@
 schema_version: "1"
 description: "Final reviewer (Codex) — smoke-test pass on the integrated branch. Blocks only on critical bugs."
-default_harness_config: codex
+default_harness_config: codex-exec
 system_prompt: system-prompt.md
 agent_instructions: agents.md
 max_turns: 20

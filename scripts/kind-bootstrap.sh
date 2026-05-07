@@ -425,8 +425,9 @@ truthy() {
 
 sync_harness_configs() {
   local pod="$1"
-  local configs=(claude codex gemini)
+  local configs=(claude codex codex-exec gemini)
   local existing=()
+  local repo_existing=()
 
   if [[ -d "$HARNESS_CONFIG_ROOT" ]]; then
     for config in "${configs[@]}"; do
@@ -443,6 +444,19 @@ sync_harness_configs() {
     log "no host harness configs found; using Hub image defaults"
   fi
 
+  if [[ -d "${REPO_ROOT}/deploy/kind/harness-configs" ]]; then
+    for config in "${configs[@]}"; do
+      [[ -d "${REPO_ROOT}/deploy/kind/harness-configs/${config}" ]] && repo_existing+=("$config")
+    done
+  fi
+
+  if [[ "${#repo_existing[@]}" -gt 0 ]]; then
+    log "copy repo-managed harness configs into Hub pod: ${repo_existing[*]}"
+    tar -C "${REPO_ROOT}/deploy/kind/harness-configs" -cf - "${repo_existing[@]}" |
+      kubectl_ctx -n "$NAMESPACE" exec -i "$pod" -c hub -- \
+        tar -C /home/scion/.scion/harness-configs -xf -
+  fi
+
   prepare_hub_harness_configs "$pod"
 
   log "sync harness configs from inside Hub pod"
@@ -453,6 +467,15 @@ sync_harness_configs() {
   for config in "${configs[@]}"; do
     run_in_hub "$pod" "SCION_DEV_TOKEN=${token} SCION_HUB_ENDPOINT=${hub_url} scion harness-config sync ${config} --hub ${hub_url} --non-interactive --yes"
   done
+
+  log "copy prepared harness configs into broker pod"
+  local broker
+  broker="$(broker_pod)"
+  run_in_broker "$broker" "mkdir -p /home/scion/.scion/harness-configs"
+  kubectl_ctx -n "$NAMESPACE" exec "$pod" -c hub -- \
+    tar -C /home/scion/.scion/harness-configs -cf - "${configs[@]}" |
+    kubectl_ctx -n "$NAMESPACE" exec -i "$broker" -c broker -- \
+      tar -C /home/scion/.scion/harness-configs -xf -
 }
 
 sync_templates() {

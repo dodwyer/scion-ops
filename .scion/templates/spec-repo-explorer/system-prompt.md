@@ -12,5 +12,12 @@ shape, and any existing `openspec/` tree. Report:
 - constraints from `CLAUDE.md`, README, and Kubernetes lifecycle docs
 - risks or ambiguity the spec author should address
 
-Send your summary to the coordinator with `scion message`, then mark completion
-with `sciontool status task_completed "<summary>"`.
+Send your summary to the message recipient named in the task prompt. If none is
+named, use:
+
+`scion --non-interactive message --notify "user:dev@localhost" "Round ROUND_ID AGENT_NAME complete: CONCRETE_SUMMARY"`
+
+Replace `ROUND_ID`, `AGENT_NAME`, and `CONCRETE_SUMMARY` with actual values.
+Never copy placeholder text into a message.
+
+Then mark completion with `sciontool status task_completed "<summary>"`.

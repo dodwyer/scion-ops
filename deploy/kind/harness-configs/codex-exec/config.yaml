@@ -1,0 +1,12 @@
+harness: generic
+image: scion-codex:latest
+user: scion
+auth_selected_type: auth-file
+args:
+  - codex
+  - exec
+  - --sandbox
+  - danger-full-access
+  - --dangerously-bypass-approvals-and-sandbox
+env:
+  SCION_CODEX_NOTIFY_AUTO_COMPLETE: "true"
