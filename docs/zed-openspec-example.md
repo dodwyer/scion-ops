@@ -117,26 +117,22 @@ Open Zed's agent panel and paste this exact request:
 ```text
 Use scion-ops on project_root=/home/david/workspace/github/livewyer-ops/scion-ops.
 
-Start a spec round for change=workspace-prune-preview:
+Run a spec round for change=workspace-prune-preview:
 "Specify a dry-run workspace prune operation for MCP-prepared GitHub checkouts. It should list checkout candidates, identify clean inactive checkouts that are safe to delete, refuse dirty checkouts and active round workspaces, and not delete anything in this change. Produce OpenSpec artifacts only."
-
-Monitor it with event watching and report the PR-ready spec branch name.
 ```
 
-The external agent should use these MCP tools:
+The external agent should use this MCP tool:
 
 ```text
-scion_ops_project_status(project_root)
-scion_ops_start_spec_round(project_root, goal, change)
-scion_ops_watch_round_events(round_id, cursor)
-scion_ops_round_artifacts(project_root, round_id)
+scion_ops_run_spec_round(project_root, goal, change)
 ```
 
 Expected result:
 
 - a Scion spec round starts in Hub
 - spec personas create `openspec/changes/workspace-prune-preview/`
-- the finalizer reports a PR-ready spec branch
+- the tool monitors Hub events, validates the remote spec branch, and reports a
+  PR-ready spec branch
 
 ## 5. Review The Spec Branch
 
