@@ -127,12 +127,17 @@ The external agent should use this MCP tool:
 scion_ops_run_spec_round(project_root, goal, change)
 ```
 
+If the response has `done=false`, call the same tool again with the returned
+`next.args`. Each response should be shown to the operator as progress.
+
 Expected result:
 
 - a Scion spec round starts in Hub
+- Zed receives progress snapshots with running/completed agents and health
 - spec personas create `openspec/changes/workspace-prune-preview/`
-- the tool monitors Hub events, validates the remote spec branch, and reports a
-  PR-ready spec branch
+- the external agent repeats the returned `next.args` until `done=true`
+- the final response validates the remote spec branch and reports a PR-ready
+  spec branch
 
 ## 5. Review The Spec Branch
 

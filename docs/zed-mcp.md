@@ -184,9 +184,11 @@ The external agent should make the compact call:
 scion_ops_run_spec_round(project_root, goal, change)
 ```
 
-That tool starts the round, watches Hub events with default monitoring,
-collects pushed branch artifacts, validates the remote spec branch, and returns
-the PR-ready branch or a concrete blocker.
+That tool starts the round, watches briefly, and returns a progress snapshot
+with `status`, `health`, active/completed agents, latest events, validation
+state, and `next.args`. The external agent should call
+`scion_ops_run_spec_round` again with `next.args` until `done=true`. The final
+response returns the PR-ready branch or a concrete blocker.
 
 After the spec PR is merged, ask for implementation from the approved spec:
 

@@ -126,7 +126,7 @@ Hub:
 | `scion_ops_validate_spec_change` | Validate an OpenSpec change folder before implementation starts. |
 | `scion_ops_archive_spec_change` | Archive an accepted change and sync accepted specs. |
 | `scion_ops_start_spec_round` | Start a planning round from `project_root`, `goal`, and optional `change`. |
-| `scion_ops_run_spec_round` | Start, monitor, collect artifacts, and validate a planning round with one compact call. |
+| `scion_ops_run_spec_round` | Start or resume a planning round, returning progress snapshots and final validation. |
 | `scion_ops_start_impl_round` | Start a delivery round from `project_root` and approved `change`. |
 | `scion_ops_start_implementation_round` | Alias for `scion_ops_start_impl_round`. |
 | `scion_ops_round_status` | Read current Hub state for a round. |
@@ -137,7 +137,10 @@ Hub:
 the spec-driven path should prefer the explicit spec and implementation round
 tools so the artifact contract is visible in the request. For Zed and other
 External Agent use, prefer `scion_ops_run_spec_round` unless you need to inspect
-intermediate events manually.
+lower-level events manually. By default it returns after a short watch window
+with progress and `next.args`; callers repeat that call until `done=true`. Set
+`wait_until_complete=true` only for automation where a long blocking request is
+acceptable.
 
 A `spec round` is OpenSpec-only by definition. The round prompt adds the
 artifact-only contract, so users and MCP callers should provide the product goal
