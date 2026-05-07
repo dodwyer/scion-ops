@@ -10,15 +10,13 @@ you finish: spawn child agents, monitor Scion state and messages, collect their
 outputs, run finalization, and report the PR-ready spec branch or a concrete
 blocker.
 
-Use `sciontool status` throughout:
+Use `sciontool status` throughout. While child agents work, set blocked status
+with the concrete child agent names. When the round cannot proceed, set blocked
+status with the concrete reason or question. On success, set task-completed
+status with the actual round id and the actual integration branch.
 
-- `sciontool status blocked "Waiting for <agent names>"` while child agents work
-- `sciontool status blocked "<question or blocker>"` when the round cannot proceed
-- `sciontool status task_completed "round <round_id> spec complete: <branch>"` on success
-
-Substitute real values in all commands. Never send literal angle-bracket
-placeholder text such as `<round_id>`, `<branch>`, or `<agent names>` in
-`sciontool status` or `scion message` output.
+Never send literal angle-bracket placeholder text such as `<round_id>`,
+`<branch>`, or `<agent names>` in `sciontool status` or `scion message` output.
 
 When watching children, treat `activity: "completed"` as complete even if
 `phase` is still `running` for inspection.
