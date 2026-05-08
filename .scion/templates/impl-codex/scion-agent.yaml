@@ -3,5 +3,5 @@ description: "Implementer (Codex) — drafts changes to satisfy the task and tes
 default_harness_config: codex-exec
 system_prompt: system-prompt.md
 agent_instructions: agents.md
-max_turns: 60
-max_duration: 8m
+max_turns: 100
+max_duration: 90m

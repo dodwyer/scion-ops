@@ -1,12 +1,7 @@
 {
-  "context_servers": {
-    "scion-ops": {
-      "command": "sh",
-      "args": [
-        "-lc",
-        "key=\"${SCION_OPS_SSH_KEY:-$HOME/.ssh/id_rsa_workspace}\"; started_agent=0; if [ -z \"${SSH_AUTH_SOCK:-}\" ] || ! ssh-add -l >/dev/null 2>&1; then eval \"$(ssh-agent -s)\" >/dev/null; started_agent=1; ssh-add \"$key\" >/dev/null; fi; ssh -T -A -o LogLevel=ERROR -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o IdentityFile=\"$key\" -o IdentityAgent=\"$SSH_AUTH_SOCK\" david@192.168.122.103 'cd /home/david/workspace/github/livewyer-ops/scion-ops && exec env SCION_OPS_ROOT=/home/david/workspace/github/livewyer-ops/scion-ops /home/david/.local/bin/uv run /home/david/workspace/github/livewyer-ops/scion-ops/mcp_servers/scion_ops.py'; status=$?; if [ \"$started_agent\" = 1 ]; then ssh-agent -k >/dev/null; fi; exit $status"
-      ],
-      "env": {}
+    "context_servers": {
+        "scion-ops": {
+            "url": "http://192.168.122.103:8765/mcp"
+        }
     }
-  }
 }

@@ -32,7 +32,7 @@ case "$REPO_ROOT" in
     SCION_OPS_REPO_NODE_PATH="${SCION_OPS_REPO_NODE_PATH:-${WORKSPACE_NODE_PATH}/scion-ops}"
     ;;
 esac
-KIND_PROVIDER="${KIND_EXPERIMENTAL_PROVIDER:-${SCION_OPS_KIND_PROVIDER:-podman}}"
+KIND_PROVIDER="${KIND_EXPERIMENTAL_PROVIDER:-${SCION_OPS_KIND_PROVIDER:-docker}}"
 KIND_CLUSTER_CONFIG_TEMPLATE="${SCION_OPS_KIND_CLUSTER_CONFIG_TEMPLATE:-${REPO_ROOT}/deploy/kind/cluster.yaml.tpl}"
 KIND_LISTEN_ADDRESS="${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}"
 HUB_HOST_PORT="${SCION_OPS_KIND_HUB_PORT:-18090}"
@@ -74,7 +74,7 @@ Environment:
   SCION_OPS_REPO_NODE_PATH       scion-ops repo path inside the kind node
                                  (default: derived from host/node paths)
   SCION_OPS_KIND_PROVIDER        kind provider when KIND_EXPERIMENTAL_PROVIDER
-                                 is unset (default: podman)
+                                 is unset (default: docker)
   SCION_OPS_KIND_CLUSTER_CONFIG_TEMPLATE
                                  kind cluster template (default: deploy/kind/cluster.yaml.tpl)
   SCION_OPS_KIND_LISTEN_ADDRESS  Host listen address for kind port mappings

@@ -25,6 +25,12 @@ Drive the full protocol before you finish: spawn child agents, monitor Scion
 state and messages, collect their outputs, run finalization, and report the
 PR-ready spec branch or a concrete blocker.
 
+Never say you will "check back", "wake up", or continue later. In `--print`
+mode there is no next coordinator turn after your response exits. If child
+agents are still running, keep control inside this same session with a bounded
+shell loop that sleeps, lists agents, reads messages, and then decides the next
+phase before you produce a final response.
+
 Status updates are optional during intermediate waits. When you do update
 status, `sciontool status` requires two arguments: a status type and a quoted
 message. The message must use the actual current agent names, reason, or branch
@@ -39,6 +45,24 @@ wait only for `activity: "completed"` because Kubernetes agents may finish with
 `phase: "running"`, `activity: "idle"`, and `containerStatus: "Succeeded
 (Completed)"` while kept for inspection.
 
+If you script this check in shell, use substring matching for container status,
+not an anchored regular expression. The safe predicate is:
+
+```sh
+agent_complete() {
+  phase="$1"
+  activity="$2"
+  container_status="$3"
+  case "$activity" in completed) return 0 ;; esac
+  case "$phase" in stopped|deleted|ended|completed) return 0 ;; esac
+  case "$container_status" in *Succeeded*|*Completed*) return 0 ;; esac
+  return 1
+}
+```
+
+Use this predicate or equivalent logic for every child agent. A status string
+like `Succeeded (Completed)` is complete.
+
 ## Inputs
 
 The task prompt includes:
@@ -46,14 +70,17 @@ The task prompt includes:
 - `round_id`
 - `base_branch`
 - `change` (optional; derive a stable kebab-case change name when blank)
+- `scion_profile` (default `kind`; use this for every `scion start`)
 - `project_root`
 - `collection_recipient` (Hub user inbox recipient for child summaries)
 - `original_goal`
 
 All child agents work in the same target project grove. Stay in Hub-backed
-Kubernetes operation. Use `--broker kind-control-plane --harness-auth auth-file
---no-upload --non-interactive --notify` for child agents. For every
-Codex-backed child agent, also pass `--harness-config codex-exec` explicitly.
+Kubernetes operation. Use `scion --profile <scion_profile> start ...` with
+`--broker kind-control-plane --harness-auth auth-file --no-upload
+--non-interactive --notify` for child agents. If `scion_profile` is absent, use
+`kind`. For every Codex-backed child agent, also pass `--harness-config
+codex-exec` explicitly.
 
 ## Branches And Agents
 
@@ -75,8 +102,8 @@ The final PR-ready branch is `round-<round_id>-spec-integration`.
 2. Determine `change`. If the prompt does not provide one, derive a short
    kebab-case name from the goal.
 3. Spawn the goal clarifier and repo explorer in parallel:
-   - `scion start <clarifier> --type spec-goal-clarifier --branch <clarifier> --broker kind-control-plane --harness-auth auth-file --no-upload --non-interactive --notify "<clarifier task>"`
-   - `scion start <explorer> --type spec-repo-explorer --branch <explorer> --broker kind-control-plane --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "<explorer task>"`
+   - `scion --profile <scion_profile> start <clarifier> --type spec-goal-clarifier --branch <clarifier> --broker kind-control-plane --harness-auth auth-file --no-upload --non-interactive --notify "<clarifier task>"`
+   - `scion --profile <scion_profile> start <explorer> --type spec-repo-explorer --branch <explorer> --broker kind-control-plane --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "<explorer task>"`
 4. Wait for both to complete. Require them to send summaries to the Hub user
    inbox, then collect those summaries with `scion messages --all --json`.
 5. Spawn the spec author on `round-<round_id>-spec-author`. The author creates
@@ -96,12 +123,12 @@ The final PR-ready branch is `round-<round_id>-spec-integration`.
    - `git push origin HEAD:round-<round_id>-spec-integration`
 7. Spawn the operations reviewer against a snapshot or the integration branch
    using template `spec-ops-reviewer`:
-   - `scion start <ops_review> --type spec-ops-reviewer --branch <integration_or_snapshot_branch> --broker kind-control-plane --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "<ops review task>"`
+   - `scion --profile <scion_profile> start <ops_review> --type spec-ops-reviewer --branch <integration_or_snapshot_branch> --broker kind-control-plane --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "<ops review task>"`
    Require a JSON verdict sent to the Hub user inbox. The reviewer must check
    OpenSpec structure, implementation readiness, unresolved questions,
    `CLAUDE.md`, Kubernetes-only operation, and task simplicity.
 8. Spawn the spec finalizer on `round-<round_id>-spec-integration`:
-   - `scion start <finalizer> --type spec-finalizer --branch round-<round_id>-spec-integration --broker kind-control-plane --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "<finalizer task>"`
+   - `scion --profile <scion_profile> start <finalizer> --type spec-finalizer --branch round-<round_id>-spec-integration --broker kind-control-plane --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "<finalizer task>"`
    It applies accepted reviewer feedback, preserves the artifact-only boundary,
    commits, pushes, and sends a final summary with:
    - `change`

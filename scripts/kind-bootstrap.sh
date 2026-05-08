@@ -221,10 +221,18 @@ broker_control_channel_ready() {
     grep -q "Connected to Hub control channel"
 }
 
+hub_control_channel_ready() {
+  local pod
+  pod="$(hub_pod)"
+  kubectl_ctx -n "$NAMESPACE" logs "$pod" -c hub 2>/dev/null |
+    grep -q "Broker control channel connected"
+}
+
 broker_connection_ready() {
   local info
   broker_credentials_secret_exists || return 1
   broker_control_channel_ready || return 1
+  hub_control_channel_ready || return 1
 
   if ! info="$(run_scion hub brokers info "$BROKER" --json --non-interactive 2>/dev/null)"; then
     return 1
@@ -390,6 +398,64 @@ PY
   log "prepared Claude config for Scion agent startup"
 }
 
+claude_auth_seconds_until_expiry() {
+  local source="$1"
+  python3 - "$source" <<'PY'
+import json
+import sys
+import time
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text())
+expires_at = data.get("claudeAiOauth", {}).get("expiresAt")
+if not isinstance(expires_at, (int, float)):
+    raise SystemExit("missing claudeAiOauth.expiresAt")
+print(int((expires_at / 1000) - time.time()))
+PY
+}
+
+ensure_claude_auth_fresh() {
+  local source="$1"
+  local min_seconds="${SCION_OPS_CLAUDE_AUTH_MIN_SECONDS:-3600}"
+  local refresh_timeout="${SCION_OPS_CLAUDE_REFRESH_TIMEOUT:-180}"
+  local seconds
+  local err_file
+
+  [[ -f "$source" ]] || die "required credential file not found: $source"
+  seconds="$(claude_auth_seconds_until_expiry "$source")" || \
+    die "Claude auth file is not a recognized subscription credential: $source"
+
+  if (( seconds > min_seconds )); then
+    log "Claude auth access token is valid for ${seconds}s"
+    return 0
+  fi
+
+  if truthy "${SCION_OPS_SKIP_CLAUDE_AUTH_REFRESH:-}"; then
+    die "Claude auth access token expires too soon (${seconds}s); run claude /login, then task bootstrap"
+  fi
+
+  command -v claude >/dev/null 2>&1 || \
+    die "Claude CLI is required to refresh subscription auth; install/login with claude, then task bootstrap"
+
+  log "refresh Claude subscription auth before uploading Hub secret"
+  err_file="$(mktemp "${TMPDIR:-/tmp}/scion-claude-refresh.XXXXXX.err")"
+  if ! timeout "$refresh_timeout" claude --no-chrome --print 'Return exactly: ok' >/dev/null 2>"$err_file"; then
+    local detail
+    detail="$(sed -n '1,3p' "$err_file" | tr '\n' ' ')"
+    rm -f "$err_file"
+    die "Claude auth refresh failed: ${detail:-unknown error}. Run claude /login, then task bootstrap"
+  fi
+  rm -f "$err_file"
+
+  seconds="$(claude_auth_seconds_until_expiry "$source")" || \
+    die "Claude auth file is not readable after refresh: $source"
+  if (( seconds <= min_seconds )); then
+    die "Claude auth refresh did not produce a long-lived access token (${seconds}s remaining); run claude /login, then task bootstrap"
+  fi
+  log "Claude auth refresh complete; access token is valid for ${seconds}s"
+}
+
 prepare_hub_harness_configs() {
   local pod="$1"
   run_in_hub "$pod" "python3 - <<'PY'
@@ -425,7 +491,7 @@ truthy() {
 
 sync_harness_configs() {
   local pod="$1"
-  local configs=(claude codex codex-exec gemini)
+  local configs=(claude codex-exec gemini)
   local existing=()
   local repo_existing=()
 
@@ -538,8 +604,12 @@ main() {
   restart_mcp_for_github_token
   unset token
 
-  set_file_secret CLAUDE_AUTH "${CLAUDE_AUTH_FILE:-${HOME}/.claude/.credentials.json}" "~/.claude/.credentials.json"
-  set_claude_config_secret "${CLAUDE_CONFIG_FILE:-${HOME}/.claude.json}" "~/.claude.json"
+  local claude_auth_file claude_config_file
+  claude_auth_file="${CLAUDE_AUTH_FILE:-${HOME}/.claude/.credentials.json}"
+  claude_config_file="${CLAUDE_CONFIG_FILE:-${HOME}/.claude.json}"
+  ensure_claude_auth_fresh "$claude_auth_file"
+  set_file_secret CLAUDE_AUTH "$claude_auth_file" "~/.claude/.credentials.json"
+  set_claude_config_secret "$claude_config_file" "~/.claude.json"
   set_file_secret CODEX_AUTH "${CODEX_AUTH_FILE:-${HOME}/.codex/auth.json}" "~/.codex/auth.json"
   set_file_secret GEMINI_OAUTH_CREDS "${GEMINI_OAUTH_CREDS_FILE:-${HOME}/.gemini/oauth_creds.json}" "~/.gemini/oauth_creds.json"
   if truthy "${SCION_OPS_BOOTSTRAP_VERTEX_ADC:-}"; then

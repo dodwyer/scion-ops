@@ -8,8 +8,7 @@ revisit before they become hidden assumptions.
 Issue: #57
 
 Decision: keep the supported local Kubernetes deployment as native manifests
-and Kustomize. The dated packaging decision record is
-`docs/kubernetes-packaging.md`.
+and Kustomize.
 
 Reason: the first implementation target is a local kind environment with a
 small resource set, minimal templating requirements, and an existing
@@ -18,13 +17,13 @@ inspectable and avoids designing a chart values API before the resource model is
 proven. Kubernetes is the only supported deployment path; this decision is about
 packaging, not whether the control plane runs in Kubernetes.
 
-Constraint: if configuration expands beyond a small local overlay, or if we
-need install/upgrade lifecycle from the console, move to Helm managed through a
-helmfile rather than ad hoc `helm install` commands.
+Constraint: move to Helm managed through helmfile when one of these is true:
+configuration expands beyond the local overlay, repeated overlays start
+duplicating operational choices, a values schema becomes necessary, or install,
+upgrade, and rollback lifecycle needs to be driven from one operator command.
 
-Exit criteria: re-open the packaging decision when the triggers in
-`docs/kubernetes-packaging.md` are met, especially when a non-kind cluster
-deployment target is added.
+Exit criteria: re-open the packaging decision when the triggers above are met,
+especially when a non-kind cluster deployment target is added.
 
 ## kind Hub Dev Auth
 

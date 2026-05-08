@@ -1,283 +1,142 @@
-# OpenSpec Round Workflow
+# OpenSpec Operations
 
-scion-ops uses OpenSpec as the artifact contract for goal-driven work. The
-Kubernetes control plane remains the execution substrate: MCP receives the
-request, Scion Hub starts the round, the kind broker creates agent pods, and
-round progress is monitored through Hub events.
+scion-ops uses OpenSpec as the contract between planning rounds and
+implementation rounds.
 
-The design goal is simple: a user provides a goal, agents produce an approved
-spec change, then agents implement that approved spec in the same target repo
-context.
+## Artifact Contract
 
-## Alignment
-
-The workflow follows OpenSpec's repo-local model:
+A spec round writes only:
 
 ```text
-openspec/
-  specs/
-    <domain>/spec.md
-  changes/
-    <change>/
-      proposal.md
-      design.md
-      tasks.md
-      specs/
-        <domain>/spec.md
+openspec/changes/<change>/proposal.md
+openspec/changes/<change>/design.md
+openspec/changes/<change>/tasks.md
+openspec/changes/<change>/specs/**/spec.md
 ```
 
-`openspec/specs/` is the accepted source of truth for current behavior.
-`openspec/changes/<change>/` is the reviewable package for one proposed
-change. Delta specs describe added, modified, or removed requirements rather
-than restating the whole system.
+It must not implement code, tests, manifests, product docs, or runtime scripts.
 
-scion-ops uses this layout in the target project, not in scion-ops, unless
-scion-ops itself is the target project. OpenSpec coordination workspaces are
-out of scope for now; the repo-local layout is the durable default for one repo
-owning its planning, implementation, and archive flow.
+`tasks.md` must use checkbox tasks. At least one delta spec must include one of:
 
-## Artifacts
+- `## ADDED Requirements`
+- `## MODIFIED Requirements`
+- `## REMOVED Requirements`
 
-Each spec change folder contains:
+Delta specs use:
 
-| Artifact | Purpose |
-|---|---|
-| `proposal.md` | Intent, scope, non-goals, and user-visible outcome. |
-| `specs/<domain>/spec.md` | Behavior deltas with requirements and scenarios. |
-| `design.md` | Technical approach, tradeoffs, affected areas, and verification strategy. |
-| `tasks.md` | Implementation checklist with small, verifiable tasks. |
+- `### Requirement: <name>`
+- `#### Scenario: <name>`
 
-Specs state observable behavior. Design captures implementation choices. Tasks
-are the execution checklist. Reviewers judge conformance against these
-artifacts, not only the original chat prompt.
+## Shell Workflow
 
-## Personas
-
-Spec rounds use planning-focused roles:
-
-| Persona | Responsibility |
-|---|---|
-| Goal analyst | Normalize the user's goal, infer the smallest useful change, and name the change. |
-| Spec author | Draft proposal, delta specs, design, and tasks. |
-| Spec reviewer | Check clarity, scope control, testability, and OpenSpec layout. |
-| Spec integrator | Combine accepted drafts into one spec branch. |
-| Final spec reviewer | Accept or reject the integrated spec package before a spec PR. |
-
-Implementation rounds use delivery-focused roles:
-
-| Persona | Responsibility |
-|---|---|
-| Implementation planner | Read the approved change folder and select the next unchecked task set. |
-| Implementer | Make code and documentation changes against the approved artifacts. |
-| Implementation reviewer | Check correctness, task completion, and spec conformance. |
-| Implementation integrator | Combine accepted implementation branches and update `tasks.md`. |
-| Final implementation reviewer | Accept or reject the integrated branch before an implementation PR. |
-
-The same model providers can fill these roles, but their prompts differ:
-planning roles must avoid code changes unless requested; implementation roles
-must treat the approved artifact set as the contract.
-
-Spec-driven reviewer verdicts use the same base `verdict.json` shape as direct
-implementation rounds, with optional `review_type` and `spec` fields. Existing
-non-spec verdicts may omit those fields. Spec-driven verdicts include
-conformance, spec completeness, task coverage, operational verification,
-checked artifacts, unresolved questions, and gaps.
-
-## State Transitions
-
-```text
-goal
-  -> spec round requested
-  -> openspec/changes/<change>/ drafted
-  -> spec review accepted
-  -> spec PR opened
-  -> spec PR merged by human
-  -> implementation round requested for <change>
-  -> implementation branches created
-  -> implementation review accepted
-  -> implementation PR opened
-  -> implementation PR merged by human
-  -> archive/sync lifecycle applies accepted deltas to openspec/specs
-```
-
-The human merge between the spec PR and implementation PR is intentional. It
-keeps ambiguous goals from becoming code before the artifacts are accepted.
-
-Implementation rounds start from the merged spec branch and consume the change
-folder by `change` name. They should not rewrite the spec intent unless
-implementation discovers a real conflict; in that case the round updates the
-artifacts and reports the reason.
-
-Archive and accepted-spec sync completes the lifecycle. Active change folders
-represent work still in progress. Archived folders represent accepted history.
-The accepted spec markers in `openspec/specs/` make completed deltas
-discoverable by future rounds without scanning active work.
-
-## MCP Entry Points
-
-The MCP server owns orchestration entry points and leaves execution to Scion
-Hub:
-
-| Tool | Responsibility |
-|---|---|
-| `scion_ops_prepare_github_repo` | Resolve a GitHub URL into a visible local checkout before status or round start. |
-| `scion_ops_project_status` | Confirm target project root, branch, origin, Hub link, and git status. |
-| `scion_ops_spec_status` | List OpenSpec changes and validate a selected change. |
-| `scion_ops_validate_spec_change` | Validate an OpenSpec change folder before implementation starts. |
-| `scion_ops_archive_spec_change` | Archive an accepted change and sync accepted specs. |
-| `scion_ops_start_spec_round` | Start a planning round from `project_root`, `goal`, and optional `change`. |
-| `scion_ops_run_spec_round` | Start or resume a planning round, returning progress snapshots and final validation. |
-| `scion_ops_start_impl_round` | Start a delivery round from `project_root` and approved `change`. |
-| `scion_ops_start_implementation_round` | Alias for `scion_ops_start_impl_round`. |
-| `scion_ops_round_status` | Read current Hub state for a round. |
-| `scion_ops_watch_round_events` | Stream state changes and task summaries without polling sleeps. |
-| `scion_ops_round_artifacts` | Discover pushed branches and PR-ready outputs for a round. |
-
-`scion_ops_start_round` remains useful for direct implementation prompts, but
-the spec-driven path should prefer the explicit spec and implementation round
-tools so the artifact contract is visible in the request. For Zed and other
-External Agent use, prefer `scion_ops_run_spec_round` unless you need to inspect
-lower-level events manually. By default it returns after a short watch window
-with progress and `next.args`; callers repeat that call until `done=true`. Set
-`wait_until_complete=true` only for automation where a long blocking request is
-acceptable.
-
-A `spec round` is OpenSpec-only by definition. The round prompt adds the
-artifact-only contract, so users and MCP callers should provide the product goal
-without repeating "Produce OpenSpec artifacts only."
-
-## Validation
-
-Use the validator before an implementation round starts:
-
-```bash
-task spec:validate -- --project-root /path/to/project --change <change>
-```
-
-The validator checks that `openspec/changes/<change>/` exists, that
-`proposal.md`, `design.md`, and `tasks.md` are present and non-empty, that
-`tasks.md` includes checkbox tasks, and that at least one
-`specs/**/spec.md` delta spec contains requirements and scenarios.
-
-MCP clients use the same validation path through
-`scion_ops_validate_spec_change(project_root, change)`.
-
-## Spec Round Launch
-
-Use `task spec:round` to launch the spec-building personas against the selected
-target project:
+Start a spec round:
 
 ```bash
 task bootstrap -- /path/to/project
-SCION_OPS_PROJECT_ROOT=/path/to/project task spec:round -- "draft the spec goal"
+
+SCION_OPS_PROJECT_ROOT=/path/to/project \
+SCION_OPS_SPEC_CHANGE=add-widget \
+task spec:round -- "Specify the widget behavior."
 ```
 
-Optionally provide a stable change name:
+Render the prompt without starting agents:
 
 ```bash
 SCION_OPS_PROJECT_ROOT=/path/to/project \
 SCION_OPS_SPEC_CHANGE=add-widget \
-task spec:round -- "draft the spec goal"
+task spec:round:dry-run -- "Specify the widget behavior."
 ```
 
-For a no-model prompt rendering check:
+Validate artifacts:
 
 ```bash
-task spec:round:dry-run -- "draft the spec goal"
+task spec:validate -- --project-root /path/to/project --change add-widget
 ```
 
-The rendered prompt restricts the round to `openspec/changes/<change>/` and
-forbids code, tests, manifests, product docs, or runtime changes.
-
-The spec round uses these templates:
-
-| Template | Role |
-|---|---|
-| `spec-consensus-runner` | Coordinates the spec protocol and final branch. |
-| `spec-goal-clarifier` | Narrows scope, assumptions, and blocking questions. |
-| `spec-repo-explorer` | Inspects the target repo so the spec follows local patterns. |
-| `spec-author` | Writes only `openspec/changes/<change>/` artifacts. |
-| `spec-ops-reviewer` | Checks OpenSpec structure and operational fit. |
-| `spec-finalizer` | Produces the PR-ready spec integration branch. |
-
-## Implementation From Spec
-
-After the spec PR is merged, start implementation from the approved change
-folder:
+Start implementation after the spec PR is merged:
 
 ```bash
 task bootstrap -- /path/to/project
+
 SCION_OPS_PROJECT_ROOT=/path/to/project \
-task spec:implement -- --change <change> "implement the approved change"
+task spec:implement -- --change add-widget "Implement the approved change."
 ```
 
-`task spec:implement` validates `openspec/changes/<change>/` before it starts
-the round. Missing or invalid artifacts fail before any agent is launched. The
-implementation prompt names the approved artifact paths and requires agents to
-read them before editing, update `tasks.md` checkboxes, and treat spec drift as
-a blocking review issue.
-
-For a no-model prompt rendering check against a valid artifact tree:
+Render the implementation prompt without starting agents:
 
 ```bash
 SCION_OPS_PROJECT_ROOT=/path/to/project \
-task spec:implement:dry-run -- --change <change> "implement the approved change"
+task spec:implement:dry-run -- --change add-widget "Implement the approved change."
 ```
 
-## Archive Lifecycle
-
-After the implementation PR is accepted, archive the completed change:
+Archive after the implementation PR is merged:
 
 ```bash
-task spec:archive -- --project-root /path/to/project --change <change>
-task spec:archive -- --project-root /path/to/project --change <change> --yes
+task spec:archive -- --project-root /path/to/project --change add-widget
+task spec:archive -- --project-root /path/to/project --change add-widget --yes
 ```
 
-The first command is a dry run. The `--yes` command validates the active change,
-syncs each accepted delta spec into `openspec/specs/**/spec.md` under a
-`scion-ops:accepted-change` marker, then moves the change folder to
-`openspec/changes/archive/YYYY-MM-DD-<change>/`.
+The archive command syncs accepted delta specs into `openspec/specs/` and moves
+the change folder under `openspec/changes/archive/`.
 
-MCP clients use the same flow with
-`scion_ops_archive_spec_change(project_root, change, confirm=false)` for a plan
-and `confirm=true` to apply. `scion_ops_spec_status` reports active and
-archived changes.
+## MCP Workflow
 
-## PR Flow
+For Zed and other MCP clients, keep the request small:
 
-Spec PR:
+```text
+Use scion-ops on project_root=/path/to/project.
 
-- Branch name: `round-<round>-spec-integration` or equivalent Scion round branch.
-- Changes: only `openspec/changes/<change>/` artifacts unless the target repo
-  already requires supporting docs.
-- Verification: artifact validation and nearest cheap repo verification.
-- Merge gate: human review.
+Run a spec round for change=add-widget:
+"Specify the widget behavior."
+```
 
-Implementation PR:
+The external agent should call `scion_ops_run_spec_round`. That tool starts or
+resumes the round, watches for progress, validates the artifact branch, and
+returns the PR-ready branch when done. Re-call it with `next.args` until
+`done=true`.
 
-- Branch name: `round-<round>-implementation-integration` or equivalent Scion
-  round branch.
-- Changes: code, docs, tests, and checked tasks in `openspec/changes/<change>/tasks.md`.
-- Verification: the approved change's task checks plus the target repo's
-  standard test command.
-- Merge gate: human review.
+Implementation request:
 
-## First Implementation Slice
+```text
+Use scion-ops on project_root=/path/to/project.
 
-Issue #45 is the first implementation slice after this design lands. It should
-add the OpenSpec-style artifact layout and validation support with the smallest
-useful scope:
+Validate change=add-widget, then start an implementation round from that
+approved spec:
+"Implement the approved change."
+```
 
-- document the target layout expected by scion-ops rounds
-- add a lightweight validator for required artifacts and basic headings
-- keep validation local to repo files and cheap enough for `task verify`
-- avoid adding OpenSpec CLI installation or MCP round tools in this slice
+Archive request:
 
-Issues #46 through #50 then layer on personas, implementation templates, MCP
-entry points, spec-conformance verdicts, and archive/sync lifecycle.
+```text
+Use scion-ops on project_root=/path/to/project.
 
-## Known Issues
+Archive accepted OpenSpec change=add-widget and show the plan only.
+```
 
-No new exception is introduced by this design. The first slice deliberately
-keeps OpenSpec CLI installation out of the runtime images until the validation
-and prompt contract prove that a dependency is needed.
+Apply archive only when the plan is correct:
+
+```text
+Apply the OpenSpec archive for change=add-widget with confirm=true.
+```
+
+## Review Requirements
+
+Spec PR review checks:
+
+- only `openspec/changes/<change>/` artifacts changed
+- `proposal.md`, `design.md`, `tasks.md`, and at least one delta spec exist
+- requirements and scenarios are concrete enough to implement
+- unresolved questions are explicit
+- operational verification expectations are represented in `tasks.md`
+
+Implementation PR review checks:
+
+- implementation follows the approved artifacts
+- `tasks.md` is updated for completed work
+- scope drift is treated as blocking
+- target repo verification passed
+
+## Runtime Dependency Policy
+
+Validation remains repo-local and script-based. Do not add the OpenSpec CLI to
+runtime images unless the current validator leaves a concrete validation gap.

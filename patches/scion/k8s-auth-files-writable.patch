@@ -1,0 +1,241 @@
+diff --git a/pkg/runtime/k8s_parity_test.go b/pkg/runtime/k8s_parity_test.go
+--- a/pkg/runtime/k8s_parity_test.go
++++ b/pkg/runtime/k8s_parity_test.go
+@@ -223,18 +223,31 @@ func TestBuildPod_ResolvedAuth_NoHostPath(t *testing.T) {
+ 		t.Error("expected auth-files volume")
+ 	}
+ 
+-	// Should have volume mount at expanded target path
++	// Auth files are mounted once at a staging path and copied into the
++	// harness home before startup so CLI tools can mutate their auth state.
+ 	foundMount := false
+ 	for _, vm := range pod.Spec.Containers[0].VolumeMounts {
+-		if vm.Name == "auth-files" && vm.MountPath == "/home/scion/.config/gcloud/adc.json" {
++		if vm.Name == "auth-files" && vm.MountPath == k8sAuthFilesMountPath {
+ 			foundMount = true
+-			if vm.SubPath != "auth-file-0" {
+-				t.Errorf("expected SubPath auth-file-0, got %s", vm.SubPath)
++			if vm.SubPath != "" {
++				t.Errorf("expected whole Secret volume mount, got SubPath %s", vm.SubPath)
++			}
++			if !vm.ReadOnly {
++				t.Error("expected auth-files staging mount to be read-only")
+ 			}
+ 		}
+ 	}
+ 	if !foundMount {
+-		t.Error("expected auth-files volume mount at /home/scion/.config/gcloud/adc.json")
++		t.Errorf("expected auth-files volume mount at %s", k8sAuthFilesMountPath)
++	}
++
++	gateCmd := pod.Spec.Containers[0].Command[2]
++	if !strings.Contains(gateCmd, "copy_auth_file") {
++		t.Fatalf("expected startup gate to copy auth files, got: %s", gateCmd)
++	}
++	if !strings.Contains(gateCmd, "/var/run/scion/auth-files/auth-file-0") ||
++		!strings.Contains(gateCmd, "/home/scion/.config/gcloud/adc.json") {
++		t.Fatalf("startup gate does not copy auth file into target path: %s", gateCmd)
+ 	}
+ }
+ 
+diff --git a/pkg/runtime/k8s_runtime.go b/pkg/runtime/k8s_runtime.go
+--- a/pkg/runtime/k8s_runtime.go
++++ b/pkg/runtime/k8s_runtime.go
+@@ -637,6 +637,76 @@ func sharedDirPVCName(groveName, dirName string) string {
+ // defaultSharedDirSize is the default PVC size when not specified in settings.
+ const defaultSharedDirSize = "10Gi"
+ 
++const (
++	k8sAuthFilesMountPath    = "/var/run/scion/auth-files"
++	k8sAgentSecretsMountPath = "/var/run/scion/agent-secrets"
++	k8sCSISecretsMountPath   = "/mnt/secrets-store"
++)
++
++type k8sAuthFileCopy struct {
++	Source string
++	Target string
++}
++
++func k8sResolvedAuthFileCopies(files []api.FileMapping, containerHome string) []k8sAuthFileCopy {
++	copies := make([]k8sAuthFileCopy, 0, len(files))
++	for i, f := range files {
++		copies = append(copies, k8sAuthFileCopy{
++			Source: fmt.Sprintf("%s/auth-file-%d", k8sAuthFilesMountPath, i),
++			Target: expandTildeTarget(f.ContainerPath, containerHome),
++		})
++	}
++	return copies
++}
++
++func k8sAuthSecretFileTarget(s api.ResolvedSecret, containerHome string) (string, bool) {
++	target := expandTildeTarget(s.Target, containerHome)
++	switch {
++	case s.Name == "gcloud-adc" ||
++		strings.HasSuffix(target, "/application_default_credentials.json"),
++		s.Name == "GEMINI_OAUTH_CREDS" ||
++			strings.HasSuffix(target, "/oauth_creds.json"),
++		s.Name == "CLAUDE_AUTH" ||
++			strings.HasSuffix(target, "/.claude/.credentials.json"),
++		s.Name == "CLAUDE_CONFIG" ||
++			strings.HasSuffix(target, "/.claude.json"),
++		s.Name == "CODEX_AUTH" ||
++			strings.HasSuffix(target, "/.codex/auth.json"),
++		s.Name == "OPENCODE_AUTH" ||
++			strings.HasSuffix(target, "/opencode/auth.json"):
++		return target, true
++	default:
++		return "", false
++	}
++}
++
++func k8sAuthFileBootstrapCommand(copies []k8sAuthFileCopy) string {
++	if len(copies) == 0 {
++		return ""
++	}
++
++	var b strings.Builder
++	b.WriteString(`copy_auth_file() {
++  src="$1"
++  dst="$2"
++  if [ ! -f "$src" ]; then
++    echo "missing auth file source: $src" >&2
++    exit 1
++  fi
++  dst_dir="$(dirname "$dst")"
++  owner="${SCION_HOST_UID:-1000}:${SCION_HOST_GID:-1000}"
++  mkdir -p "$dst_dir"
++  cp "$src" "$dst"
++  chmod 600 "$dst" 2>/dev/null || true
++  chown "$owner" "$dst_dir" "$dst" 2>/dev/null || true
++}
++`)
++	for _, copy := range copies {
++		fmt.Fprintf(&b, "copy_auth_file %s %s\n", shellQuoteArg(copy.Source), shellQuoteArg(copy.Target))
++	}
++	return b.String()
++}
++
+ // createSharedDirPVCs ensures PVCs exist for all declared shared directories.
+ // PVCs are grove-scoped and persist across agent restarts. If a PVC already
+ // exists (from a previous agent in the same grove), it is reused.
+@@ -778,8 +848,11 @@ func (r *KubernetesRuntime) buildPod(namespace string, config RunConfig) (*corev
+ 	//   4. Gate detects marker → exec sciontool init -- sh -c "$SCION_START_CMD"
+ 	//   5. sciontool init sets up user, drops privileges, launches tmux
+ 	//
+-	gateCmd := `while [ ! -f /tmp/.scion-home-ready ]; do sleep 0.2; done; exec sciontool init -- sh -c "$SCION_START_CMD"`
+-	cmd = []string{"sh", "-c", gateCmd}
++	containerHome := fmt.Sprintf("/home/%s", config.UnixUsername)
++	var authFileCopies []k8sAuthFileCopy
++	if config.ResolvedAuth != nil {
++		authFileCopies = append(authFileCopies, k8sResolvedAuthFileCopies(config.ResolvedAuth.Files, containerHome)...)
++	}
+ 
+ 	// Env Resolution — match local runtimes by including harness env + telemetry env.
+ 	envVars := []corev1.EnvVar{
+@@ -849,7 +922,7 @@ func (r *KubernetesRuntime) buildPod(namespace string, config RunConfig) (*corev
+ 			})
+ 			extraVolumeMounts = append(extraVolumeMounts, corev1.VolumeMount{
+ 				Name:      "secrets-store",
+-				MountPath: "/mnt/secrets-store",
++				MountPath: k8sCSISecretsMountPath,
+ 				ReadOnly:  true,
+ 			})
+ 
+@@ -867,6 +940,13 @@ func (r *KubernetesRuntime) buildPod(namespace string, config RunConfig) (*corev
+ 					})
+ 				case "file":
+ 					target := expandTildeTarget(s.Target, fmt.Sprintf("/home/%s", config.UnixUsername))
++					if copyTarget, ok := k8sAuthSecretFileTarget(s, containerHome); ok {
++						authFileCopies = append(authFileCopies, k8sAuthFileCopy{
++							Source: filepath.Join(k8sCSISecretsMountPath, s.Name),
++							Target: copyTarget,
++						})
++						continue
++					}
+ 					extraVolumeMounts = append(extraVolumeMounts, corev1.VolumeMount{
+ 						Name:      "secrets-store",
+ 						MountPath: target,
+@@ -879,6 +959,7 @@ func (r *KubernetesRuntime) buildPod(namespace string, config RunConfig) (*corev
+ 			// Fallback path: K8s Secret with secretKeyRef for env, volume subPath for files
+ 			hasFileSecrets := false
+ 			hasVariableSecrets := false
++			hasAuthFileSecrets := false
+ 			for _, s := range config.ResolvedSecrets {
+ 				switch s.Type {
+ 				case "environment":
+@@ -893,6 +974,9 @@ func (r *KubernetesRuntime) buildPod(namespace string, config RunConfig) (*corev
+ 					})
+ 				case "file":
+ 					hasFileSecrets = true
++					if _, ok := k8sAuthSecretFileTarget(s, containerHome); ok {
++						hasAuthFileSecrets = true
++					}
+ 				case "variable":
+ 					hasVariableSecrets = true
+ 				}
+@@ -909,9 +993,24 @@ func (r *KubernetesRuntime) buildPod(namespace string, config RunConfig) (*corev
+ 				})
+ 			}
+ 
++			if hasAuthFileSecrets {
++				extraVolumeMounts = append(extraVolumeMounts, corev1.VolumeMount{
++					Name:      "agent-secrets",
++					MountPath: k8sAgentSecretsMountPath,
++					ReadOnly:  true,
++				})
++			}
++
+ 			for _, s := range config.ResolvedSecrets {
+ 				if s.Type == "file" {
+ 					target := expandTildeTarget(s.Target, fmt.Sprintf("/home/%s", config.UnixUsername))
++					if copyTarget, ok := k8sAuthSecretFileTarget(s, containerHome); ok {
++						authFileCopies = append(authFileCopies, k8sAuthFileCopy{
++							Source: filepath.Join(k8sAgentSecretsMountPath, s.Name),
++							Target: copyTarget,
++						})
++						continue
++					}
+ 					extraVolumeMounts = append(extraVolumeMounts, corev1.VolumeMount{
+ 						Name:      "agent-secrets",
+ 						MountPath: target,
+@@ -939,7 +1038,6 @@ func (r *KubernetesRuntime) buildPod(namespace string, config RunConfig) (*corev
+ 		for k, v := range config.ResolvedAuth.EnvVars {
+ 			envVars = append(envVars, corev1.EnvVar{Name: k, Value: v})
+ 		}
+-		containerHome := fmt.Sprintf("/home/%s", config.UnixUsername)
+ 		if len(config.ResolvedAuth.Files) > 0 {
+ 			volName := "auth-files"
+ 			extraVolumes = append(extraVolumes, corev1.Volume{
+@@ -950,16 +1048,11 @@ func (r *KubernetesRuntime) buildPod(namespace string, config RunConfig) (*corev
+ 					},
+ 				},
+ 			})
+-			for i, f := range config.ResolvedAuth.Files {
+-				target := expandTildeTarget(f.ContainerPath, containerHome)
+-				keyName := fmt.Sprintf("auth-file-%d", i)
+-				extraVolumeMounts = append(extraVolumeMounts, corev1.VolumeMount{
+-					Name:      volName,
+-					MountPath: target,
+-					SubPath:   keyName,
+-					ReadOnly:  true,
+-				})
+-			}
++			extraVolumeMounts = append(extraVolumeMounts, corev1.VolumeMount{
++				Name:      volName,
++				MountPath: k8sAuthFilesMountPath,
++				ReadOnly:  true,
++			})
+ 		}
+ 	}
+ 
+@@ -968,6 +1061,10 @@ func (r *KubernetesRuntime) buildPod(namespace string, config RunConfig) (*corev
+ 		envVars = append(envVars, corev1.EnvVar{Name: telemetryGCPCredentialsEnvVar, Value: credPath})
+ 	}
+ 
++	authFileBootstrap := k8sAuthFileBootstrapCommand(authFileCopies)
++	gateCmd := fmt.Sprintf(`while [ ! -f /tmp/.scion-home-ready ]; do sleep 0.2; done; %sexec sciontool init -- sh -c "$SCION_START_CMD"`, authFileBootstrap)
++	cmd = []string{"sh", "-c", gateCmd}
++
+ 	// Pass host user UID/GID for container user synchronization
+ 	envVars = append(envVars, corev1.EnvVar{Name: "SCION_HOST_UID", Value: fmt.Sprintf("%d", os.Getuid())})
+ 	envVars = append(envVars, corev1.EnvVar{Name: "SCION_HOST_GID", Value: fmt.Sprintf("%d", os.Getgid())})
