@@ -14,9 +14,8 @@ import asyncio
 import os
 from pathlib import Path
 
-from mcp import ClientSession, StdioServerParameters
+from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
-from mcp.client.stdio import stdio_client
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -59,20 +58,6 @@ async def _exercise_session(session: ClientSession) -> set[str]:
     print(_text(hub)[:1000])
     print(_text(agents)[:1000])
     return names
-
-
-async def _smoke_stdio() -> None:
-    env = os.environ.copy()
-    env["SCION_OPS_ROOT"] = str(ROOT)
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
-    params = StdioServerParameters(
-        command="uv",
-        args=["run", str(ROOT / "mcp_servers" / "scion_ops.py")],
-        env=env,
-    )
-    async with stdio_client(params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await _exercise_session(session)
 
 
 async def _smoke_http(url: str) -> None:
@@ -139,7 +124,7 @@ async def _wait_for_http(
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--transport", choices=("stdio", "http"), default="stdio")
+    parser.add_argument("--transport", choices=("http",), default="http")
     parser.add_argument("--url", default=os.environ.get("SCION_OPS_MCP_URL", DEFAULT_URL))
     parser.add_argument(
         "--start-server",
@@ -155,11 +140,6 @@ def _parser() -> argparse.ArgumentParser:
 
 async def main() -> None:
     args = _parser().parse_args()
-    if args.transport == "stdio":
-        print("transport=stdio")
-        await _smoke_stdio()
-        return
-
     print("transport=http")
     print(f"url={args.url}")
     process = None

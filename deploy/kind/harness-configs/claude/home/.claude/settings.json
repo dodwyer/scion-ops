@@ -1,0 +1,113 @@
+{
+  "autoUpdater": {
+    "disabled": true
+  },
+  "gitAttribution": false,
+  "hooks": {
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "command": "sciontool hook --dialect=claude",
+            "name": "scion-status",
+            "type": "command"
+          }
+        ],
+        "matcher": "ToolPermission"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "sciontool hook --dialect=claude",
+            "name": "scion-status",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "sciontool hook --dialect=claude",
+            "name": "scion-status",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "command": "sciontool hook --dialect=claude",
+            "name": "scion-status",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "sciontool hook --dialect=claude",
+            "name": "scion-status",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "sciontool hook --dialect=claude",
+            "name": "scion-status",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "command": "sciontool hook --dialect=claude",
+            "name": "scion-status",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "sciontool hook --dialect=claude",
+            "name": "scion-status",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ]
+  },
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "allow": [
+      "*"
+    ]
+  },
+  "telemetry": {
+    "enabled": false
+  }
+}

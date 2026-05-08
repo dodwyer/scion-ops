@@ -39,6 +39,7 @@ from mcp.server.fastmcp import FastMCP
 ROOT = Path(os.environ.get("SCION_OPS_ROOT", Path(__file__).resolve().parents[1])).resolve()
 DEFAULT_TIMEOUT_SECONDS = 45
 NAME_RE = re.compile(r"^[A-Za-z0-9._:/@+-]+$")
+ANSI_RE = re.compile(r"\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\)|[()][A-Za-z0-9])")
 DEFAULT_HOST_WORKSPACE_ROOT = "/home/david/workspace"
 DEFAULT_CONTAINER_WORKSPACE_ROOT = "/workspace"
 DEFAULT_REPO_CHECKOUT_SUBDIR = "github"
@@ -197,6 +198,49 @@ def _command_result(result: dict[str, Any]) -> dict[str, Any]:
         "source": "shell",
         "error_kind": _classify_command_failure(result.get("command", []), result.get("output", "")),
     }
+
+
+def _kubernetes_namespace() -> str:
+    namespace = os.environ.get("SCION_K8S_NAMESPACE", "").strip()
+    if namespace:
+        return namespace
+    ns_file = Path("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+    if ns_file.exists():
+        text = ns_file.read_text(errors="replace").strip()
+        if text:
+            return text
+    return "scion-agents"
+
+
+def _kubectl_context_args() -> list[str]:
+    context = os.environ.get("SCION_OPS_KUBE_CONTEXT", "").strip() or os.environ.get("KIND_CONTEXT", "").strip()
+    return ["--context", context] if context else []
+
+
+def _kubectl_agent_logs(agent_name: str, num_lines: int) -> dict[str, Any]:
+    args = [
+        "kubectl",
+        *_kubectl_context_args(),
+        "-n",
+        _kubernetes_namespace(),
+        "logs",
+        agent_name,
+        "--tail",
+        str(num_lines),
+    ]
+    result = _run(args, timeout=35)
+    if isinstance(result.get("output"), str):
+        result["output"] = ANSI_RE.sub("", result["output"])
+    return result
+
+
+def _looks_like_missing_terminal_output(result: dict[str, Any]) -> bool:
+    output = str(result.get("output") or "").lower()
+    return (
+        not result.get("ok")
+        and "failed to capture terminal output" in output
+        and ("not_found" in output or "resource not found" in output)
+    )
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
@@ -945,6 +989,7 @@ def _agent_fingerprint(agent: dict[str, Any]) -> str:
         "slug": agent.get("slug"),
         "phase": agent.get("phase"),
         "activity": agent.get("activity"),
+        "containerStatus": agent.get("containerStatus"),
         "taskSummary": agent.get("taskSummary"),
         "template": agent.get("template"),
         "harnessConfig": agent.get("harnessConfig"),
@@ -1048,7 +1093,143 @@ def _round_events_since(
     return events
 
 
-def _round_terminal_status(snapshot: dict[str, Any]) -> dict[str, Any] | None:
+def _message_text(item: dict[str, Any]) -> str:
+    return str(item.get("msg") or item.get("message") or item.get("summary") or "")
+
+
+def _parse_json_object(text: str) -> dict[str, Any]:
+    text = text.strip()
+    if not text:
+        return {}
+    candidates = [text]
+    start = text.find("{")
+    end = text.rfind("}")
+    if start >= 0 and end > start:
+        candidates.append(text[start : end + 1])
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    return {}
+
+
+def _final_review_agents(agents: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        agent
+        for agent in agents
+        if str(agent.get("template") or "").startswith("final-reviewer-")
+        or str(agent.get("name") or agent.get("slug") or "").endswith("-final-review")
+    ]
+
+
+def _normalize_final_verdict(value: Any) -> str:
+    verdict = str(value or "").strip().lower()
+    if verdict in {"accept", "accepted", "success", "pass", "passed"}:
+        return "accept"
+    if verdict in {"reject", "rejected", "request_changes", "changes_requested", "revise", "blocked", "fail", "failed"}:
+        return "request_changes"
+    return verdict
+
+
+def _final_review_outcome(snapshot: dict[str, Any]) -> dict[str, Any]:
+    agents = snapshot.get("agents", [])
+    final_agents = _final_review_agents(agents)
+    final_names = {
+        str(value)
+        for agent in final_agents
+        for value in (agent.get("name"), agent.get("slug"), agent.get("id"))
+        if value
+    }
+    candidates: list[dict[str, Any]] = []
+    for item in snapshot.get("messages", []):
+        payload = _parse_json_object(_message_text(item))
+        if not payload:
+            continue
+        reviewer = str(payload.get("reviewer") or "").lower()
+        branch = str(payload.get("branch") or payload.get("target_branch") or "").lower()
+        sender = str(item.get("sender") or item.get("senderId") or item.get("agentId") or "")
+        is_final = (
+            reviewer.startswith("final-")
+            or "final-review" in branch
+            or any(name and name in sender for name in final_names)
+        )
+        if not is_final or "verdict" not in payload:
+            continue
+        created = _parse_timestamp(item.get("createdAt") or item.get("created") or item.get("updated"))
+        candidates.append({
+            "source": "final_review_message",
+            "agent": sender.removeprefix("agent:") or payload.get("reviewer") or "",
+            "created": created.isoformat() if created else "",
+            "verdict": str(payload.get("verdict") or ""),
+            "normalized_verdict": _normalize_final_verdict(payload.get("verdict")),
+            "test_results": str(payload.get("test_results") or ""),
+            "branch": str(payload.get("branch") or payload.get("target_branch") or ""),
+            "blocking_issues": payload.get("blocking_issues") if isinstance(payload.get("blocking_issues"), list) else [],
+            "notes": _short_text(payload.get("notes"), limit=500),
+        })
+
+    if candidates:
+        candidates.sort(key=lambda item: item.get("created") or "")
+        latest = candidates[-1]
+        latest["status"] = "accepted" if latest["normalized_verdict"] == "accept" else "blocked"
+        return latest
+
+    for agent in final_agents:
+        summary = str(agent.get("taskSummary") or "")
+        match = re.search(r"final verdict:\s*([A-Za-z_ -]+)", summary, flags=re.IGNORECASE)
+        if not match:
+            continue
+        normalized = _normalize_final_verdict(match.group(1))
+        return {
+            "source": "final_review_summary",
+            "agent": agent.get("name") or agent.get("slug") or "",
+            "created": agent.get("updated") or "",
+            "verdict": match.group(1).strip(),
+            "normalized_verdict": normalized,
+            "test_results": "",
+            "branch": "",
+            "blocking_issues": [],
+            "notes": "",
+            "status": "accepted" if normalized == "accept" else "blocked",
+        }
+    return {}
+
+
+def _round_outcome(snapshot: dict[str, Any]) -> dict[str, Any]:
+    final_review = _final_review_outcome(snapshot)
+    if final_review:
+        return {
+            "status": final_review["status"],
+            "source": final_review["source"],
+            "final_review": final_review,
+        }
+
+    terminal = _round_terminal_status_from_consensus(snapshot)
+    if terminal:
+        summary = str(terminal.get("taskSummary") or "")
+        status = "completed"
+        summary_lower = summary.lower()
+        if (
+            "escalated:" in summary_lower
+            or summary_lower.startswith("escalate:")
+            or "blocked" in summary_lower
+            or "request_changes" in summary_lower
+        ):
+            status = "blocked"
+        elif not summary.strip():
+            status = "unknown"
+        return {
+            "status": status,
+            "source": "consensus",
+            "consensus": terminal,
+        }
+    return {}
+
+
+def _round_terminal_status_from_consensus(snapshot: dict[str, Any]) -> dict[str, Any] | None:
     consensus = next(
         (
             item
@@ -1063,7 +1244,13 @@ def _round_terminal_status(snapshot: dict[str, Any]) -> dict[str, Any] | None:
     summary = str(consensus.get("taskSummary") or "")
     phase = str(consensus.get("phase") or "").lower()
     activity = str(consensus.get("activity") or "").lower()
-    if phase not in {"stopped", "deleted"} and activity != "completed":
+    container_status = str(consensus.get("containerStatus") or "").lower()
+    terminal_state = (
+        phase in {"stopped", "deleted", "ended", "completed", "error", "failed"}
+        or activity in {"completed", "limits_exceeded"}
+        or any(token in container_status for token in ("succeeded", "completed", "failed", "error"))
+    )
+    if not terminal_state:
         return None
     has_placeholder = _has_placeholder_summary(consensus)
     has_terminal_summary = (
@@ -1072,13 +1259,26 @@ def _round_terminal_status(snapshot: dict[str, Any]) -> dict[str, Any] | None:
     )
     if has_placeholder:
         return None
-    if activity == "completed" or has_terminal_summary:
+    if activity == "completed" or has_terminal_summary or terminal_state:
         return {
             "agent": consensus.get("name"),
+            "phase": consensus.get("phase"),
             "activity": consensus.get("activity"),
+            "containerStatus": consensus.get("containerStatus"),
             "taskSummary": consensus.get("taskSummary"),
         }
     return None
+
+
+def _round_terminal_status(snapshot: dict[str, Any]) -> dict[str, Any] | None:
+    outcome = _round_outcome(snapshot)
+    if outcome:
+        return outcome
+    return _round_terminal_status_from_consensus(snapshot)
+
+
+def _snapshot_outcome(snapshot: dict[str, Any]) -> dict[str, Any]:
+    return _round_outcome(snapshot)
 
 
 def _default_base_branch(project_root: str = "") -> str:
@@ -1120,6 +1320,13 @@ def _github_token() -> str:
     )
 
 
+def _preferred_remote_for_reads(remote_url: str) -> str:
+    https_remote = _github_https_remote(remote_url)
+    if https_remote and _github_token():
+        return https_remote
+    return "origin"
+
+
 def _run_git_authenticated(
     args: list[str],
     *,
@@ -1153,12 +1360,13 @@ def _run_git_authenticated(
 
 
 def _remote_branch_sha(root: Path, branch: str) -> tuple[str, dict[str, Any]]:
-    result = _run_git_authenticated(["ls-remote", "--heads", "origin", branch], timeout=25, cwd=root)
+    remote_url_result = _run(["git", "remote", "get-url", "origin"], timeout=10, cwd=root)
+    remote = _preferred_remote_for_reads(remote_url_result["output"]) if remote_url_result["ok"] else "origin"
+    result = _run_git_authenticated(["ls-remote", "--heads", remote, branch], timeout=25, cwd=root)
     primary = result
     if not result["ok"]:
-        remote_url_result = _run(["git", "remote", "get-url", "origin"], timeout=10, cwd=root)
         https_remote = _github_https_remote(remote_url_result["output"]) if remote_url_result["ok"] else ""
-        if https_remote:
+        if https_remote and remote != https_remote:
             result = _run_git_authenticated(["ls-remote", "--heads", https_remote, branch], timeout=25, cwd=root)
     sha = ""
     if result["ok"]:
@@ -1356,7 +1564,7 @@ def scion_ops_list_agents(round_filter: str = "", project_root: str = "") -> dic
 
 @mcp.tool()
 def scion_ops_look(agent_name: str, num_lines: int = 160, project_root: str = "") -> dict[str, Any]:
-    """Read terminal output for a Scion agent with `scion look`."""
+    """Read terminal output for a Scion agent, falling back to Kubernetes pod logs."""
     agent_name = _clean_name(agent_name, "agent_name")
     num_lines = _clamp(num_lines, 20, 600)
     args = ["scion"]
@@ -1373,11 +1581,26 @@ def scion_ops_look(agent_name: str, num_lines: int = 160, project_root: str = ""
             str(num_lines),
         ]
     )
-    return _command_result(_run(
+    look_result = _command_result(_run(
         args,
         timeout=35,
         cwd=root,
     ))
+    if look_result.get("ok") or not _looks_like_missing_terminal_output(look_result):
+        return look_result
+
+    log_result = _command_result(_kubectl_agent_logs(agent_name, num_lines))
+    if log_result.get("ok"):
+        return {
+            **log_result,
+            "source": "kubernetes_logs",
+            "fallback_from": "scion_look",
+            "look_result": look_result,
+        }
+    return {
+        **look_result,
+        "kubernetes_log_result": log_result,
+    }
 
 
 @mcp.tool()
@@ -1393,6 +1616,7 @@ def scion_ops_round_status(
     num_lines = _clamp(num_lines, 20, 400)
     try:
         agents, result = _list_agents(round_id, project_root)
+        messages, message_result = _list_round_messages(round_id, project_root)
     except HubAPIError as exc:
         return _hub_error_payload(exc, "round_status")
     summaries = [_agent_summary(agent) for agent in agents]
@@ -1408,14 +1632,23 @@ def scion_ops_round_status(
     transcript: dict[str, Any] = {}
     if include_transcript and consensus:
         transcript = scion_ops_look(consensus, num_lines=num_lines, project_root=project_root)
+    snapshot = {
+        "agents": summaries,
+        "messages": messages,
+        "notifications": [],
+    }
+    outcome = _snapshot_outcome(snapshot)
     return {
-        "ok": result["ok"],
+        "ok": result["ok"] and message_result["ok"],
         "source": "hub_api",
         "hub": result.get("hub"),
         "round_id": round_id,
         "agents": summaries,
         "phase_counts": dict(Counter(str(item.get("phase")) for item in summaries)),
         "activity_counts": dict(Counter(str(item.get("activity")) for item in summaries)),
+        "progress": _round_agent_progress(summaries),
+        "outcome": outcome,
+        "terminal": _round_terminal_status(snapshot) or {},
         "consensus_agent": consensus,
         "consensus_transcript": transcript,
     }
@@ -1444,6 +1677,7 @@ def scion_ops_round_events(
         "changed": bool(events),
         "events": events,
         "cursor": _encode_cursor(snapshot),
+        "outcome": _snapshot_outcome(snapshot),
         "terminal": _round_terminal_status(snapshot) or {},
         "agent_count": len(snapshot["agents"]),
         "message_count": len(snapshot["messages"]),
@@ -1504,6 +1738,7 @@ def scion_ops_watch_round_events(
                 "changed": bool(events),
                 "events": events,
                 "cursor": _encode_cursor(snapshot),
+                "outcome": _snapshot_outcome(snapshot),
                 "terminal": terminal or {},
                 "timed_out": False,
                 "agent_count": len(snapshot["agents"]),
@@ -1525,6 +1760,7 @@ def scion_ops_watch_round_events(
         "changed": False,
         "events": [],
         "cursor": _encode_cursor(snapshot),
+        "outcome": _snapshot_outcome(snapshot),
         "terminal": _round_terminal_status(snapshot) or {},
         "timed_out": True,
         "agent_count": len(snapshot["agents"]),
@@ -1627,8 +1863,9 @@ def scion_ops_round_artifacts(round_id: str, project_root: str = "") -> dict[str
     branch_patterns = sorted({f"*{round_id}*", f"*{round_id.lower()}*"})
     branch_result = _run(["git", "branch", "--list", *branch_patterns], timeout=15, cwd=root)
     remote_url_result = _run(["git", "remote", "get-url", "origin"], timeout=10, cwd=root)
+    remote = _preferred_remote_for_reads(remote_url_result["output"]) if remote_url_result["ok"] else "origin"
     remote_result = _run_git_authenticated(
-        ["ls-remote", "--heads", "origin", *branch_patterns],
+        ["ls-remote", "--heads", remote, *branch_patterns],
         timeout=25,
         cwd=root,
     )
@@ -1636,7 +1873,7 @@ def scion_ops_round_artifacts(round_id: str, project_root: str = "") -> dict[str
     remote_fallback_result: dict[str, Any] = {}
     if not remote_result["ok"] and remote_url_result["ok"]:
         https_remote = _github_https_remote(remote_url_result["output"])
-        if https_remote:
+        if https_remote and remote != https_remote:
             remote_fallback_result = _run_git_authenticated(
                 ["ls-remote", "--heads", https_remote, *branch_patterns],
                 timeout=25,
@@ -1970,10 +2207,17 @@ def _compact_round_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
         item = event.get("agent") or event.get("message") or event.get("notification") or {}
         compact.append({
             "type": event.get("type"),
-            "name": item.get("name") or item.get("slug") or item.get("agentName") or item.get("agent") or "",
+            "name": (
+                item.get("name")
+                or item.get("slug")
+                or item.get("agentName")
+                or item.get("agent")
+                or item.get("sender")
+                or ""
+            ),
             "phase": item.get("phase") or "",
             "activity": item.get("activity") or "",
-            "summary": item.get("taskSummary") or item.get("summary") or item.get("message") or "",
+            "summary": item.get("taskSummary") or item.get("summary") or item.get("message") or item.get("msg") or "",
         })
     return compact
 
@@ -1990,10 +2234,12 @@ def _round_agent_inactive(agent: dict[str, Any]) -> bool:
     activity = str(agent.get("activity") or "").lower()
     container_status = str(agent.get("containerStatus") or "").lower()
     return (
-        phase in {"stopped", "deleted", "ended", "completed"}
-        or activity == "completed"
+        phase in {"stopped", "deleted", "ended", "completed", "error", "failed"}
+        or activity in {"completed", "limits_exceeded"}
         or "succeeded" in container_status
         or "completed" in container_status
+        or "failed" in container_status
+        or "error" in container_status
         or container_status == "stopped"
     )
 
@@ -2053,11 +2299,22 @@ def _agent_health(agent: dict[str, Any]) -> str:
     activity = str(agent.get("activity") or "").lower()
     status = json.dumps(agent.get("containerStatus") or "", default=str).lower()
     status_text = f"{phase} {activity} {status}"
-    if any(token in status_text for token in ("error", "failed", "crashloop", "imagepull", "backoff")):
+    container_completed = "succeeded" in status or "completed" in status
+    has_summary = bool(str(agent.get("taskSummary") or "").strip()) and not _has_placeholder_summary(agent)
+    if container_completed:
+        return "completed"
+    if has_summary:
+        if activity == "completed" or _round_agent_inactive(agent):
+            return "completed"
+    if any(token in status_text for token in ("limits_exceeded", "error", "failed", "crashloop", "imagepull", "backoff")):
         return "error"
     if _round_agent_inactive(agent):
+        if phase in {"error", "failed"} and not has_summary:
+            return "error"
         return "completed"
     if activity == "stalled" or "stalled" in status_text:
+        if "running" in status:
+            return "running"
         return "stalled"
     if phase in {"running", "started"} or activity in {"active", "running", "working"}:
         return "running"
@@ -2607,7 +2864,7 @@ def scion_ops_start_impl_round(
     change: str,
     goal: str = "",
     round_id: str = "",
-    max_minutes: int = 30,
+    max_minutes: int = 90,
     max_review_rounds: int = 3,
     base_branch: str = "",
     final_reviewer: str = "",
@@ -2631,7 +2888,7 @@ def scion_ops_start_implementation_round(
     change: str,
     goal: str = "",
     round_id: str = "",
-    max_minutes: int = 30,
+    max_minutes: int = 90,
     max_review_rounds: int = 3,
     base_branch: str = "",
     final_reviewer: str = "",
@@ -2755,14 +3012,12 @@ def monitor_scion_round(round_id: str) -> str:
 
 
 def main() -> None:
-    transport = os.environ.get("SCION_OPS_MCP_TRANSPORT", "stdio").strip().lower()
+    transport = os.environ.get("SCION_OPS_MCP_TRANSPORT", "streamable-http").strip().lower()
     try:
         if transport in {"http", "streamable-http", "streamable_http"}:
             mcp.run(transport="streamable-http")
             return
-        if transport != "stdio":
-            raise SystemExit(f"unsupported SCION_OPS_MCP_TRANSPORT={transport!r}")
-        mcp.run(transport="stdio")
+        raise SystemExit(f"unsupported SCION_OPS_MCP_TRANSPORT={transport!r}")
     except KeyboardInterrupt:
         return
 

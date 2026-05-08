@@ -25,7 +25,8 @@ case "$WATCHDOG_DELETE" in
   *) WATCHDOG_DELETE=0 ;;
 esac
 
-ROUND_ID="${ROUND_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$(printf '%04x' "$RANDOM")}"
+ROUND_ID="${ROUND_ID:-$(date -u +%Y%m%dt%H%M%Sz)-$(printf '%04x' "$RANDOM")}"
+ROUND_ID="$(printf '%s' "$ROUND_ID" | tr '[:upper:]' '[:lower:]')"
 RUNNER_NAME="round-${ROUND_ID,,}-consensus"   # scion lowercases agent slugs
 
 SCION_OPS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -56,6 +57,7 @@ fi
 : > "$LOG_FILE"
 round_env=(
   "ROUND_ID=$ROUND_ID"
+  "MAX_MINUTES=$MAX_MINUTES"
   "MAX_REVIEW_ROUNDS=$MAX_REVIEW_ROUNDS"
   "FINAL_REVIEWER=$FINAL_REVIEWER"
   "SCION_OPS_PROJECT_ROOT=$PROJECT_ROOT"

@@ -1,146 +1,125 @@
 # scion-ops
 
-Kubernetes-only operating layer for running dueling Scion agents against a
-Scion Hub, dedicated Runtime Broker, HTTP MCP server, and agent pods.
+Kubernetes-hosted Scion operations for running agent rounds through a Scion Hub,
+dedicated Runtime Broker, HTTP MCP server, and Kubernetes agent pods.
 
-The supported deployment target is Kubernetes. Local development uses `kind`
-with Podman as the default provider.
-
-## Quickstart
-
-Prerequisites are `task`, `podman`, `kind`, `kubectl`, `uv`, `scion`, and an
-upstream Scion checkout at `~/workspace/github/GoogleCloudPlatform/scion` unless
-you pass `task build -- --src <path>`.
+The supported deployment target is Kubernetes through local `kind`. The
+operator-facing contract is:
 
 ```bash
-task x          # build, create/update, bootstrap, deploy, and smoke test
-task build      # build all Scion and scion-ops images
-task up         # create/update kind and apply the Kubernetes control plane
-task bootstrap  # restore Hub credentials, harness configs, and templates
-task test       # smoke test Hub, broker, MCP, and Kubernetes agent dispatch
-task release:smoke  # opt-in subscription-backed round smoke
-task down       # destroy the local kind deployment
+task x          # build, deploy/update, bootstrap, and smoke test
+task build      # build all required images
+task up         # create/update the kind control plane
+task bootstrap  # restore credentials, harness configs, templates, and target grove
+task test       # no-spend control-plane smoke test
+task down       # destroy the kind cluster and cluster-local state
 ```
 
-`task up` is also the deploy and update operation: it reconciles the kind
-cluster, base runtime resources, image loading, and control-plane Kustomize
-target. Hidden aliases `task deploy`, `task update`, and `task destroy` map to
-the same lifecycle operations for agents that use those words.
+## Prerequisites
 
-For local iteration, use the smallest task that matches the changed asset:
+- `task`
+- `podman`
+- `kind`
+- `kubectl`
+- `uv`
+- `scion`
+- upstream Scion checkout at `~/workspace/github/GoogleCloudPlatform/scion`, or
+  pass `task build -- --src <path>`
+
+## Default Operation
+
+Bring up the product from a fresh checkout:
 
 ```bash
-task dev:mcp:restart       # restart MCP after mounted Python source changes
-task build:base            # rebuild only the Scion base image
-task update:hub            # load the base image and restart Hub only
-task build:mcp             # rebuild only the MCP image
-task update:mcp            # load the MCP image and restart MCP only
+task x
+```
+
+Run individual lifecycle steps:
+
+```bash
+task build
+task up
+task bootstrap
+task test
+task down
+```
+
+`task up` is both deploy and update. It reconciles the kind cluster, loads local
+images, applies Kubernetes resources, restarts mutable deployments, and waits for
+rollout health.
+
+Use narrow update commands while iterating:
+
+```bash
+task dev:mcp:restart
+task build:base
+task update:hub
+task build:mcp
+task update:mcp
 task build:harness -- codex
 task load:image -- localhost/scion-codex:latest
-task dev:test              # smoke test without reapplying setup
-task storage:status        # inspect Podman storage before image work
+task dev:test
+task storage:status
 ```
 
-`task build` and `task build:base` first ensure the configured Scion source has
-the repo-owned runtime patch set from `patches/scion/`. Inspect or apply it
-directly with:
+## Defaults
+
+| Setting | Default |
+| --- | --- |
+| kind cluster | `scion-ops` |
+| kind context | `kind-scion-ops` |
+| namespace | `scion-agents` |
+| Hub URL | `http://192.168.122.103:18090` |
+| MCP URL | `http://192.168.122.103:8765/mcp` |
+| workspace host path | `~/workspace` when it contains this checkout, otherwise this checkout's parent |
+| workspace path in pods | `/workspace` |
+
+Override defaults only when needed:
 
 ```bash
-task scion:patch:status
-task scion:patch:apply
-task scion:patch:check
+KIND_CLUSTER_NAME=scion-dev task up
+SCION_OPS_KIND_LISTEN_ADDRESS=192.168.122.103 task up
+SCION_OPS_WORKSPACE_HOST_PATH=/home/david/workspace task up
 ```
 
-The default source remains `~/workspace/github/GoogleCloudPlatform/scion`; set
-`SCION_SRC` or pass `task build -- --src <path>` when using another checkout.
-
-For normal full rebuilds, rootless Podman should report the `overlay` storage
-driver. `vfs` is suitable only for very small experiments because it copies
-layers instead of sharing them and can consume disk quickly.
-
-`task bootstrap` is the default credential and template restore path. It links
-the target repo as a Hub grove, provides the kind broker, stores shared
-subscription credentials as Hub secrets, and syncs the scion-ops templates from
-inside the Hub pod so host-local upload paths are not used.
-The default LLM auth path uses provider subscription credential files:
-`CLAUDE_AUTH`, `CLAUDE_CONFIG`, `CODEX_AUTH`, and `GEMINI_OAUTH_CREDS`,
-selected through Scion's `auth-file` harness auth. Vertex ADC is not restored
-by default; enable it deliberately with `SCION_OPS_BOOTSTRAP_VERTEX_ADC=1` and
-provide `GOOGLE_CLOUD_PROJECT` plus a Google Cloud region variable.
-When restoring `CLAUDE_CONFIG`, bootstrap preserves the subscription state and
-marks Scion's `/workspace` agent checkout as trusted so Claude starts
-non-interactively in Kubernetes. Bootstrap also prepares the synced Claude
-harness settings to skip the bypass-permissions warning inside Scion's
-sandboxed agent pods. Codex-backed personas use repo-managed Codex harness
-configs in `deploy/kind/harness-configs/`: both `codex` and `codex-exec` run
-`codex exec` as a single non-interactive task while still using the restored
-Codex subscription auth file.
-Host-local Claude MCP server registrations are stripped from the agent config;
-Scion rounds should use the repo's explicit harness and template
-configuration. Claude templates pass `--print` through native Scion
-`command_args` so multiline prompts are submitted as a single non-interactive
-model turn. Coordinators collect child outputs through the Hub user inbox with
-`scion messages --json` instead of depending on interactive tmux prompt
-delivery.
-Rounds default to a Codex final reviewer for the reliable path; Gemini remains
-available as an explicit final reviewer and falls back to Codex if capacity or
-auth prevents a verdict.
-
-## Kubernetes Shape
-
-```text
-kind cluster:
-  scion-hub Deployment
-    Hub/API/Web
-    PVC-backed Scion state
-  scion-broker Deployment
-    Kubernetes Runtime Broker
-    Secret-backed Hub HMAC credentials
-  scion-ops-mcp Deployment
-    streamable HTTP MCP server
-    mounted host workspace tree
-  Scion agent pods
-
-host:
-  repo checkout and target project checkouts
-  container image build source
-  kind native host ports for Hub and MCP
-```
-
-The Kubernetes resources are native Kustomize manifests under `deploy/kind`.
-They are intentionally deployable with `kubectl apply -k`; Helm packaging can
-come later only if the values and lifecycle model justify it. See
-`docs/kubernetes-packaging.md` for the review triggers.
-The kind Hub uses a stable `SCION_SERVER_HUB_HUBID` so Hub-scoped bootstrap
-secrets remain visible after Hub pod rollouts. The Hub deployment runs the
-Scion binary from `localhost/scion-base:latest`; persistent Hub state must not
-override the image binary. Bootstrap mirrors the local Hub dev-auth token into
-the `scion-hub-dev-auth` Kubernetes Secret so MCP authenticates through a
-Kubernetes resource rather than the Hub state PVC. It also restores the
-`scion-hub-web-session` Secret and stores Hub web session files on the Hub PVC
-so browser sessions behave predictably across Hub pod restarts after bootstrap.
-The Runtime Broker runs as its own Deployment and restores its Hub join
-credential from the `scion-broker-credentials` Secret. If the Secret is missing
-or stale, `task bootstrap` runs Scion's native broker registration flow,
-recreates the Secret, restarts the broker, and waits for the Hub control-channel
-connection before providing the target grove.
-
-Local kind uses the mounted host workspace for live development. The cluster
-workspace design is Git-based: MCP-managed target checkouts live on persistent
-storage and agent pods clone from Git through Hub mode. See
-`docs/workspace-persistence.md`.
-
-## MCP And Zed
-
-The supported MCP transport is the Kubernetes-hosted HTTP service. `task up`
-creates kind native port mappings, so MCP is available on the host address
-without a `kubectl port-forward` process:
+Existing kind clusters cannot be mutated to add different workspace mounts or
+port mappings. Recreate the cluster after changing those settings:
 
 ```bash
+task down
 task up
 ```
 
-Configure Zed with:
+## Target Projects
+
+The target project is the repo the round should modify. Bootstrap it before
+starting rounds:
+
+```bash
+task bootstrap -- /home/david/workspace/github/example/project
+```
+
+From shell tasks:
+
+```bash
+SCION_OPS_PROJECT_ROOT=/home/david/workspace/github/example/project \
+task round -- "Make the requested change, verify it, push the branch, and report the branch name."
+```
+
+From MCP/Zed, pass the same path as `project_root`. If the repo is not already
+checked out under the mounted workspace, call `scion_ops_prepare_github_repo`
+with the GitHub URL and use the returned `project_root`.
+
+Uncommitted editor buffers are not part of a round. Commit or push important
+work before starting a round. Agent outputs are durable through pushed git
+branches and Hub records; pod-local agent workspaces are ephemeral.
+
+## MCP And Zed
+
+`task up` exposes the HTTP MCP service through kind-native host port mappings.
+No `kubectl port-forward` process is required.
+
+Zed context server:
 
 ```json
 {
@@ -152,56 +131,75 @@ Configure Zed with:
 }
 ```
 
-Smoke test the HTTP service with `task kind:mcp:smoke`. See `docs/zed-mcp.md`.
+Smoke test the MCP service:
+
+```bash
+task kind:mcp:smoke
+```
+
+Operational MCP examples are in [docs/zed-mcp.md](docs/zed-mcp.md).
+
+## Spec-Driven Rounds
+
+Spec rounds create only OpenSpec artifacts under
+`openspec/changes/<change>/`. Implementation rounds consume an approved change
+folder.
+
+```bash
+SCION_OPS_PROJECT_ROOT=/home/david/workspace/github/example/project \
+SCION_OPS_SPEC_CHANGE=add-widget \
+task spec:round -- "Specify the widget behavior."
+
+task spec:validate -- --project-root /home/david/workspace/github/example/project --change add-widget
+
+SCION_OPS_PROJECT_ROOT=/home/david/workspace/github/example/project \
+task spec:implement -- --change add-widget "Implement the approved change."
+```
+
+MCP callers should prefer `scion_ops_run_spec_round` for spec rounds because it
+starts, monitors, validates, and returns the PR-ready branch in one repeatable
+tool loop.
+
+OpenSpec operations are documented in
+[docs/openspec-round-workflow.md](docs/openspec-round-workflow.md).
+
+## Verification
+
+Use `task verify` for static checks and repo-local validators. It does not
+create a cluster.
+
+Use `task test` for the regular no-spend control-plane smoke. It checks kind,
+Hub, broker, MCP, and Kubernetes no-auth agent dispatch.
+
+Use `task release:smoke` only for release confidence or credential changes. It
+uses subscription-backed model credentials and starts a bounded Claude/Codex
+round. The default final reviewer is Gemini; set
+`SCION_OPS_RELEASE_SMOKE_FINAL_REVIEWER=codex` when Gemini is not part of the
+check.
+
+## State And Destruction
+
+`task down` deletes the kind cluster and all cluster-local PVCs and Secrets.
+Host workspace checkouts survive because they are outside the cluster.
+
+Cluster-local state includes Hub DB/storage, dev auth, broker credentials,
+synced templates, harness configs, MCP-prepared GitHub checkouts, and restored
+model credentials. Recreate it with:
+
+```bash
+task up
+task bootstrap -- /path/to/project
+```
 
 ## Layout
 
-- `.scion/templates/` — agent role definitions for the consensus protocol
-- `CLAUDE.md` — project engineering standards
-- `KNOWNISSUES.md` — intentional exceptions and exit criteria
-- `deploy/kind/` — Kubernetes resources for kind, Hub, broker, and MCP
-- `docs/kind-control-plane.md` — Kubernetes deployment model
-- `docs/kind-scion-runtime.md` — kind runtime substrate details
-- `docs/kubernetes-packaging.md` — Kustomize versus Helm packaging decision
-- `docs/openspec-round-workflow.md` — spec-driven round workflow design
-- `docs/testing-plan.md` — verification plan
-- `docs/workspace-persistence.md` — target project workspace persistence model
-- `docs/zed-mcp.md` — Kubernetes-hosted MCP registration
-- `docs/zed-openspec-example.md` — end-to-end Zed MCP OpenSpec walkthrough
-- `mcp_servers/scion_ops.py` — streamable HTTP MCP server
-- `orchestrator/` — consensus round launcher and agent utilities
-- `patches/scion/` — Scion runtime patches required by this deployment
-- `rubric/` — reviewer prompt and verdict schema
-- `scripts/build-images.sh` — image build helper
-- `scripts/kind-bootstrap.sh` — Hub credential, harness, and template restore
-- `scripts/kind-scion-runtime.sh` — kind substrate helper
-- `scripts/scion-runtime-patches.sh` — Scion runtime patch apply/check helper
-- `scripts/storage-status.sh` — Podman storage diagnostic helper
-- `scripts/kind-control-plane-smoke.py` — Kubernetes control-plane smoke
-
-## Rounds
-
-`task round -- "prompt"` starts a consensus round against the selected target
-project. Bootstrap the target once, then pass its project root when starting a
-round from the scion-ops checkout:
-
-```bash
-task bootstrap -- /home/david/workspace/github/example/project
-SCION_OPS_PROJECT_ROOT=/home/david/workspace/github/example/project task round -- "prompt"
-```
-
-The MCP tool `scion_ops_start_round` accepts the same target as `project_root`.
-Agents work from the target repo's Hub grove and branch context; uncommitted
-local work is not included unless it is committed or pushed before the round.
-
-Use `task test` for frequent no-spend health checks. Use `task release:smoke`
-only when you want release confidence from a bounded subscription-backed round:
-it bootstraps the target repo, starts a short Claude/Codex round, and defaults
-to Gemini final review. Override with
-`SCION_OPS_RELEASE_SMOKE_FINAL_REVIEWER=codex` when Gemini capacity or auth is
-not part of the check.
-
-If a round reaches its watchdog limit, scion-ops stops the round agents and
-keeps their Hub records for inspection. Use `task abort -- <round_id>` when the
-diagnostics are no longer needed. Set `SCION_OPS_WATCHDOG_DELETE=1` only when
-automatic timeout cleanup is preferred over post-run inspection.
+- `.scion/templates/` - Scion agent templates and prompts
+- `deploy/kind/` - native Kubernetes manifests for kind, Hub, broker, MCP, and runtime RBAC
+- `docs/kind-control-plane.md` - Kubernetes operations runbook
+- `docs/zed-mcp.md` - Zed and MCP operations
+- `docs/openspec-round-workflow.md` - OpenSpec operations
+- `image-build/` - image additions for task runtime, MCP, and optional harnesses
+- `mcp_servers/scion_ops.py` - streamable HTTP MCP server
+- `orchestrator/` - round launcher scripts
+- `patches/scion/` - required upstream Scion runtime patches
+- `scripts/` - build, bootstrap, smoke, storage, and OpenSpec utility scripts

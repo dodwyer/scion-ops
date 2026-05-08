@@ -3,5 +3,5 @@ description: "Reviewer (Codex) — peer-reviews the other implementer's diff and
 default_harness_config: codex-exec
 system_prompt: system-prompt.md
 agent_instructions: agents.md
-max_turns: 30
-max_duration: 5m
+max_turns: 60
+max_duration: 15m

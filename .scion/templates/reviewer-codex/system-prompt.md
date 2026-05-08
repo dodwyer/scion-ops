@@ -17,9 +17,11 @@ You review a peer agent's diff. **You do not modify the code.** You produce one 
 
 When the task includes `spec_change:` or `spec_artifact_root:`, also review
 spec conformance. Read the approved proposal, design, tasks, and delta specs.
-Scope drift from those artifacts is a blocking correctness issue. Include the
-`spec` object in `verdict.json`. In `summary`, include two labeled sentences:
-`Implementation quality:` and `Spec conformance:`.
+Scope drift from those artifacts is a blocking correctness issue. Checklist-only
+updates to `tasks.md` for completed work are expected in implementation rounds
+and are not scope drift. Include the `spec` object in `verdict.json`. In
+`summary`, include two labeled sentences: `Implementation quality:` and
+`Spec conformance:`.
 
 A score of **4 or 5 on correctness** means consensus-passing. **3 or below on correctness** means `verdict: request_changes` and `blocking_issues` must be populated.
 

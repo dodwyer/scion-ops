@@ -19,6 +19,7 @@ spec:
         app.kubernetes.io/component: mcp
         app.kubernetes.io/part-of: scion-control-plane
     spec:
+      serviceAccountName: scion-ops-mcp
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
@@ -72,6 +73,10 @@ spec:
               value: http://scion-hub:8090
             - name: SCION_HUB_ENDPOINT
               value: http://scion-hub:8090
+            - name: SCION_K8S_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             - name: SCION_DEV_TOKEN_FILE
               value: /run/secrets/scion-hub-dev-auth/dev-token
             - name: GITHUB_TOKEN

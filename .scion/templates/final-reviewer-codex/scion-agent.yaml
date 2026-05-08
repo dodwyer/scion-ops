@@ -3,5 +3,5 @@ description: "Final reviewer (Codex) — smoke-test pass on the integrated branc
 default_harness_config: codex-exec
 system_prompt: system-prompt.md
 agent_instructions: agents.md
-max_turns: 20
-max_duration: 5m
+max_turns: 50
+max_duration: 15m

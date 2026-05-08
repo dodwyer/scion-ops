@@ -4,5 +4,5 @@ default_harness_config: gemini
 model: gemini-2.5-flash
 system_prompt: system-prompt.md
 agent_instructions: agents.md
-max_turns: 20
-max_duration: 5m
+max_turns: 50
+max_duration: 15m

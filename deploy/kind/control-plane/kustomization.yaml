@@ -4,6 +4,7 @@ namespace: scion-agents
 resources:
   - broker-rbac.yaml
   - broker-deployment.yaml
+  - mcp-rbac.yaml
   - hub-pvc.yaml
   - hub-service.yaml
   - hub-deployment.yaml
