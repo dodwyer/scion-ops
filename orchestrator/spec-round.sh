@@ -86,7 +86,7 @@ if [[ "${SCION_OPS_DRY_RUN:-0}" == "1" ]]; then
   cat <<EOF
 
 Dry run command:
-  $SCION_BIN --profile "$SCION_PROFILE" --grove "$PROJECT_ROOT" start "$RUNNER_NAME" --type spec-consensus-runner --branch "$RUNNER_BRANCH" --broker "$BROKER" --harness-auth auth-file --no-upload --non-interactive --yes --notify "<prompt>"
+  $SCION_BIN --profile "$SCION_PROFILE" --grove "$PROJECT_ROOT" start "$RUNNER_NAME" --type spec-consensus-runner --branch "$RUNNER_BRANCH" --broker "$BROKER" --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --yes --notify "<prompt>"
 
 Rendered prompt:
 $TASK_PROMPT
@@ -103,6 +103,7 @@ fi
   --type spec-consensus-runner \
   --branch "$RUNNER_BRANCH" \
   --broker "$BROKER" \
+  --harness-config codex-exec \
   --harness-auth auth-file \
   --no-upload \
   --non-interactive \

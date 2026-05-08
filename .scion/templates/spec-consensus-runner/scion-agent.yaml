@@ -1,9 +1,7 @@
 schema_version: "1"
 description: "Spec consensus runner - coordinates OpenSpec artifact rounds without implementation changes."
-default_harness_config: claude
-model: claude-sonnet-4-6
+harness_config: codex-exec
+default_harness_config: codex-exec
 system_prompt: system-prompt.md
-command_args:
-  - --print
 max_turns: 80
-max_duration: 12m
+max_duration: 25m
