@@ -197,9 +197,9 @@ tasks:
       - bash scripts/storage-status.sh
 
   storage:prune:
-    prompt: This prunes dangling local Podman image layers. Continue?
+    prompt: This prunes dangling local Docker image layers. Continue?
     cmds:
-      - podman image prune -f
+      - docker image prune -f
       - task: storage:status
 
   destroy:
@@ -245,7 +245,12 @@ tasks:
 
   kind:control-plane:restart:
     cmds:
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-hub deploy/scion-broker deploy/scion-ops-mcp
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-hub
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-hub --timeout=120s
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-broker
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-broker --timeout=120s
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-ops-mcp
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-mcp --timeout=120s
 
   kind:control-plane:status:
     cmds:
@@ -360,8 +365,9 @@ tasks:
     cmds:
       - git diff --check
       - task --list
-      - python3 -c "import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in ('mcp_servers/scion_ops.py', 'scripts/kind-control-plane-smoke.py', 'scripts/smoke-mcp-server.py', 'scripts/validate-openspec-change.py', 'scripts/archive-openspec-change.py', 'scripts/test-openspec-change-validator.py', 'scripts/test-openspec-archive.py', 'scripts/test-verdict-schema.py')]"
+      - python3 -c "import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in ('mcp_servers/scion_ops.py', 'scripts/kind-control-plane-smoke.py', 'scripts/smoke-mcp-server.py', 'scripts/validate-openspec-change.py', 'scripts/archive-openspec-change.py', 'scripts/test-openspec-change-validator.py', 'scripts/test-openspec-archive.py', 'scripts/test-mcp-openspec-cli.py', 'scripts/test-verdict-schema.py')]"
       - python3 scripts/test-openspec-change-validator.py
       - python3 scripts/test-openspec-archive.py
+      - uv run scripts/test-mcp-openspec-cli.py
       - python3 scripts/test-verdict-schema.py
       - bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh scripts/release-smoke-round.sh scripts/scion-runtime-patches.sh scripts/storage-status.sh deploy/kind/control-plane/config/broker-entrypoint.sh orchestrator/lib/github-branches.sh orchestrator/run-round.sh orchestrator/round.sh orchestrator/spec-round.sh orchestrator/spec-implementation-round.sh orchestrator/abort.sh

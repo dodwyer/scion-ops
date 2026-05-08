@@ -165,8 +165,12 @@ PY
 }
 
 restart_control_plane_for_restored_auth_state() {
-  kubectl_ctx -n "$NAMESPACE" rollout restart deploy/scion-hub deploy/scion-broker deploy/scion-ops-mcp >/dev/null
-  wait_for_control_plane_rollouts
+  kubectl_ctx -n "$NAMESPACE" rollout restart deploy/scion-hub >/dev/null
+  kubectl_ctx -n "$NAMESPACE" rollout status deploy/scion-hub --timeout=120s >/dev/null
+  kubectl_ctx -n "$NAMESPACE" rollout restart deploy/scion-broker >/dev/null
+  kubectl_ctx -n "$NAMESPACE" rollout status deploy/scion-broker --timeout=120s >/dev/null
+  kubectl_ctx -n "$NAMESPACE" rollout restart deploy/scion-ops-mcp >/dev/null
+  kubectl_ctx -n "$NAMESPACE" rollout status deploy/scion-ops-mcp --timeout=120s >/dev/null
   log "restarted Hub, broker, and MCP after auth/session Secret restore"
 }
 

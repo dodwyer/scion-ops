@@ -32,7 +32,7 @@ case "$REPO_ROOT" in
     SCION_OPS_REPO_NODE_PATH="${SCION_OPS_REPO_NODE_PATH:-${WORKSPACE_NODE_PATH}/scion-ops}"
     ;;
 esac
-KIND_PROVIDER="${KIND_EXPERIMENTAL_PROVIDER:-${SCION_OPS_KIND_PROVIDER:-docker}}"
+KIND_PROVIDER="docker"
 KIND_CLUSTER_CONFIG_TEMPLATE="${SCION_OPS_KIND_CLUSTER_CONFIG_TEMPLATE:-${REPO_ROOT}/deploy/kind/cluster.yaml.tpl}"
 KIND_LISTEN_ADDRESS="${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}"
 HUB_HOST_PORT="${SCION_OPS_KIND_HUB_PORT:-18090}"
@@ -73,8 +73,6 @@ Environment:
                                  (default: /workspace)
   SCION_OPS_REPO_NODE_PATH       scion-ops repo path inside the kind node
                                  (default: derived from host/node paths)
-  SCION_OPS_KIND_PROVIDER        kind provider when KIND_EXPERIMENTAL_PROVIDER
-                                 is unset (default: docker)
   SCION_OPS_KIND_CLUSTER_CONFIG_TEMPLATE
                                  kind cluster template (default: deploy/kind/cluster.yaml.tpl)
   SCION_OPS_KIND_LISTEN_ADDRESS  Host listen address for kind port mappings
@@ -149,28 +147,10 @@ kind_node_name() {
 
 container_runtime_for_node() {
   local node="$1"
-  local runtime
-  local runtimes
-
-  case "$KIND_PROVIDER" in
-    podman)
-      runtimes=(podman docker)
-      ;;
-    docker)
-      runtimes=(docker podman)
-      ;;
-    *)
-      runtimes=("$KIND_PROVIDER" podman docker)
-      ;;
-  esac
-
-  for runtime in "${runtimes[@]}"; do
-    if command -v "$runtime" >/dev/null 2>&1 && "$runtime" container inspect "$node" >/dev/null 2>&1; then
-      printf '%s\n' "$runtime"
-      return 0
-    fi
-  done
-
+  if command -v docker >/dev/null 2>&1 && docker container inspect "$node" >/dev/null 2>&1; then
+    printf 'docker\n'
+    return 0
+  fi
   return 1
 }
 
@@ -365,7 +345,7 @@ cmd_load_images() {
 
   for image in "$@"; do
     log "load image $image into $CLUSTER_NAME"
-    if command -v podman >/dev/null 2>&1 && podman image exists "$image" && image_loaded_in_kind "$image"; then
+    if command -v docker >/dev/null 2>&1 && docker image inspect "$image" >/dev/null 2>&1 && image_loaded_in_kind "$image"; then
       log "image $image already loaded in $CLUSTER_NAME"
       continue
     fi
@@ -376,23 +356,8 @@ cmd_load_images() {
       continue
     fi
 
-    if ! command -v podman >/dev/null 2>&1 || ! podman image exists "$image"; then
-      printf '%s\n' "$load_output" >&2
-      die "image $image is not available to kind or podman; run: task build"
-    fi
-
-    local archive
-    archive="$(mktemp "${TMPDIR:-/tmp}/scion-kind-image.XXXXXX.tar")"
-    log "export podman image $image for kind"
-    if ! podman save "$image" -o "$archive"; then
-      rm -f "$archive"
-      die "failed to export podman image $image"
-    fi
-    if ! import_image_archive "$archive"; then
-      rm -f "$archive"
-      die "failed to load podman archive for $image into $CLUSTER_NAME"
-    fi
-    rm -f "$archive"
+    printf '%s\n' "$load_output" >&2
+    die "image $image is not available to Docker or failed to load into kind; run: task build"
   done
 }
 
@@ -401,7 +366,7 @@ image_loaded_in_kind() {
   local image_id node runtime
   local nodes=()
 
-  image_id="$(podman image inspect "$image" --format '{{.Id}}' 2>/dev/null || true)"
+  image_id="$(docker image inspect "$image" --format '{{.Id}}' 2>/dev/null || true)"
   image_id="${image_id#sha256:}"
   [[ -n "$image_id" ]] || return 1
 
@@ -429,9 +394,6 @@ import_image_archive() {
     [[ -n "$node" ]] || continue
     runtime="$(container_runtime_for_node "$node")" || return 1
     snapshotter="${SCION_OPS_KIND_IMAGE_SNAPSHOTTER:-}"
-    if [[ -z "$snapshotter" && "$runtime" == "podman" ]]; then
-      snapshotter="fuse-overlayfs"
-    fi
 
     import_cmd=(ctr --namespace=k8s.io images import --local --digests --platform "$KIND_IMAGE_PLATFORM")
     if [[ -n "$snapshotter" ]]; then

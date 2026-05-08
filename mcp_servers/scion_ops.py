@@ -68,6 +68,7 @@ SPEC_CHILD_TEMPLATES = {
     "spec-ops-reviewer",
     "spec-finalizer",
 }
+OPENSPEC_REQUIRED_FILES = ("proposal.md", "design.md", "tasks.md")
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -162,6 +163,15 @@ def _run(
             "command": args,
             "output": output,
             "error": f"command timed out after {timeout}s",
+        }
+    except OSError as exc:
+        return {
+            "ok": False,
+            "timed_out": False,
+            "returncode": None,
+            "command": args,
+            "output": "",
+            "error": str(exc),
         }
 
     ok = result.returncode == 0
@@ -1437,6 +1447,160 @@ def _parse_json_result(result: dict[str, Any]) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _relative_to_root(path: Path, root: Path) -> str:
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        return str(path)
+
+
+def _openspec_cli_env() -> dict[str, str]:
+    return {
+        "OPENSPEC_TELEMETRY": "0",
+        "DO_NOT_TRACK": "1",
+        "NO_COLOR": "1",
+    }
+
+
+def _openspec_command_summary(result: dict[str, Any]) -> dict[str, Any]:
+    output = result.get("output", "")
+    if len(output) > 2000:
+        output = output[:2000] + "\n[truncated]"
+    return {
+        "ok": result.get("ok", False),
+        "timed_out": result.get("timed_out", False),
+        "returncode": result.get("returncode"),
+        "command": result.get("command", []),
+        "output": output,
+        "error": result.get("error", ""),
+    }
+
+
+def _openspec_change_file_metadata(root: Path, change: str) -> dict[str, Any]:
+    change_path = root / "openspec" / "changes" / change
+    specs_dir = change_path / "specs"
+    spec_files = sorted(path for path in specs_dir.glob("**/spec.md") if path.is_file()) if specs_dir.exists() else []
+    return {
+        "change_path": _relative_to_root(change_path, root),
+        "required_files": {
+            filename: _relative_to_root(change_path / filename, root) for filename in OPENSPEC_REQUIRED_FILES
+        },
+        "spec_files": [_relative_to_root(path, root) for path in spec_files],
+    }
+
+
+def _openspec_issue_to_finding(issue: Any, root: Path) -> dict[str, str]:
+    if isinstance(issue, dict):
+        path = issue.get("path") or issue.get("file") or issue.get("location") or ""
+        message = issue.get("message") or issue.get("error") or issue.get("detail") or json.dumps(issue, sort_keys=True)
+    else:
+        path = ""
+        message = str(issue)
+    if isinstance(path, list):
+        path = ".".join(str(item) for item in path)
+    path = str(path or root)
+    return {"path": path, "message": str(message)}
+
+
+def _openspec_validate_payload(root: Path, change: str, cli_payload: dict[str, Any]) -> dict[str, Any]:
+    items = cli_payload.get("items", [])
+    selected_item: dict[str, Any] = {}
+    if isinstance(items, list):
+        for item in items:
+            if isinstance(item, dict) and item.get("id") == change:
+                selected_item = item
+                break
+        if not selected_item and len(items) == 1 and isinstance(items[0], dict):
+            selected_item = items[0]
+
+    issues = selected_item.get("issues", []) if selected_item else []
+    if not isinstance(issues, list):
+        issues = [issues]
+    totals = cli_payload.get("summary", {}).get("totals", {}) if isinstance(cli_payload.get("summary"), dict) else {}
+    failed_count = totals.get("failed") if isinstance(totals, dict) else None
+    if isinstance(selected_item.get("valid"), bool):
+        ok = selected_item["valid"]
+    elif isinstance(failed_count, int):
+        ok = failed_count == 0
+    else:
+        ok = not issues
+
+    return {
+        "ok": ok,
+        "validator": "openspec_cli",
+        "project_root": str(root),
+        "change": change,
+        **_openspec_change_file_metadata(root, change),
+        "errors": [] if ok else [_openspec_issue_to_finding(issue, root) for issue in issues],
+        "warnings": [],
+        "openspec_cli": cli_payload,
+    }
+
+
+def _run_openspec_validation(root: Path, change: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    result = _run(
+        ["openspec", "validate", change, "--json", "--no-interactive"],
+        timeout=30,
+        cwd=root,
+        env=_openspec_cli_env(),
+    )
+    payload = _parse_json_result(result)
+    if not payload:
+        return result, {}
+
+    validation = _openspec_validate_payload(root, change, payload)
+    command_result = _command_result(result)
+    command_result["source"] = "openspec_cli"
+    if not validation.get("ok"):
+        command_result["error_kind"] = "openspec_validation"
+    return command_result, validation
+
+
+def _run_python_openspec_validation(
+    root: Path,
+    change: str,
+    cli_attempt: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    result = _run(
+        [
+            "python3",
+            str(_repo_root() / "scripts" / "validate-openspec-change.py"),
+            "--project-root",
+            str(root),
+            "--change",
+            change,
+            "--json",
+        ],
+        timeout=20,
+        cwd=_repo_root(),
+    )
+    payload = _parse_json_result(result)
+    if payload:
+        payload["validator"] = "scion_ops_python"
+        if cli_attempt:
+            payload["openspec_cli_attempt"] = _openspec_command_summary(cli_attempt)
+    command_result = _command_result(result)
+    command_result["source"] = "scion_ops_python"
+    if payload and not payload.get("ok"):
+        command_result["error_kind"] = "openspec_validation"
+    return command_result, payload
+
+
+def _openspec_status_result(root: Path, change: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    result = _run(
+        ["openspec", "status", "--change", change, "--json"],
+        timeout=20,
+        cwd=root,
+        env=_openspec_cli_env(),
+    )
+    payload = _parse_json_result(result)
+    command_result = _command_result(result)
+    command_result["source"] = "openspec_cli_status"
+    if not payload and not result.get("ok"):
+        command_result["error_kind"] = "openspec_status"
+    return command_result, payload
+
+
 def _parse_started_round_id(output: str, fallback: str = "") -> str:
     for pattern in (r"round_id\s*:\s*(\S+)", r"Round id:\s*(\S+)"):
         match = re.search(pattern, output, flags=re.IGNORECASE)
@@ -1472,24 +1636,12 @@ def _start_round_response(
 
 
 def _validate_spec_change_result(root: Path, change: str) -> tuple[dict[str, Any], dict[str, Any]]:
-    result = _run(
-        [
-            "python3",
-            str(_repo_root() / "scripts" / "validate-openspec-change.py"),
-            "--project-root",
-            str(root),
-            "--change",
-            change,
-            "--json",
-        ],
-        timeout=20,
-        cwd=_repo_root(),
-    )
-    payload = _parse_json_result(result)
-    command_result = _command_result(result)
-    if payload and not payload.get("ok"):
-        command_result["error_kind"] = "openspec_validation"
-    return command_result, payload
+    if _env_bool("SCION_OPS_USE_OPENSPEC_CLI", True):
+        cli_result, cli_payload = _run_openspec_validation(root, change)
+        if cli_payload:
+            return cli_result, cli_payload
+        return _run_python_openspec_validation(root, change, cli_result)
+    return _run_python_openspec_validation(root, change)
 
 
 def _archive_spec_change_result(root: Path, change: str, confirm: bool) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -2116,10 +2268,14 @@ def scion_ops_spec_status(project_root: str, change: str = "") -> dict[str, Any]
             archived_changes.append({"archive": path.name, "path": str(path.relative_to(root))})
     validation: dict[str, Any] = {}
     validation_result: dict[str, Any] = {}
+    openspec_status: dict[str, Any] = {}
+    openspec_status_result: dict[str, Any] = {}
     ok = True
     if change:
         change = _clean_name(change, "change")
         validation_result, validation = _validate_spec_change_result(root, change)
+        if validation.get("validator") == "openspec_cli":
+            openspec_status_result, openspec_status = _openspec_status_result(root, change)
         ok = bool(validation.get("ok"))
     return {
         "ok": ok,
@@ -2132,6 +2288,8 @@ def scion_ops_spec_status(project_root: str, change: str = "") -> dict[str, Any]
         "change": change,
         "validation": validation,
         "validation_result": validation_result,
+        "openspec_status": openspec_status,
+        "openspec_status_result": openspec_status_result,
         "next": {
             "draft_spec_tool": "scion_ops_start_spec_round",
             "validate_tool": "scion_ops_validate_spec_change",

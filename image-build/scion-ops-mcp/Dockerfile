@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 ARG BASE_IMAGE=localhost/scion-base:latest
 FROM ${BASE_IMAGE}
+ARG OPENSPEC_VERSION=1.3.1
 
 USER root
 
@@ -9,8 +10,13 @@ ENV VIRTUAL_ENV=/opt/scion-ops-mcp/venv
 RUN python3 -m venv "${VIRTUAL_ENV}" \
   && "${VIRTUAL_ENV}/bin/pip" install --no-cache-dir "mcp>=1.13,<2" "PyYAML>=6,<7"
 
+RUN npm install -g "@fission-ai/openspec@${OPENSPEC_VERSION}" \
+  && npm cache clean --force
+
 ENV PATH="${VIRTUAL_ENV}/bin:${PATH}" \
     PYTHONDONTWRITEBYTECODE=1 \
+    OPENSPEC_TELEMETRY=0 \
+    DO_NOT_TRACK=1 \
     SCION_OPS_ROOT=/workspace/scion-ops \
     SCION_OPS_MCP_TRANSPORT=streamable-http \
     SCION_OPS_MCP_HOST=0.0.0.0 \

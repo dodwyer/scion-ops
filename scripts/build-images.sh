@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build Scion container images natively with podman, single-arch.
+# Build Scion container images natively with Docker, single-arch.
 #
 # Requires the upstream scion source checked out (we read its image-build/
 # Dockerfiles). By default it expects the source at
@@ -49,7 +49,7 @@ while [[ $# -gt 0 ]]; do
       BUILD_MCP=0
       case "$2" in
         core) BUILD_CORE=1 ;;
-        base) BUILD_BASE=1 ;;
+        base) BUILD_CORE=1; BUILD_BASE=1 ;;
         harnesses) BUILD_HARNESSES=1 ;;
         mcp) BUILD_MCP=1 ;;
         claude|codex|gemini|opencode)
@@ -87,7 +87,8 @@ EOF
 done
 
 [[ -d "$SCION_SRC/image-build" ]] || { red "scion source not found at $SCION_SRC"; exit 1; }
-command -v podman >/dev/null || { red "podman not on PATH"; exit 1; }
+command -v docker >/dev/null || { red "docker not on PATH"; exit 1; }
+docker info >/dev/null 2>&1 || { red "docker daemon is not available"; exit 1; }
 
 "$REPO_ROOT/scripts/scion-runtime-patches.sh" ensure --src "$SCION_SRC"
 
@@ -97,18 +98,18 @@ storage_preflight() {
   [[ "${SCION_OPS_SKIP_STORAGE_CHECK:-}" == "1" ]] && return
 
   local driver graph_root available_kb
-  driver="$(podman info --format '{{.Store.GraphDriverName}}' 2>/dev/null || true)"
-  graph_root="$(podman info --format '{{.Store.GraphRoot}}' 2>/dev/null || true)"
+  driver="$(docker info --format '{{.Driver}}' 2>/dev/null || true)"
+  graph_root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)"
 
   if [[ "$driver" == "vfs" ]]; then
-    printf '\033[33m%s\033[0m\n' "Warning: Podman is using the vfs storage driver; image rebuilds will consume much more disk than overlay-backed storage."
+    printf '\033[33m%s\033[0m\n' "Warning: Docker is using the vfs storage driver; image rebuilds will consume much more disk than overlay-backed storage."
     printf '\033[33m%s\033[0m\n' "         Use targeted build tasks, or run 'task storage:status' and 'task storage:prune' before a full build."
   fi
 
   if [[ -n "$graph_root" && -d "$graph_root" ]]; then
     available_kb="$(df -Pk "$graph_root" | awk 'NR == 2 {print $4}')"
     if [[ -n "$available_kb" && "$available_kb" -lt 41943040 ]]; then
-      red "Podman storage has less than 40GiB available at $graph_root."
+      red "Docker storage has less than 40GiB available at $graph_root."
       red "Run 'task storage:status' and prune old images before building."
       exit 1
     fi
@@ -119,7 +120,7 @@ build() {
   local name="$1" dockerfile="$2" context="$3"; shift 3
   local tag="${REGISTRY}/${name}:${TAG}"
   log "build $tag"
-  podman build \
+  docker build \
     --tag "$tag" \
     --file "$dockerfile" \
     "$@" \
@@ -174,4 +175,4 @@ fi
 green ""
 green "All images built."
 echo  "Configure scion:  scion config set --global image_registry ${REGISTRY}"
-podman images --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}" | awk 'NR==1 || /scion|core-base/' | head -10
+docker images --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}" | awk 'NR==1 || /scion|core-base/' | head -10
