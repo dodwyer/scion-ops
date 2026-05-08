@@ -104,6 +104,8 @@ It restores:
 
 Codex-backed personas use the repo-managed `codex-exec` harness config.
 Claude templates use `--print` for non-interactive execution.
+Broker runtime state is backed by a PVC so synced templates and harness configs
+survive normal broker pod restarts.
 
 ## Project Targeting
 

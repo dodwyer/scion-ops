@@ -88,7 +88,8 @@ spec:
               readOnly: true
       volumes:
         - name: state
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: scion-broker-state
         - name: settings
           configMap:
             name: scion-hub-settings
