@@ -138,5 +138,10 @@ Implementation PR review checks:
 
 ## Runtime Dependency Policy
 
-Validation remains repo-local and script-based. Do not add the OpenSpec CLI to
-runtime images unless the current validator leaves a concrete validation gap.
+The MCP runtime includes the pinned OpenSpec CLI and uses it for canonical
+`validate` and `status` results when available. The repo-local Python validator
+remains the fallback for local development and for environments where the CLI is
+not present.
+
+Archive remains script-based for now because the local command gives us a
+previewable, JSON result before moving files under `openspec/changes/archive/`.

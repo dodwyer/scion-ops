@@ -73,6 +73,10 @@ spec:
               value: http://scion-hub:8090
             - name: SCION_HUB_ENDPOINT
               value: http://scion-hub:8090
+            - name: OPENSPEC_TELEMETRY
+              value: "0"
+            - name: DO_NOT_TRACK
+              value: "1"
             - name: SCION_K8S_NAMESPACE
               valueFrom:
                 fieldRef:

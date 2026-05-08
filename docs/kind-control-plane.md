@@ -142,8 +142,8 @@ task load:image -- localhost/scion-codex:latest
 task dev:test
 ```
 
-Use `task storage:status` before full image rebuilds. If Podman is using `vfs`,
-switch to overlay storage before large rebuild cycles.
+Use `task storage:status` before full image rebuilds. If Docker is using `vfs`,
+switch to `overlay2` storage before large rebuild cycles.
 
 ## Destroy
 

@@ -18,7 +18,7 @@ task down       # destroy the kind cluster and cluster-local state
 ## Prerequisites
 
 - `task`
-- `podman`
+- `docker`
 - `kind`
 - `kubectl`
 - `uv`
@@ -159,6 +159,9 @@ task spec:implement -- --change add-widget "Implement the approved change."
 MCP callers should prefer `scion_ops_run_spec_round` for spec rounds because it
 starts, monitors, validates, and returns the PR-ready branch in one repeatable
 tool loop.
+
+The MCP runtime uses the official OpenSpec CLI for validation and status when
+available, with the repo-local validator kept as the local fallback.
 
 OpenSpec operations are documented in
 [docs/openspec-round-workflow.md](docs/openspec-round-workflow.md).
