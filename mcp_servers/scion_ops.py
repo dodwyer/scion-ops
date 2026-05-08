@@ -1821,11 +1821,14 @@ def scion_ops_round_events(
     except HubAPIError as exc:
         return _hub_error_payload(exc, "round_events")
     events = _round_events_since(snapshot, previous, include_existing=include_existing)
+    progress_lines = _snapshot_progress_lines(snapshot, round_id)
     return {
         "ok": all(snapshot["commands_ok"].values()),
         "source": "hub_api",
         "hub": snapshot.get("hub"),
         "round_id": round_id,
+        "summary": progress_lines[0] if progress_lines else f"round {round_id} observed",
+        "progress_lines": progress_lines,
         "changed": bool(events),
         "events": events,
         "cursor": _encode_cursor(snapshot),
@@ -1882,11 +1885,14 @@ def scion_ops_watch_round_events(
         events = _round_events_since(snapshot, previous, include_existing=include_existing)
         terminal = _round_terminal_status(snapshot)
         if events or terminal:
+            progress_lines = _snapshot_progress_lines(snapshot, round_id)
             return {
                 "ok": all(snapshot["commands_ok"].values()),
                 "source": "hub_api",
                 "hub": snapshot.get("hub"),
                 "round_id": round_id,
+                "summary": progress_lines[0] if progress_lines else f"round {round_id} observed",
+                "progress_lines": progress_lines,
                 "changed": bool(events),
                 "events": events,
                 "cursor": _encode_cursor(snapshot),
@@ -1904,11 +1910,14 @@ def scion_ops_watch_round_events(
         snapshot = last_snapshot or _round_event_snapshot(round_id, project_root)
     except HubAPIError as exc:
         return _hub_error_payload(exc, "watch_round_events")
+    progress_lines = _snapshot_progress_lines(snapshot, round_id)
     return {
         "ok": all(snapshot["commands_ok"].values()),
         "source": "hub_api",
         "hub": snapshot.get("hub"),
         "round_id": round_id,
+        "summary": progress_lines[0] if progress_lines else f"round {round_id} observed",
+        "progress_lines": progress_lines,
         "changed": False,
         "events": [],
         "cursor": _encode_cursor(snapshot),
@@ -2549,6 +2558,62 @@ def _latest_event_summaries(events: list[dict[str, Any]]) -> list[str]:
     return summaries
 
 
+def _agent_progress_line(agent: dict[str, Any]) -> str:
+    name = str(agent.get("name") or agent.get("template") or "agent")
+    health = str(agent.get("health") or "unknown")
+    summary = _short_text(agent.get("summary"), limit=180)
+    if health == "completed":
+        status = "complete"
+    elif health == "pending":
+        status = "started"
+    else:
+        status = health
+    detail = f" {summary}" if summary else ""
+    return _short_text(f"agent {name} {status}{detail}", limit=260)
+
+
+def _round_progress_lines(
+    *,
+    round_id: str,
+    status: str,
+    progress: dict[str, Any],
+    validation_status: str = "",
+    pr_ready_branch: str = "",
+    blockers: list[str] | None = None,
+    warnings: list[str] | None = None,
+) -> list[str]:
+    active = progress.get("active_agents", [])
+    completed = progress.get("completed_agents", [])
+    unhealthy = progress.get("unhealthy_agents", [])
+    parts = [
+        f"round {round_id} {status}",
+        f"agents={progress.get('agent_count', 0)}",
+        f"active={len(active)}",
+        f"complete={len(completed)}",
+        f"unhealthy={len(unhealthy)}",
+    ]
+    if validation_status:
+        parts.append(f"validation={validation_status}")
+    lines = [" ".join(parts)]
+    lines.extend(_agent_progress_line(agent) for agent in unhealthy)
+    lines.extend(_agent_progress_line(agent) for agent in active)
+    lines.extend(_agent_progress_line(agent) for agent in completed)
+    if pr_ready_branch:
+        lines.append(f"round {round_id} complete branch {pr_ready_branch}")
+    for warning in warnings or []:
+        lines.append(_short_text(f"warning {warning}", limit=260))
+    for blocker in blockers or []:
+        lines.append(_short_text(f"blocker {blocker}", limit=260))
+    return lines
+
+
+def _snapshot_progress_lines(snapshot: dict[str, Any], round_id: str) -> list[str]:
+    progress = _round_agent_progress(snapshot.get("agents", []))
+    terminal = _round_terminal_status(snapshot)
+    status = "completed" if terminal else "running" if progress["active_agents"] else "observed"
+    return _round_progress_lines(round_id=round_id, status=status, progress=progress)
+
+
 def _spec_round_artifact_state(
     *,
     target_root: Path,
@@ -2758,6 +2823,15 @@ def _spec_round_progress_response(
     elif not summaries:
         overall_health = "starting"
 
+    progress_lines = _round_progress_lines(
+        round_id=round_id,
+        status=status,
+        progress=progress,
+        validation_status=artifact_state["validation_status"],
+        pr_ready_branch=expected_branch if status == "completed" else "",
+        blockers=blockers,
+        warnings=warnings,
+    )
     artifacts = artifact_state["artifacts"] if done else {
         "source": artifact_state["artifacts"].get("source"),
         "project_root": artifact_state["artifacts"].get("project_root"),
@@ -2792,6 +2866,8 @@ def _spec_round_progress_response(
         "done": done,
         "status": status,
         "health": overall_health,
+        "summary": progress_lines[0] if progress_lines else f"round {round_id} {status}",
+        "progress_lines": progress_lines,
         "source": "spec_round_runner",
         "project_root": project_root,
         "round_id": round_id,
