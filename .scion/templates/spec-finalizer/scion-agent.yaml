@@ -4,4 +4,4 @@ default_harness_config: codex-exec
 system_prompt: system-prompt.md
 agent_instructions: agents.md
 max_turns: 50
-max_duration: 8m
+max_duration: 12m

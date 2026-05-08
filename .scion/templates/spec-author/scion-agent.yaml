@@ -1,9 +1,7 @@
 schema_version: "1"
 description: "Spec author - drafts OpenSpec proposal, delta specs, design, and tasks."
-default_harness_config: claude
-model: claude-sonnet-4-6
-command_args:
-  - --print
+harness_config: codex-exec
+default_harness_config: codex-exec
 system_prompt: system-prompt.md
 agent_instructions: agents.md
 max_turns: 50
