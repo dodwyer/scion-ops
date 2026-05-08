@@ -185,9 +185,9 @@ check.
 `task down` deletes the kind cluster and all cluster-local PVCs and Secrets.
 Host workspace checkouts survive because they are outside the cluster.
 
-Cluster-local state includes Hub DB/storage, dev auth, broker credentials,
-synced templates, harness configs, MCP-prepared GitHub checkouts, and restored
-model credentials. Recreate it with:
+Cluster-local state includes Hub DB/storage, broker runtime state, dev auth,
+broker credentials, synced templates, harness configs, MCP-prepared GitHub
+checkouts, and restored model credentials. Recreate it with:
 
 ```bash
 task up
