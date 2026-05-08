@@ -18,7 +18,7 @@ The app should provide these primary views:
 
 ## Data Sources
 
-The UI should consume a stable web-facing API backed by existing scion-ops Hub/MCP state. The implementation may choose direct Hub calls, MCP calls through a server adapter, or a dedicated API facade, but the facade must preserve these concepts:
+The UI should consume a stable web-facing API backed by existing scion-ops Hub/MCP state. The initial implementation SHALL use a dedicated read-only web API facade between browser code and Hub/MCP. The facade may call Hub HTTP directly or use MCP internally, but it must expose a browser-oriented contract that preserves these concepts:
 
 - Hub health and identity from the hub status affordance.
 - Agents from `scion_ops_list_agents` or equivalent Hub agent state.
@@ -28,6 +28,26 @@ The UI should consume a stable web-facing API backed by existing scion-ops Hub/M
 - Spec validation/project status from `scion_ops_spec_status` where applicable.
 
 The UI must not infer round truth from Kubernetes pods, local terminal files, or ad hoc log scraping when Hub/MCP state is available.
+
+The facade contract should provide dashboard, round detail, round events/watch, and artifact endpoints or equivalent grouped responses. Returned objects should include stable identifiers, lifecycle state, server time, freshness/staleness metadata, and link objects with explicit labels and URL/path types. Unknown backend fields should be passed through only when they are safe to display as metadata; they should not become implicit UI behavior.
+
+## Project Scope And Retention
+
+The first release is scoped to one configured project/grove identity. The app should show that identity in status surfaces and treat missing or mismatched identity as a configuration error. It should not provide a project selector, cross-project aggregation, or multi-tenant switching until a later approved change defines discovery, authorization, and UX rules.
+
+The dashboard should show all active rounds returned by the facade plus a bounded completed-round window. The default UI limit is the most recent 50 completed rounds or completed rounds from the last 14 days, whichever is smaller. Implementations may expose configuration to narrow that window, but must not silently expand beyond the default without an explicit later decision. When more completed rounds exist than are displayed, the UI should show that the list is limited.
+
+## Artifact Link Contract
+
+Artifact links must be explicit backend/facade data, not guessed client-side routes. Each artifact destination should include a human label, type, and target supplied by the facade. Supported first-release artifact types are:
+
+- Branch or pull request links when a remote URL is known.
+- OpenSpec change paths when the facade can provide a repository-relative path or hosted URL.
+- Hub record links when the facade exposes a stable route or identifier.
+- Transcript or log links when the facade exposes a stable endpoint.
+- Local-only paths only as non-clickable text unless the facade marks them as openable in the current deployment context.
+
+If the backend returns an artifact without a stable destination, the UI should render the artifact as unavailable or metadata-only rather than constructing a URL from naming conventions.
 
 ## Live Update Model
 
@@ -52,6 +72,12 @@ Unknown fields should render as unavailable rather than causing blank or mislead
 ## Controls And Permissions
 
 Read-only observation is the default requirement. Start, abort, and resume workflows are high-risk because they change operational state. If they are added later, the implementation must require explicit configuration, confirmation for destructive actions, and clear permission boundaries. Abort must require a confirmation step equivalent to the existing backend confirm flag.
+
+## Deployment And Operations
+
+The implementation should fit the repository's Kubernetes-only operating model. The web hub should be packageable as an image and deployable through the same Kubernetes deployment flow as the existing Hub/MCP services. Runtime configuration should come from Kubernetes environment, service discovery, ConfigMaps, and Secrets as appropriate; local-only scripts may be useful for development, but they are not the operational packaging model.
+
+The web app deployment should define how the facade reaches Hub/MCP inside the cluster, how authentication material is provided without duplicating secrets, and how health/readiness checks distinguish UI availability from backend connectivity. The deployment should not require direct pod log access or host-local filesystem mounts to provide the specified UI.
 
 ## Error Handling
 

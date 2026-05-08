@@ -12,9 +12,10 @@ scion-ops already exposes round state through Hub and MCP affordances, including
 
 - Provide a browser-based interface for repo maintainers, operators, and reviewers to inspect scion-ops round progress.
 - Center the experience on consensus/spec/implementation rounds and their current state.
-- Use Hub or MCP-derived APIs as the source of truth rather than scraping Kubernetes pods or terminal logs directly.
+- Use a dedicated read-only web API facade backed by Hub/MCP-derived APIs as the source of truth rather than scraping Kubernetes pods or terminal logs directly.
 - Support live progress following through polling, long-poll, or equivalent event watching.
 - Make terminal state, blockers, validation status, and artifact links obvious from the round detail view.
+- Scope the first release to one configured project/grove and a bounded recent-round window.
 - Keep destructive or workflow-changing controls out of the default scope unless explicitly enabled by a later implementation decision.
 
 ## Non-Goals
@@ -30,8 +31,9 @@ scion-ops already exposes round state through Hub and MCP affordances, including
 In scope:
 
 - A read-focused web hub with dashboard, round detail, agent state, event feed, artifact links, and backend connectivity states.
-- API contract expectations for consuming the existing scion-ops state primitives.
+- API contract expectations for a dedicated web facade that consumes existing scion-ops state primitives.
 - Explicit UX behavior for live updates, empty/error states, terminal outcomes, and blockers.
+- Kubernetes-compatible packaging and operation requirements for the web app.
 - Implementation tasks that can be executed after spec approval.
 
 Out of scope for the initial implementation:
@@ -40,10 +42,12 @@ Out of scope for the initial implementation:
 - Direct pod log scraping.
 - Retention policy changes to Hub storage.
 - Public internet deployment and authentication policy beyond preserving existing Hub/MCP authentication expectations.
+- Multi-project browsing in the initial release.
 
-## Open Questions
+## Decisions
 
-- Should the initial implementation consume Hub HTTP APIs directly, call the MCP server from a thin backend, or expose a dedicated web API that normalizes MCP-derived summaries?
-- Is the first release scoped to one configured project/grove, or should the UI include a project selector?
-- What retention window should be shown for completed rounds if Hub exposes more history than the UI can comfortably render?
-- Which artifact URL forms are stable enough to deep-link in the first release: GitHub branches, OpenSpec change paths, Hub records, terminal transcript endpoints, or local-only paths?
+- The initial implementation SHALL expose a dedicated read-only web API facade for the browser. The facade may call Hub HTTP or MCP internally, but browser code must consume the facade contract.
+- The first release SHALL observe a single configured project/grove identity. A project selector is out of scope until a later change defines multi-project discovery and authorization.
+- The dashboard SHALL show active rounds plus a bounded completed-round window. The default display window is the most recent 50 completed rounds or 14 days, whichever is smaller, unless implementation configuration narrows it.
+- Artifact destinations SHALL be rendered only when supplied by the facade or backend as stable link targets. The UI must not invent URLs for branches, OpenSpec paths, Hub records, transcripts, logs, or local-only paths.
+- The web app SHALL be packaged for the repo's Kubernetes-based operating model, with configuration supplied through the deployment environment and service discovery rather than ad hoc local runtime scripts.
