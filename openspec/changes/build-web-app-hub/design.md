@@ -23,6 +23,26 @@ Introduce a web app served as part of the scion-ops control-plane experience. Th
 
 The facade should call canonical sources instead of requiring browser clients to understand MCP protocol details or Kubernetes internals. If implementation chooses to colocate the facade inside the existing MCP service, the browser API must remain ordinary HTTP/JSON and must not expose raw mutating MCP tools by default.
 
+### Placement Decision Required
+
+Implementation must choose one concrete placement before code work:
+
+- Extend the existing Hub web surface.
+- Add a separate scion-ops web service in the local kind control plane.
+- Serve a browser-safe HTTP facade from the MCP service.
+
+The accepted decision must name the Kubernetes object ownership model, local kind access path, port/service exposure, build artifact ownership, and how the app reaches Hub/MCP without manual patches. Until this decision is accepted, no implementation task should create frontend code, manifests, runtime scripts, or service wiring.
+
+### Browser API And Schema Ownership Required
+
+Implementation must choose the canonical browser API boundary before code work:
+
+- Hub HTTP facade owned by Hub/web.
+- MCP-backed facade owned by MCP/server code.
+- Hybrid facade with explicit endpoint and schema ownership.
+
+The accepted decision must define endpoint ownership, versioning expectations, source-to-view-model field ownership, read-only endpoint allowlist, error envelope, partial-source behavior, and whether raw Hub/MCP fields are exposed only in drilldown diagnostics. Browser clients must not call mutating MCP tools or query Kubernetes APIs directly.
+
 ## UX Model
 
 The first screen should be the working operator hub, not a landing page. It should contain:
@@ -57,6 +77,8 @@ The UI should normalize canonical round state into a small display vocabulary:
 
 Implementation must document the exact mapping from Hub/MCP fields to these statuses before code changes begin. Existing MCP statuses such as `running_degraded` may map to `degraded` for display while preserving raw status in drilldown.
 
+The mapping decision must include, at minimum, source fields for raw round status, terminal state, validation result, agent health, blocker/warning counts, timeout conditions, source reachability, updated time, and missing/partial data. It must also define precedence when fields conflict, for example when validation succeeds but an agent is unhealthy or when the source is stale.
+
 ## Data Freshness
 
 The MVP should support refresh without requiring the user to manually rerun terminal commands. Acceptable implementation options are:
@@ -67,6 +89,8 @@ The MVP should support refresh without requiring the user to manually rerun term
 
 Polling is acceptable for the MVP if intervals are bounded and visible stale-state indicators are provided. Direct browser polling of Kubernetes APIs or pod logs is not acceptable.
 
+The accepted freshness decision must select one live update transport for list and drilldown views, default refresh interval or event heartbeat, stale threshold, failed-refresh display behavior, cursor/resume semantics for event streams when applicable, and any backoff limits needed to avoid adding load during active rounds.
+
 ## Retention
 
 Recent rounds should be displayed from canonical Hub/MCP-observable state first. If the existing sources cannot list enough history for the requested "active/recent" experience, implementation must either:
@@ -76,25 +100,36 @@ Recent rounds should be displayed from canonical Hub/MCP-observable state first.
 
 The spec does not approve a separate database for round history yet.
 
+The accepted retention decision must state whether completed/recent rounds are limited to currently observable Hub state, Hub/MCP event history, Git/worktree artifacts, or a separately approved persistent read model. It must also define how many rounds or what time window the MVP promises, and what the UI shows when older completed rounds are unavailable.
+
 ## Authentication And Authorization
 
 The MVP supports local operators and read-only reviewers, but the auth mechanism is unresolved. Implementation must decide how the browser authenticates to the facade and how reviewer read-only access is enforced.
 
 Until that decision is made, the app must not expose mutating actions in the UI or browser API. Dev-auth tokens, Hub tokens, and MCP credentials must not be leaked to client-side JavaScript.
 
+The accepted auth decision must define session establishment, local kind access assumptions, reviewer identity or token handling, read-only enforcement location, CSRF/CORS posture where relevant, and secret redaction rules. Read-only enforcement must be server-side, not only hidden UI controls.
+
 ## Artifact Links
 
 Artifacts should be rendered from structured references returned by the facade, including branch names, file paths, validation output, and PR-ready branch names. The implementation must define whether artifact links open local files, GitHub branches, Hub storage entries, or facade-served artifacts before rendering them as clickable links.
 
+The accepted artifact decision must define each supported artifact reference type, display label, copy value, click target, authorization behavior, missing-target behavior, and whether local workspace paths are shown as plain text or converted to links. The UI must not create clickable links whose target semantics are unknown or environment-specific.
+
 ## Open Decisions
 
-- App location: extend existing Hub web surface, add a separate scion-ops web service, or serve from the MCP service.
-- Browser API boundary: direct Hub HTTP API facade, MCP-backed facade, or hybrid facade.
-- Auth/session model for local operators and read-only reviewers.
-- Live update mechanism and default refresh interval.
-- Retention source for completed/recent rounds beyond current Hub-observable state.
-- Artifact link contract.
-- Whether mutating controls are included in a future change, and what confirmation model they require.
+- App location/local kind hosting: extend existing Hub web surface, add a separate scion-ops web service, or serve from the MCP service.
+- Auth/session model for local operators and read-only reviewers, including server-side read-only enforcement.
+- Browser API boundary and schema ownership: direct Hub HTTP API facade, MCP-backed facade, or hybrid facade.
+- Exact Hub/MCP field mapping to canonical UI lifecycle statuses and conflict precedence.
+- Live update mechanism, default refresh interval or heartbeat, stale threshold, and event cursor semantics.
+- Retention/history source for completed/recent rounds beyond current Hub-observable state.
+- Artifact link contract for local paths, branches, validation output, PR-ready branches, and facade-served artifacts.
+- Whether mutating controls are included in a future change, and what confirmation and authorization model they require.
+
+## Implementation Gate
+
+Implementation is blocked until every open decision above is resolved by accepted OpenSpec artifacts. The future implementation tasks may start only after those artifacts name the selected options and define the required contracts. This spec-finalization pass must not infer those choices from current repository layout or reviewer comments.
 
 ## Risks
 

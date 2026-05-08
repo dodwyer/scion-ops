@@ -78,6 +78,54 @@ Given the app displays active or recent rounds
 When source data changes
 Then the app refreshes from canonical source data rather than relying on an independently edited browser-side or UI-owned status store.
 
+### Requirement: Implementation Decision Gate
+
+The system SHALL NOT be implemented until placement, authentication, browser API ownership, status mapping, freshness, retention, artifact link, and future mutation decisions are accepted in OpenSpec artifacts.
+
+#### Scenario: Implementation remains blocked while decisions are unresolved
+
+Given any required implementation readiness decision is unresolved
+When implementation work is proposed
+Then frontend code, API code, Kubernetes manifests, runtime scripts, tests, and product documentation for the web app hub remain out of scope.
+
+#### Scenario: Accepted decisions unblock implementation
+
+Given accepted OpenSpec artifacts define all required implementation readiness decisions
+When implementation work is proposed
+Then the implementation can use those accepted decisions as constraints without inventing app placement, auth, API schema, status mapping, freshness, retention, artifact, or mutation policy.
+
+### Requirement: Browser API Contract
+
+The system SHALL expose browser data through an accepted read-only HTTP contract whose ownership and backing source are defined before implementation.
+
+#### Scenario: Browser API boundary is selected
+
+Given implementation readiness is being evaluated
+When the browser API contract is reviewed
+Then the contract identifies whether the API is Hub HTTP backed, MCP backed, or hybrid and names the component that owns endpoints, schemas, versioning, and error envelopes.
+
+#### Scenario: Browser API handles partial canonical source failures
+
+Given one canonical source is unavailable while others remain reachable
+When the browser requests summary or drilldown data
+Then the API returns partial data with explicit source failure metadata rather than hiding the source outage or fabricating missing state.
+
+### Requirement: Lifecycle Status Mapping
+
+The system SHALL define exact mappings from canonical Hub/MCP fields to UI lifecycle statuses before implementation.
+
+#### Scenario: Status mapping uses documented source fields
+
+Given a round has raw status, terminal state, validation state, agent health, blocker count, warning count, timeout state, source reachability, updated time, and freshness metadata
+When the UI displays a lifecycle status
+Then the status is selected using a documented mapping and conflict precedence.
+
+#### Scenario: Raw status remains inspectable
+
+Given the UI lifecycle status differs from the raw Hub/MCP status
+When the user opens round drilldown diagnostics
+Then the raw source status and fields used for mapping remain visible.
+
 ### Requirement: Read First Safety Boundary
 
 The MVP SHALL expose read-only browser behavior and SHALL NOT expose start, abort, retry, archive, or other mutating controls until explicitly approved.
@@ -94,6 +142,12 @@ Given an operator wants to start, abort, retry, or archive a round from the web 
 When the MVP is in scope
 Then the app presents no such control and the decision is tracked as a future change requiring explicit authorization and confirmation design.
 
+#### Scenario: Server enforces read-only reviewer access
+
+Given a read-only reviewer has access to the web app hub
+When they send a browser API request
+Then the server-side facade authorizes only read operations regardless of whether a mutating UI control is visible.
+
 ### Requirement: Data Freshness
 
 The system SHALL make refresh and stale-state behavior visible to users.
@@ -109,6 +163,44 @@ Then the user can see the last refreshed time and whether the latest refresh suc
 Given the app cannot refresh from the canonical source within the configured freshness window
 When the user views existing data
 Then the app marks the data as stale and preserves the last known state without presenting it as current.
+
+#### Scenario: Freshness contract is configured
+
+Given implementation readiness is being evaluated
+When the freshness behavior is reviewed
+Then the selected transport, list and drilldown interval or heartbeat, stale threshold, event cursor or resume behavior, and backoff limits are documented.
+
+### Requirement: Recent Round Retention Contract
+
+The system SHALL define the canonical source and limits for recent and completed round history before implementation.
+
+#### Scenario: Recent history source is selected
+
+Given the UI promises active and recent rounds
+When implementation readiness is evaluated
+Then the accepted artifacts identify whether recent rounds come from currently observable Hub state, Hub/MCP event history, Git or worktree artifacts, or a separately approved persistent read model.
+
+#### Scenario: Older history is unavailable
+
+Given a completed round is outside the accepted retention source or window
+When the user searches or filters for that round
+Then the UI explains that the round is unavailable from the configured history source instead of implying it never existed.
+
+### Requirement: Artifact Link Contract
+
+The system SHALL define structured artifact reference behavior before rendering artifacts as clickable browser links.
+
+#### Scenario: Artifact reference is displayed
+
+Given the facade returns an artifact reference
+When the UI renders the artifact
+Then the display label, copy value, click target, authorization behavior, and missing-target behavior follow the accepted artifact contract.
+
+#### Scenario: Artifact link semantics are unknown
+
+Given an artifact reference type does not have accepted link semantics
+When the UI renders the artifact
+Then the UI may show a copyable plain-text reference but does not create a clickable link.
 
 ### Requirement: Browser Credential Containment
 
