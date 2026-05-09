@@ -6,7 +6,7 @@
   "change": "update-web-app",
   "base_branch": "round-20260509t185251z-1cfe-spec-integration",
   "status": "running",
-  "phase": "implementers_running",
+  "phase": "integration_pushed",
   "branches": {
     "steward": "round-20260509t231048z-native5-implementation-steward",
     "implementer": "round-20260509t231048z-native5-impl-codex",
@@ -17,32 +17,42 @@
   "agents": {
     "round-20260509t231048z-native5-impl-codex": {
       "branch": "round-20260509t231048z-native5-impl-codex",
-      "status": "running",
+      "status": "completed",
       "scope": "MCP-aligned read-only web app backend, UI contract, and fixture tests",
-      "started": "2026-05-09T23:10:48Z"
+      "started": "2026-05-09T23:10:48Z",
+      "head": "6e632f565a1c5f0955554d6bf06dd386ea75e836"
     },
     "round-20260509t231048z-native5-impl-claude": {
       "branch": "round-20260509t231048z-native5-impl-claude",
-      "status": "running",
+      "status": "completed",
       "scope": "kind/kustomize install, lifecycle tasks, no-spend smoke, and docs",
-      "started": "2026-05-09T23:10:48Z"
+      "started": "2026-05-09T23:10:48Z",
+      "head": "cb1a04ac23eab657c384dadeb20a1306b567ac46"
     },
     "round-20260509t231048z-native5-impl-web-readiness-repair": {
       "branch": "round-20260509t231048z-native5-impl-web-readiness-repair",
-      "status": "running",
+      "status": "completed",
       "scope": "narrow repair for web app Kubernetes/control-plane readiness semantics",
-      "started": "2026-05-09T23:25:00Z"
+      "started": "2026-05-09T23:25:00Z",
+      "head": "bd98cd0719af515e4d8dd2e3459435a54b2007c0"
     }
   },
   "implementation": {
-    "branch": "",
+    "branch": "round-20260509t231048z-native5-integration",
     "base_branch": "round-20260509t185251z-1cfe-spec-integration",
-    "integration_branch": "round-20260509t231048z-native5-integration"
+    "integration_branch": "round-20260509t231048z-native5-integration",
+    "integration_head": "82a8b1c"
   },
   "reviews": [],
   "final_review": {},
   "verification": {
-    "status": "pending"
+    "status": "passed",
+    "commands": [
+      "task spec:validate -- update-web-app",
+      "git diff --check && task verify",
+      "kubectl kustomize deploy/kind/control-plane"
+    ],
+    "rendered_kustomize": "/tmp/update-web-app-rendered-final.yaml"
   },
   "blockers": [],
   "next_actions": [
