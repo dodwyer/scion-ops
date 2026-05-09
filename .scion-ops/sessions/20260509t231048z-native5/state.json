@@ -38,28 +38,28 @@
     },
     "round-20260509t231048z-native5-impl-rbac-repair": {
       "branch": "round-20260509t231048z-native5-impl-rbac-repair",
-      "status": "running",
+      "status": "completed",
       "scope": "final-review repair for web app Kubernetes RBAC and small deployment env nit",
-      "started": "2026-05-09T23:32:00Z"
+      "started": "2026-05-09T23:32:00Z",
+      "head": "892520d73fbedd229ddcc417bea33b4ed7658bd9"
     }
   },
   "implementation": {
     "branch": "round-20260509t231048z-native5-integration",
     "base_branch": "round-20260509t185251z-1cfe-spec-integration",
     "integration_branch": "round-20260509t231048z-native5-integration",
-    "integration_head": "82a8b1c"
+    "integration_head": "254b98e"
   },
   "reviews": [],
   "final_review": {
-    "branch": "round-20260509t231048z-native5-final-review",
+    "branch": "round-20260509t231048z-native5-final-review-r2",
     "review_branch": "round-20260509t231048z-native5-integration",
-    "status": "request_changes",
+    "status": "running",
     "started": "2026-05-09T23:30:00Z",
     "verdict_file": ".scion-ops/sessions/20260509t231048z-native5/reviews/final-review.json",
-    "verdict": "request_changes",
-    "blocking_issues": [
-      "web app ServiceAccount Role lacks endpoints and persistentvolumeclaims permissions required by RuntimeProvider.kubernetes_status"
-    ]
+    "previous_branch": "round-20260509t231048z-native5-final-review",
+    "previous_verdict": "request_changes",
+    "repair_branch": "round-20260509t231048z-native5-impl-rbac-repair"
   },
   "verification": {
     "status": "passed",
@@ -70,9 +70,7 @@
     ],
     "rendered_kustomize": "/tmp/update-web-app-rendered-final.yaml"
   },
-  "blockers": [
-    "final review requested RBAC repair for web app Kubernetes readiness query"
-  ],
+  "blockers": [],
   "next_actions": [
     "Write implementation brief and bounded task groups",
     "Start bounded implementer agents",
