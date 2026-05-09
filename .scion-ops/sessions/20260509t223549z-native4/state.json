@@ -55,19 +55,28 @@
       "type": "impl-codex",
       "branch": "round-20260509t223549z-native4-impl-web-rbac-repair",
       "scope": "Final-review r2 repair for web app RBAC and overview health exposure",
+      "status": "completed",
+      "base_branch": "round-20260509t223549z-native4-integration",
+      "commit": "a2a17ccbfc0f9b7034672528ee8eedbcb52756ef"
+    },
+    "round-20260509t223549z-native4-final-review-r3": {
+      "type": "final-reviewer-codex",
+      "branch": "round-20260509t223549z-native4-final-review-r3",
+      "review_branch": "round-20260509t223549z-native4-integration",
       "status": "running",
-      "base_branch": "round-20260509t223549z-native4-integration"
+      "verdict_file": ".scion-ops/sessions/20260509t223549z-native4/reviews/final-review-r3.json"
     }
   },
   "implementation": {
     "branch": "round-20260509t223549z-native4-integration",
     "base_branch": "round-20260509t185251z-1cfe-spec-integration",
     "integration_branch": "round-20260509t223549z-native4-integration",
-    "integration_sha": "0730f6daa5ad1bf48ae02f393848e9b5c4c63ea4",
+    "integration_sha": "0a36802b142c18b35b3b0d9aa2578c3fe11b626c",
     "merged_branches": [
       "round-20260509t223549z-native4-impl-codex",
       "round-20260509t223549z-native4-impl-claude",
-      "round-20260509t223549z-native4-impl-web-readiness-repair"
+      "round-20260509t223549z-native4-impl-web-readiness-repair",
+      "round-20260509t223549z-native4-impl-web-rbac-repair"
     ]
   },
   "reviews": [],
@@ -86,7 +95,9 @@
     "replacement_commit": "c8aee19c437fc1cc0919b94921606e9192f80082",
     "replacement_blocking_issues": [
       "deploy/kind/control-plane/web-app-rbac.yaml does not grant endpoints or persistentvolumeclaims access required by scripts/web_app_hub.py Kubernetes readiness queries."
-    ]
+    ],
+    "third_review_branch": "round-20260509t223549z-native4-final-review-r3",
+    "third_review_status": "running"
   },
   "verification": {
     "status": "passed",
@@ -101,8 +112,7 @@
   },
   "blockers": [],
   "next_actions": [
-    "Start narrow repair implementer for web app RBAC and overview health exposure",
-    "Integrate repair and rerun verification",
-    "Run final-review r3"
+    "Wait for final-review r3 verdict",
+    "If accepted, mark session ready"
   ]
 }
