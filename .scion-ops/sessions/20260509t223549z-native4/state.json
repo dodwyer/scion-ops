@@ -40,18 +40,27 @@
       "type": "impl-codex",
       "branch": "round-20260509t223549z-native4-impl-web-readiness-repair",
       "scope": "Final-review repair for web app Kubernetes readiness model",
+      "status": "completed",
+      "base_branch": "round-20260509t223549z-native4-integration",
+      "commit": "2e03776cbad769aeb7a9a473463f5c4ace35537d"
+    },
+    "round-20260509t223549z-native4-final-review-r2": {
+      "type": "final-reviewer-codex",
+      "branch": "round-20260509t223549z-native4-final-review-r2",
+      "review_branch": "round-20260509t223549z-native4-integration",
       "status": "running",
-      "base_branch": "round-20260509t223549z-native4-integration"
+      "verdict_file": ".scion-ops/sessions/20260509t223549z-native4/reviews/final-review-r2.json"
     }
   },
   "implementation": {
     "branch": "round-20260509t223549z-native4-integration",
     "base_branch": "round-20260509t185251z-1cfe-spec-integration",
     "integration_branch": "round-20260509t223549z-native4-integration",
-    "integration_sha": "aec1f18bd88cf8e5250c0fb138e20ceba38511ea",
+    "integration_sha": "0730f6daa5ad1bf48ae02f393848e9b5c4c63ea4",
     "merged_branches": [
       "round-20260509t223549z-native4-impl-codex",
-      "round-20260509t223549z-native4-impl-claude"
+      "round-20260509t223549z-native4-impl-claude",
+      "round-20260509t223549z-native4-impl-web-readiness-repair"
     ]
   },
   "reviews": [],
@@ -63,7 +72,9 @@
     "commit": "3ab5e9fbe42addacd074ddc6d5e22bde6e45b2ca",
     "blocking_issues": [
       "scripts/web_app_hub.py omits scion-ops-web-app from CONTROL_PLANE_NAMES, so missing web app deployment/service readiness can still be reported healthy."
-    ]
+    ],
+    "replacement_branch": "round-20260509t223549z-native4-final-review-r2",
+    "replacement_status": "running"
   },
   "verification": {
     "status": "passed",
@@ -78,8 +89,7 @@
   },
   "blockers": [],
   "next_actions": [
-    "Start narrow repair implementer for web app Kubernetes readiness model",
-    "Integrate repair and rerun verification",
-    "Run replacement final review"
+    "Wait for replacement final-review verdict",
+    "If accepted, mark session ready"
   ]
 }
