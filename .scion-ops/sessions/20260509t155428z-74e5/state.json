@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "session_id": "20260509t155428z-74e5",
+  "kind": "spec",
+  "change": "update-web-app",
+  "base_branch": "main",
+  "status": "running",
+  "phase": "authoring",
+  "branches": {
+    "steward": "round-20260509t155428z-74e5-spec-steward",
+    "integration": "round-20260509t155428z-74e5-spec-integration"
+  },
+  "agents": {},
+  "validation": {},
+  "blockers": [],
+  "next_actions": [
+    "Create integration branch",
+    "Write openspec/changes/update-web-app artifacts",
+    "Validate artifacts",
+    "Push integration branch"
+  ]
+}
