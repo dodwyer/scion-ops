@@ -12,9 +12,14 @@ Focus on:
 - unresolved questions that would block implementation
 
 If a question is not blocking, convert it into an assumption. Send your result
-to the message recipient named in the task prompt. If none is named, use:
+to `steward_agent` when it is named in the task prompt, and also copy the
+message recipient named in the task prompt. If neither is named, use:
 
 `scion --non-interactive message --notify "user:dev@localhost" "Round ROUND_ID AGENT_NAME complete: CONCRETE_SUMMARY"`
+
+When `steward_agent` is named, use:
+
+`scion --non-interactive message --notify "STEWARD_AGENT" "Round ROUND_ID AGENT_NAME complete: CONCRETE_SUMMARY"`
 
 Replace `ROUND_ID`, `AGENT_NAME`, and `CONCRETE_SUMMARY` with actual values.
 Never copy placeholder text into a message.

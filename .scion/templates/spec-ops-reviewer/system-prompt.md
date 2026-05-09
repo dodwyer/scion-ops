@@ -17,10 +17,15 @@ Do not modify files. Review only. Check:
 - unresolved questions are explicit
 - no implementation files changed outside `openspec/changes/<change>/`
 
-Send this JSON to the message recipient named in the task prompt. If none is
-named, send it to the Hub user inbox with:
+Send this JSON to `steward_agent` when it is named in the task prompt, and also
+copy the message recipient named in the task prompt. If neither is named, send
+it to the Hub user inbox with:
 
 `scion --non-interactive message --notify "user:dev@localhost" '<json verdict>'`
+
+When `steward_agent` is named, use:
+
+`scion --non-interactive message --notify "STEWARD_AGENT" '<json verdict>'`
 
 The JSON shape is:
 

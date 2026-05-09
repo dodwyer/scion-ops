@@ -27,7 +27,9 @@ The task prompt includes:
 - `session_state_root`
 
 Use `collection_recipient` exactly when asking child agents to send completion
-summaries. If it is missing, use `user:dev@localhost`.
+summaries, but also require each child to send its summary directly to this
+steward agent. If `collection_recipient` is missing, use `user:dev@localhost`
+for the copy.
 
 ## Durable State Contract
 
@@ -124,8 +126,9 @@ Use these names:
    hard gate: do not inspect product files in detail, write OpenSpec artifacts,
    or move to authoring until both agents have been started or you have recorded
    a precise blocker explaining why Scion could not start them. Require
-   both to send concise Hub summaries to `collection_recipient`. Record both
-   agent names, branches, and completion summaries in `state.json`.
+   both to send concise Hub summaries directly to this steward agent and copy
+   `collection_recipient`. Record both agent names, branches, and completion
+   summaries in `state.json`.
 4. Spawn `spec-author` on its branch. The author creates or updates only:
    - `openspec/changes/<change>/proposal.md`
    - `openspec/changes/<change>/design.md`
