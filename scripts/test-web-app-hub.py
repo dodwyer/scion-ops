@@ -14,6 +14,8 @@ import importlib.util
 import json
 from pathlib import Path
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("web_app_hub", ROOT / "scripts" / "web_app_hub.py")
@@ -282,6 +284,29 @@ def test_kubernetes_normalization_degrades_unavailable_web_app_endpoint():
     assert status["degraded_endpoints"] == [
         {"name": "scion-ops-web-app", "ready_addresses": 0, "not_ready_addresses": 0, "ready": False}
     ]
+
+
+def test_web_app_rbac_covers_kubernetes_readiness_query():
+    rbac_path = ROOT / "deploy" / "kind" / "control-plane" / "web-app-rbac.yaml"
+    docs = [doc for doc in yaml.safe_load_all(rbac_path.read_text()) if isinstance(doc, dict)]
+    role = next(doc for doc in docs if doc.get("kind") == "Role" and doc.get("metadata", {}).get("name") == "scion-ops-web-app")
+    core_resources = {
+        resource
+        for rule in role.get("rules", [])
+        if rule.get("apiGroups") == [""]
+        for resource in rule.get("resources", [])
+        if set(rule.get("verbs", [])) >= {"get", "list"}
+    }
+    apps_resources = {
+        resource
+        for rule in role.get("rules", [])
+        if rule.get("apiGroups") == ["apps"]
+        for resource in rule.get("resources", [])
+        if set(rule.get("verbs", [])) >= {"get", "list"}
+    }
+
+    assert {"pods", "services", "endpoints", "persistentvolumeclaims"} <= core_resources
+    assert "deployments" in apps_resources
 
 
 def test_structured_branch_fields_take_precedence_over_fallback_text_and_names():
