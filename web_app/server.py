@@ -340,7 +340,12 @@ def api_rounds() -> dict[str, Any]:
         )
         statuses = [_phase_status(a) for a in group]
         if all(s == "terminal" for s in statuses):
-            status = "completed"
+            block_keywords = ("blocked", "escalat", "ask_user")
+            all_texts = " ".join(
+                str(a.get("taskSummary") or "") + " " + str(a.get("activity") or "")
+                for a in group
+            ).lower()
+            status = "blocked" if any(kw in all_texts for kw in block_keywords) else "completed"
         elif any(s == "running" for s in statuses):
             status = "running"
         else:
@@ -378,13 +383,58 @@ def api_round_detail(round_id: str) -> dict[str, Any]:
         f"/api/v1/groves/{urllib.parse.quote(grove_id)}/agents",
         query={"includeDeleted": "true"},
     )
-    agents: list[dict[str, Any]] = []
+    raw_agents: list[dict[str, Any]] = []
     if not agents_err and isinstance(agents_data, dict):
-        agents = [
-            _agent_summary(a)
-            for a in (agents_data.get("agents") or [])
+        raw_agents = [
+            a for a in (agents_data.get("agents") or [])
             if isinstance(a, dict) and round_id.lower() in str(a.get("name") or "").lower()
         ]
+    agents = [_agent_summary(a) for a in raw_agents]
+
+    # Derive outcome, branches, and runner output from raw agent data
+    statuses = [_phase_status(a) for a in raw_agents]
+    if not raw_agents:
+        round_status = "pending"
+    elif all(s == "terminal" for s in statuses):
+        block_keywords = ("blocked", "escalat", "ask_user")
+        all_texts = " ".join(
+            str(a.get("taskSummary") or "") + " " + str(a.get("activity") or "")
+            for a in raw_agents
+        ).lower()
+        round_status = "blocked" if any(kw in all_texts for kw in block_keywords) else "completed"
+    elif any(s == "running" for s in statuses):
+        round_status = "running"
+    else:
+        round_status = "pending"
+
+    consensus = next(
+        (
+            a for a in raw_agents
+            if str(a.get("template") or "").endswith("consensus")
+            or str(a.get("name") or "").endswith("-consensus")
+        ),
+        None,
+    )
+    outcome = {
+        "status": round_status,
+        "summary": str(consensus.get("taskSummary") or "") if consensus else "",
+    }
+
+    branches = sorted({
+        str(a.get("name") or a.get("slug") or "")
+        for a in raw_agents
+        if str(a.get("name") or a.get("slug") or "")
+    })
+
+    non_consensus = [
+        a for a in raw_agents
+        if not (
+            str(a.get("template") or "").endswith("consensus")
+            or str(a.get("name") or "").endswith("-consensus")
+        )
+        and a.get("taskSummary")
+    ]
+    runner_output = str(non_consensus[-1].get("taskSummary") or "") if non_consensus else ""
 
     msgs_data, msgs_err = _hub_get(
         "/api/v1/messages",
@@ -419,6 +469,9 @@ def api_round_detail(round_id: str) -> dict[str, Any]:
         "ok": not errors or bool(agents or messages or notifications),
         "round_id": round_id,
         "agents": agents,
+        "outcome": outcome,
+        "branches": branches,
+        "runner_output": runner_output,
         "messages": messages,
         "notifications": notifications,
         "errors": errors,

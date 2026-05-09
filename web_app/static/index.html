@@ -161,7 +161,7 @@
 
   // --- Routing ---
 
-  var currentHash = '';
+  var currentHash = null;
 
   function parseHash() {
     var hash = location.hash.slice(1) || 'overview';
@@ -284,14 +284,54 @@
     var messages = data.messages || [];
     var notifications = data.notifications || [];
     var errors = data.errors || {};
+    var outcome = data.outcome || {};
+    var branches = data.branches || [];
+    var runnerOutput = data.runner_output || '';
 
     var h = '<div>';
     h += '<a class="back" href="#rounds">← Rounds</a>';
-    h += '<div class="view-title mono" style="word-break:break-all">' + esc(roundId) + '</div>';
+    h += '<div class="view-title mono" style="word-break:break-all">' + esc(roundId);
+    if (outcome.status) h += ' ' + badge(outcome.status);
+    h += '</div>';
 
     Object.keys(errors).forEach(function (k) {
       h += '<div class="err-box"><strong>' + esc(k) + ':</strong> ' + esc(errors[k]) + '</div>';
     });
+
+    // Outcome
+    if (outcome.summary || outcome.status) {
+      h += '<div class="card">';
+      h += '<div class="card-title">Outcome</div>';
+      h += '<div class="check-row">';
+      h += '<span class="check-name">Status</span>';
+      h += '<span class="check-detail">' + badge(outcome.status || 'unknown') + '</span>';
+      h += '</div>';
+      if (outcome.summary) {
+        h += '<div class="check-row">';
+        h += '<span class="check-name">Summary</span>';
+        h += '<span class="check-detail">' + esc(outcome.summary) + '</span>';
+        h += '</div>';
+      }
+      h += '</div>';
+    }
+
+    // Branches
+    if (branches.length) {
+      h += '<div class="card">';
+      h += '<div class="card-title">Branches (' + branches.length + ')</div>';
+      branches.forEach(function (b) {
+        h += '<div class="check-row"><span class="mono" style="color:#ce9178">' + esc(b) + '</span></div>';
+      });
+      h += '</div>';
+    }
+
+    // Runner output
+    if (runnerOutput) {
+      h += '<div class="card">';
+      h += '<div class="card-title">Latest Runner Output</div>';
+      h += '<div class="timeline-body" style="max-height:200px">' + esc(runnerOutput) + '</div>';
+      h += '</div>';
+    }
 
     // Agents
     h += '<div class="card">';
