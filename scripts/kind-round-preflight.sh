@@ -36,6 +36,7 @@ print(data.get(field) or "")
 
 SCION_BIN="${SCION_BIN:-scion}"
 HUB_ENDPOINT="${SCION_HUB_ENDPOINT:-${HUB_ENDPOINT:-}}"
+SCION_OPS_ROOT="${SCION_OPS_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 PROJECT_ROOT_INPUT="${1:-${SCION_OPS_PROJECT_ROOT:-$(pwd -P)}}"
 PROJECT_ROOT="$(cd "$PROJECT_ROOT_INPUT" && pwd -P)"
 if git -C "$PROJECT_ROOT" rev-parse --show-toplevel >/dev/null 2>&1; then
@@ -121,7 +122,13 @@ for template in "${required_templates[@]}"; do
   fi
 done
 
-spec_consensus_prompt="${SCION_OPS_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.scion/templates/spec-consensus-runner/system-prompt.md"
+if [[ "${SCION_OPS_SKIP_TEMPLATE_HARNESS_PREFLIGHT:-0}" != "1" ]]; then
+  SCION_HUB_ENDPOINT="$HUB_ENDPOINT" \
+    python3 "${SCION_OPS_ROOT}/scripts/hub-managed-templates.py" verify \
+    >/dev/null || die "Hub managed template records are not ready; run task bootstrap"
+fi
+
+spec_consensus_prompt="${SCION_OPS_ROOT}/.scion/templates/spec-consensus-runner/system-prompt.md"
 assert_template_absent "$spec_consensus_prompt" 'sciontool status blocked "Waiting for <agent names>"'
 assert_template_absent "$spec_consensus_prompt" 'sciontool status blocked "<question or blocker>"'
 assert_template_absent "$spec_consensus_prompt" 'sciontool status task_completed "round <round_id> spec complete: <branch>"'

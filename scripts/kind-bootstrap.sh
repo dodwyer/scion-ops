@@ -565,102 +565,17 @@ sync_templates() {
   hub_url="$(sh_quote "$HUB_IN_CLUSTER")"
   token="$(sh_quote "$SCION_DEV_TOKEN")"
   log "repair stale Hub template harness metadata before sync"
-  run_in_hub "$pod" "SCION_DEV_TOKEN=${token} SCION_HUB_ENDPOINT=${hub_url} python3 - <<'PY'
-import json
-import re
-import subprocess
-
-expected = {
-    'spec-consensus-runner': 'codex-exec',
-    'spec-goal-clarifier': 'codex-exec',
-    'spec-repo-explorer': 'codex-exec',
-    'spec-author': 'codex-exec',
-    'spec-ops-reviewer': 'codex-exec',
-    'spec-finalizer': 'codex-exec',
-    'spec-steward': 'codex-exec',
-    'implementation-steward': 'codex-exec',
-    'impl-codex': 'codex-exec',
-    'reviewer-codex': 'codex-exec',
-    'final-reviewer-codex': 'codex-exec',
-}
-
-def show_template(name):
-    result = subprocess.run(
-        ['scion', '--global', 'templates', 'show', name, '--hub', '--format', 'json', '--non-interactive'],
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
-    if result.returncode != 0:
-        return None
-    output = re.sub(r'\\x1b\\[[0-9;]*m', '', result.stdout)
-    start = output.find('{')
-    if start < 0:
-        return None
-    return json.loads(output[start:])
-
-for name, want in expected.items():
-    current = show_template(name)
-    if not current:
-        continue
-    harness = current.get('harness') or ''
-    if harness == want:
-        continue
-    print(f'deleting stale template {name}: harness {harness or \"<empty>\"}, expected {want}')
-    subprocess.run(
-        ['scion', '--global', 'templates', 'delete', name, '--hub', '--non-interactive', '--yes'],
-        check=True,
-    )
-PY"
+  SCION_DEV_TOKEN="$SCION_DEV_TOKEN" SCION_HUB_ENDPOINT="$HUB_PUBLIC" \
+    python3 "${REPO_ROOT}/scripts/hub-managed-templates.py" repair-before-sync
   run_in_hub "$pod" "SCION_DEV_TOKEN=${token} SCION_HUB_ENDPOINT=${hub_url} scion --global templates sync --all --hub ${hub_url} --non-interactive --yes"
 
+  log "repair scoped Hub template overrides after sync"
+  SCION_DEV_TOKEN="$SCION_DEV_TOKEN" SCION_HUB_ENDPOINT="$HUB_PUBLIC" \
+    python3 "${REPO_ROOT}/scripts/hub-managed-templates.py" repair-shadowing
+
   log "verify Hub template harness metadata"
-  run_in_hub "$pod" "SCION_DEV_TOKEN=${token} SCION_HUB_ENDPOINT=${hub_url} python3 - <<'PY'
-import json
-import re
-import subprocess
-import sys
-
-expected = {
-    'spec-consensus-runner': 'codex-exec',
-    'spec-goal-clarifier': 'codex-exec',
-    'spec-repo-explorer': 'codex-exec',
-    'spec-author': 'codex-exec',
-    'spec-ops-reviewer': 'codex-exec',
-    'spec-finalizer': 'codex-exec',
-    'spec-steward': 'codex-exec',
-    'implementation-steward': 'codex-exec',
-    'impl-codex': 'codex-exec',
-    'reviewer-codex': 'codex-exec',
-    'final-reviewer-codex': 'codex-exec',
-}
-
-errors = []
-for name, want in expected.items():
-    result = subprocess.run(
-        ['scion', '--global', 'templates', 'show', name, '--hub', '--format', 'json', '--non-interactive'],
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
-    if result.returncode != 0:
-        errors.append(f'{name}: missing or unreadable')
-        continue
-    output = re.sub(r'\\x1b\\[[0-9;]*m', '', result.stdout)
-    start = output.find('{')
-    if start < 0:
-        errors.append(f'{name}: no JSON output')
-        continue
-    harness = json.loads(output[start:]).get('harness') or ''
-    if harness != want:
-        errors.append(f'{name}: harness {harness or \"<empty>\"}, expected {want}')
-
-if errors:
-    print('Hub template harness metadata is not ready:', file=sys.stderr)
-    for error in errors:
-        print(f'- {error}', file=sys.stderr)
-    raise SystemExit(1)
-PY"
+  SCION_DEV_TOKEN="$SCION_DEV_TOKEN" SCION_HUB_ENDPOINT="$HUB_PUBLIC" \
+    python3 "${REPO_ROOT}/scripts/hub-managed-templates.py" verify
 
   log "copy synced template storage into broker pod"
   local broker
