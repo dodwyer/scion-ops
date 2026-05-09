@@ -5,8 +5,8 @@
   "kind": "implementation",
   "change": "update-web-app",
   "base_branch": "round-20260509t185251z-1cfe-spec-integration",
-  "status": "running",
-  "phase": "final_review",
+  "status": "ready",
+  "phase": "complete",
   "branches": {
     "steward": "round-20260509t223549z-native4-implementation-steward",
     "implementer": "round-20260509t223549z-native4-impl-codex",
@@ -63,7 +63,9 @@
       "type": "final-reviewer-codex",
       "branch": "round-20260509t223549z-native4-final-review-r3",
       "review_branch": "round-20260509t223549z-native4-integration",
-      "status": "running",
+      "status": "accepted",
+      "verdict": "accept",
+      "commit": "878d4f3666b1b1ea1b64952cffaed772882d1623",
       "verdict_file": ".scion-ops/sessions/20260509t223549z-native4/reviews/final-review-r3.json"
     }
   },
@@ -97,7 +99,10 @@
       "deploy/kind/control-plane/web-app-rbac.yaml does not grant endpoints or persistentvolumeclaims access required by scripts/web_app_hub.py Kubernetes readiness queries."
     ],
     "third_review_branch": "round-20260509t223549z-native4-final-review-r3",
-    "third_review_status": "running"
+    "third_review_status": "accepted",
+    "third_review_verdict": "accept",
+    "accepted_review_branch": "round-20260509t223549z-native4-final-review-r3",
+    "accepted_review_commit": "878d4f3666b1b1ea1b64952cffaed772882d1623"
   },
   "verification": {
     "status": "passed",
@@ -112,7 +117,6 @@
   },
   "blockers": [],
   "next_actions": [
-    "Wait for final-review r3 verdict",
-    "If accepted, mark session ready"
+    "Session ready for PR from round-20260509t223549z-native4-integration"
   ]
 }

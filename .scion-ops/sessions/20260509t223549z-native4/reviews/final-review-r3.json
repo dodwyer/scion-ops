@@ -1,0 +1,40 @@
+{
+  "review_type": "final",
+  "scores": {
+    "correctness": 5,
+    "completeness": 5,
+    "style": 5
+  },
+  "verdict": "accept",
+  "blocking_issues": [],
+  "nits": [],
+  "spec": {
+    "change": "update-web-app",
+    "conformance": 5,
+    "spec_completeness": 5,
+    "task_coverage": 5,
+    "operational_verification": 4,
+    "checked_artifacts": [
+      "openspec/changes/update-web-app/specs/web-app-hub/spec.md",
+      "openspec/changes/update-web-app/design.md",
+      "openspec/changes/update-web-app/tasks.md",
+      "scripts/web_app_hub.py",
+      "scripts/test-web-app-hub.py",
+      "scripts/kind-control-plane-smoke.py",
+      "scripts/kind-scion-runtime.sh",
+      "Taskfile.yml",
+      "deploy/kind/control-plane/web-app-deployment.yaml",
+      "deploy/kind/control-plane/web-app-service.yaml",
+      "deploy/kind/control-plane/web-app-rbac.yaml",
+      "deploy/kind/control-plane/kustomization.yaml",
+      "deploy/kind/cluster.yaml.tpl",
+      "README.md",
+      "docs/kind-control-plane.md"
+    ],
+    "unresolved_questions": [],
+    "gaps": [
+      "Live kind rollout and HTTP smoke were not run in this review; verification used OpenSpec validation, fixture tests, syntax checks, diff whitespace checks, and kustomize rendering."
+    ]
+  },
+  "summary": "Accept. The integration branch conforms to the approved update-web-app OpenSpec artifacts, including the repaired web app Kubernetes readiness model and read-only RBAC. The backend preserves MCP-aligned structured fields for spec-round progress, artifacts, OpenSpec validation, blockers, warnings, final-review outcomes, and event/detail views; kustomize includes the web app Deployment, Service, ServiceAccount, Role, and RoleBinding; lifecycle tasks, smoke wiring, and operator docs include the web app. No blocking issues were found."
+}
