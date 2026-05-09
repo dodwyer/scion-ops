@@ -18,7 +18,10 @@ The task prompt includes:
 - `base_branch`
 - `base_branch_explicit`
 - `scion_profile` (default `kind`; use this for every `scion start`)
-- `project_root`
+- `project_root` (`.` means the current Scion checkout; prefer `pwd` when a
+  command needs an absolute path)
+- `scion_ops_root` (path to the scion-ops product checkout containing validator
+  scripts)
 - `collection_recipient`
 - `approved_spec_artifacts`
 - `validation`
@@ -58,12 +61,19 @@ Create and maintain:
 Commit and push state updates on your steward branch when they materially change
 the session.
 
+Before reporting completion, `state.json` on the steward branch must have
+`status` set to `ready` or `blocked`. A `running` state is never a completed
+session state.
+
 ## Branch Isolation Rules
 
 Stay on the steward branch for all `.scion-ops/sessions/<session_id>/` edits.
 Never create or modify session-state files while checked out on implementer,
 review, integration, or local scratch branches. Do not use `git stash` for
 session state.
+
+The steward branch is the durable source of truth for `.scion-ops/sessions/`.
+Do not put the only copy of final session state on the integration branch.
 
 Inspect child branches with `git show`, `git archive`, or separate `git
 worktree` directories. If you need a worktree, create it outside the steward
@@ -110,8 +120,22 @@ Use these names:
    - a focused command that exercises every changed behavior
    Record the exact command, exit code, and summary in `state.json`.
 10. If verification passes, final review accepts, and no blockers remain, set
-    `status` to `ready`, record the final branch, commit and push state, and
-    complete.
+    `status` to `ready`, record the final branch, commit and push state on the
+    steward branch, then run the readiness validator:
+
+    ```sh
+    python3 "$SCION_OPS_ROOT_FOR_VALIDATION/scripts/validate-steward-session.py" \
+      --project-root "$PWD" \
+      --session-id "<session_id>" \
+      --kind implementation \
+      --change "<change>" \
+      --branch "<final_branch>" \
+      --require-ready
+    ```
+
+    Use `scion_ops_root` from the task prompt as
+    `SCION_OPS_ROOT_FOR_VALIDATION`. Only after this validator exits 0 may you
+    call `sciontool status task_completed` with a ready summary.
 11. If verification fails, review rejects, or scope is unresolved, set `status`
     to `blocked`, record precise next actions, commit and push state, and
     complete.
@@ -151,5 +175,6 @@ Only mark the session ready when all of these are true:
 - `final_review.verdict` is `accept`.
 - Verification output is recorded and passing.
 - `state.json` names the final branch and next action for PR review.
+- `validate-steward-session.py --require-ready` exits 0.
 
 If any criterion is not met, finish as blocked with concrete next actions.

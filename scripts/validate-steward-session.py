@@ -19,6 +19,16 @@ from typing import Any
 READY_STATUSES = {"ready", "completed", "success"}
 PASSING_STATUSES = {"passed", "success", "ok"}
 ACCEPT_VERDICTS = {"accept", "accepted", "pass", "passed"}
+SPEC_REQUIRED_AGENT_MARKERS = {
+    "clarifier": ("spec-clarifier", "spec-goal-clarifier"),
+    "explorer": ("spec-explorer", "spec-repo-explorer"),
+    "author": ("spec-author",),
+    "ops_review": ("spec-ops-review", "spec-ops-reviewer"),
+}
+IMPLEMENTATION_REQUIRED_AGENT_MARKERS = {
+    "implementer": ("impl-codex", "impl-claude"),
+    "final_review": ("final-review", "final-reviewer"),
+}
 
 
 @dataclass(frozen=True)
@@ -96,6 +106,20 @@ def _git_bytes(project_root: Path, args: list[str]) -> subprocess.CompletedProce
     )
 
 
+def _fetch_remote_branch(project_root: Path, branch: str) -> None:
+    if not branch or branch.startswith("-") or "/" in branch and branch.startswith("refs/"):
+        return
+    _git(
+        project_root,
+        ["fetch", "origin", f"refs/heads/{branch}:refs/remotes/origin/{branch}"],
+    )
+
+
+def _ensure_remote_tracking_ref(project_root: Path, ref: str) -> None:
+    if ref.startswith("origin/"):
+        _fetch_remote_branch(project_root, ref.removeprefix("origin/"))
+
+
 def _resolve_commit(project_root: Path, ref: str) -> tuple[str | None, str | None]:
     if not ref:
         return None, None
@@ -111,6 +135,11 @@ def _resolve_commit(project_root: Path, ref: str) -> tuple[str | None, str | Non
         first = result.stdout.strip().splitlines()
         if first:
             sha = first[0].split()[0]
+            _fetch_remote_branch(project_root, ref)
+            fetched = _git(project_root, ["rev-parse", "--verify", "--quiet", f"origin/{ref}^{{commit}}"])
+            fetched_sha = fetched.stdout.strip()
+            if fetched.returncode == 0 and fetched_sha:
+                return fetched_sha, f"origin/{ref}"
             return sha, f"origin/{ref}"
 
     return None, None
@@ -144,6 +173,7 @@ def _load_state(project_root: Path, session_id: str, kind: str, state_branch: st
         if not branch or branch in seen:
             continue
         seen.add(branch)
+        _ensure_remote_tracking_ref(project_root, branch)
         result = _git(project_root, ["show", f"{branch}:{relpath}"])
         if result.returncode != 0:
             continue
@@ -164,6 +194,18 @@ def _state_branch(state: dict[str, Any], kind: str) -> str:
         if implementation_branch:
             return implementation_branch
     return ""
+
+
+def _agent_text(state: dict[str, Any]) -> str:
+    agents = state.get("agents")
+    if not isinstance(agents, dict):
+        return ""
+    return json.dumps(agents, sort_keys=True).lower() + "\n" + "\n".join(str(key).lower() for key in agents)
+
+
+def _agent_role_present(state: dict[str, Any], markers: tuple[str, ...]) -> bool:
+    text = _agent_text(state)
+    return any(marker in text for marker in markers)
 
 
 def _openspec_validation_from_worktree_or_branch(
@@ -250,6 +292,10 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
         if not isinstance(state.get("next_actions"), list):
             warnings.append(Finding("state.next_actions", "state should include a next_actions list"))
 
+        state_integration_branch = _text(_get_path(state, "branches.integration"))
+        if expected_branch and state_integration_branch and state_integration_branch != expected_branch:
+            errors.append(Finding("state.branches.integration", "state integration branch does not match requested branch"))
+
     openspec_validation: dict[str, Any] | None = None
     openspec_validation_source = ""
     if expected_change and project_root.exists() and project_root.is_dir():
@@ -301,7 +347,20 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
         if args.kind == "spec" and validation_status not in PASSING_STATUSES:
             errors.append(Finding("state.validation.status", "spec sessions must record passing validation"))
 
+        if args.kind == "spec":
+            for role, markers in SPEC_REQUIRED_AGENT_MARKERS.items():
+                if not _agent_role_present(state, markers):
+                    errors.append(Finding(f"state.agents.{role}", "ready spec sessions must record this completed specialist agent"))
+            review_verdict = _normalize_status(_get_path(state, "review.verdict"))
+            if review_verdict not in ACCEPT_VERDICTS:
+                errors.append(Finding("state.review.verdict", "spec sessions require an accepting ops-review verdict"))
+
         if args.kind == "implementation":
+            for role, markers in IMPLEMENTATION_REQUIRED_AGENT_MARKERS.items():
+                if not _agent_role_present(state, markers):
+                    errors.append(
+                        Finding(f"state.agents.{role}", "ready implementation sessions must record this completed agent")
+                    )
             final_verdict = _normalize_status(_get_path(state, "final_review.verdict"))
             if final_verdict not in ACCEPT_VERDICTS:
                 errors.append(Finding("state.final_review.verdict", "implementation sessions require an accepting final review"))

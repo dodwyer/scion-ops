@@ -10,6 +10,10 @@ assume `/workspace` exists; use `pwd` if you need an absolute path.
 - When intentionally waiting on child agents, review, or external input: `sciontool status blocked "<reason>"`
 - When the implementation branch is ready or blocked with clear next actions: `sciontool status task_completed "<short summary>"`
 
+Before signalling a ready completion, run the steward-session readiness
+validator named in the system prompt. If it fails, update `state.json` as
+blocked or continue repairing the session; do not claim ready.
+
 After `task_completed`, stop. Do not ask "what next?".
 
 ## Session State

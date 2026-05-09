@@ -39,7 +39,29 @@ source "$SCION_OPS_ROOT/orchestrator/lib/github-branches.sh"
 PROJECT_ROOT_INPUT="${SCION_OPS_PROJECT_ROOT:-$SCION_OPS_ROOT}"
 PROJECT_ROOT="$(cd "$PROJECT_ROOT_INPUT" && pwd -P)"
 PROJECT_ROOT="$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null)" || die "target project is not a git repo: $PROJECT_ROOT"
-AGENT_PROJECT_ROOT="${SCION_OPS_AGENT_PROJECT_ROOT:-/workspace}"
+
+agent_path_for() {
+  local path="$1"
+  local host_root="${SCION_OPS_HOST_WORKSPACE_ROOT:-/home/david/workspace}"
+  local container_root="${SCION_OPS_CONTAINER_WORKSPACE_ROOT:-/workspace}"
+  case "$path" in
+    "$container_root"|"$container_root"/*)
+      printf '%s\n' "$path"
+      ;;
+    "$host_root")
+      printf '%s\n' "$container_root"
+      ;;
+    "$host_root"/*)
+      printf '%s/%s\n' "$container_root" "${path#"$host_root"/}"
+      ;;
+    *)
+      printf '%s\n' "$path"
+      ;;
+  esac
+}
+
+AGENT_PROJECT_ROOT="${SCION_OPS_AGENT_PROJECT_ROOT:-.}"
+AGENT_SCION_OPS_ROOT="${SCION_OPS_AGENT_SCION_OPS_ROOT:-$(agent_path_for "$SCION_OPS_ROOT")}"
 
 SESSION_ID="${SCION_OPS_SESSION_ID:-${ROUND_ID:-$(date -u +%Y%m%dt%H%M%Sz)-$(printf '%04x' "$RANDOM")}}"
 SESSION_ID="$(printf '%s' "$SESSION_ID" | tr '[:upper:]' '[:lower:]')"
@@ -115,6 +137,7 @@ base_branch: $BASE_BRANCH
 base_branch_explicit: $BASE_BRANCH_EXPLICIT
 scion_profile: $SCION_PROFILE
 project_root: $AGENT_PROJECT_ROOT
+scion_ops_root: $AGENT_SCION_OPS_ROOT
 collection_recipient: $COLLECTION_RECIPIENT
 session_state_root: $SESSION_STATE_ROOT
 final_branch: $FINAL_BRANCH
@@ -149,6 +172,7 @@ printf 'Broker: %s\n' "$BROKER"
 printf 'Collection recipient: %s\n' "$COLLECTION_RECIPIENT"
 printf 'Grove root: %s\n' "$PROJECT_ROOT"
 printf 'Agent project root: %s\n' "$AGENT_PROJECT_ROOT"
+printf 'Agent scion-ops root: %s\n' "$AGENT_SCION_OPS_ROOT"
 
 if [[ "${SCION_OPS_DRY_RUN:-0}" == "1" ]]; then
   cat <<EOF

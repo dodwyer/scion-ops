@@ -18,7 +18,10 @@ The task prompt includes:
 - `base_branch_explicit`
 - `change` (optional; derive a stable kebab-case change name when blank)
 - `scion_profile` (default `kind`; use this for every `scion start`)
-- `project_root`
+- `project_root` (`.` means the current Scion checkout; prefer `pwd` when a
+  command needs an absolute path)
+- `scion_ops_root` (path to the scion-ops product checkout containing validator
+  scripts)
 - `collection_recipient`
 - `original_goal`
 - `session_state_root`
@@ -46,6 +49,7 @@ Create and maintain:
 - `phase`
 - `branches`, including `steward` and final `integration`
 - `agents`, keyed by agent name
+- `review.verdict`: `accept`, `reject`, or `blocked`
 - `validation.status`: `pending`, `passed`, or `failed`
 - `blockers`
 - `next_actions`
@@ -53,12 +57,19 @@ Create and maintain:
 Commit and push state updates on your steward branch when they materially change
 the session.
 
+Before reporting completion, `state.json` on the steward branch must have
+`status` set to `ready` or `blocked`. A `running` state is never a completed
+session state.
+
 ## Branch Isolation Rules
 
 Stay on the steward branch for all `.scion-ops/sessions/<session_id>/` edits.
 Never create or modify session-state files while checked out on child,
 integration, review, or local scratch branches. Do not use `git stash` for
 session state.
+
+The steward branch is the durable source of truth for `.scion-ops/sessions/`.
+Do not put the only copy of final session state on the integration branch.
 
 Inspect child branches with `git show`, `git archive`, or separate `git
 worktree` directories. If you need a worktree, create it outside the steward
@@ -81,6 +92,10 @@ replacement specialist or finish the session as blocked. Do not draft the full
 OpenSpec artifact set yourself unless the user explicitly asks the steward to
 take over authoring.
 
+Delegation is required for a ready session. A spec session cannot be ready
+unless `state.json` records completed clarifier, explorer, author, and
+ops-reviewer agents.
+
 ## Branches And Agents
 
 Use these names:
@@ -98,7 +113,8 @@ Use these names:
 2. Determine `change`. If no change is provided, derive a short kebab-case name
    from the goal and record the derivation in `brief.md`.
 3. Spawn `spec-goal-clarifier` and `spec-repo-explorer` in parallel. Require
-   both to send concise Hub summaries to `collection_recipient`.
+   both to send concise Hub summaries to `collection_recipient`. Record both
+   agent names, branches, and completion summaries in `state.json`.
 4. Spawn `spec-author` on its branch. The author creates or updates only:
    - `openspec/changes/<change>/proposal.md`
    - `openspec/changes/<change>/design.md`
@@ -107,7 +123,8 @@ Use these names:
 5. Create or reset the final integration branch from the author branch and
    verify the integration branch now contains the OpenSpec artifacts.
 6. Spawn `spec-ops-reviewer` against the integration branch. Require a verdict
-   that distinguishes blocking issues from recommendations.
+   that distinguishes blocking issues from recommendations. Record the verdict
+   under `review.verdict`.
 7. Apply accepted reviewer feedback through `spec-finalizer` or a tightly scoped
    steward commit on the integration branch.
 8. Run deterministic validation where available. Prefer, in order:
@@ -116,7 +133,22 @@ Use these names:
    - `openspec validate <change> --no-interactive`
    Record the exact command, exit code, and summary in `state.json`.
 9. If validation passes and no blockers remain, set `status` to `ready`, record
-   the final branch, commit and push state, and complete.
+   the final branch, commit and push state on the steward branch, then run the
+   readiness validator:
+
+   ```sh
+   python3 "$SCION_OPS_ROOT_FOR_VALIDATION/scripts/validate-steward-session.py" \
+     --project-root "$PWD" \
+     --session-id "<session_id>" \
+     --kind spec \
+     --change "<change>" \
+     --branch "<final_branch>" \
+     --require-ready
+   ```
+
+   Use `scion_ops_root` from the task prompt as
+   `SCION_OPS_ROOT_FOR_VALIDATION`. Only after this validator exits 0 may you
+   call `sciontool status task_completed` with a ready summary.
 10. If validation fails or review exposes unresolved scope questions, set
     `status` to `blocked`, record precise next actions, commit and push state,
     and complete.
@@ -155,7 +187,11 @@ Only mark the session ready when all of these are true:
 - The final integration branch exists and is pushed.
 - The OpenSpec artifacts exist under `openspec/changes/<change>/`.
 - Validator output is recorded and passing.
+- Clarifier, explorer, author, and ops-reviewer agents are recorded in
+  `state.json`.
+- `review.verdict` is `accept`.
 - Reviewer blocking issues are resolved or explicitly recorded as blockers.
 - `state.json` names the final branch and next action for implementation.
+- `validate-steward-session.py --require-ready` exits 0.
 
 If any criterion is not met, finish as blocked with concrete next actions.
