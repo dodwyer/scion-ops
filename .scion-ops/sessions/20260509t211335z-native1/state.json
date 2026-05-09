@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "session_id": "20260509t211335z-native1",
+  "round_id": "20260509t211335z-native1",
+  "kind": "implementation",
+  "change": "update-web-app",
+  "base_branch": "round-20260509t185251z-1cfe-spec-integration",
+  "status": "running",
+  "phase": "starting",
+  "branches": {
+    "steward": "round-20260509t211335z-native1-implementation-steward",
+    "implementer": "round-20260509t211335z-native1-impl-codex",
+    "secondary_implementer": "round-20260509t211335z-native1-impl-claude",
+    "final_review": "round-20260509t211335z-native1-final-review",
+    "integration": "round-20260509t211335z-native1-integration"
+  },
+  "agents": {},
+  "implementation": {
+    "branch": "",
+    "base_branch": "round-20260509t185251z-1cfe-spec-integration",
+    "integration_branch": "round-20260509t211335z-native1-integration"
+  },
+  "reviews": [],
+  "final_review": {},
+  "verification": {
+    "status": "pending"
+  },
+  "blockers": [],
+  "next_actions": [
+    "Start primary impl-codex agent",
+    "Integrate the accepted implementation branch",
+    "Run verification and final review"
+  ]
+}
