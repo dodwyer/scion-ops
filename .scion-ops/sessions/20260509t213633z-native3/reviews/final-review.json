@@ -1,0 +1,71 @@
+{
+  "session_id": "20260509t213633z-native3",
+  "change": "update-web-app",
+  "base_branch": "round-20260509t185251z-1cfe-spec-integration",
+  "review_branch": "round-20260509t213633z-native3-integration",
+  "review_type": "final",
+  "verdict": "reject",
+  "normalized_verdict": "request_changes",
+  "pr_ready": false,
+  "scores": {
+    "correctness": 3,
+    "completeness": 3,
+    "style": 4
+  },
+  "summary": "Reject: the repair commit adds a separate web_app source and readiness gate, and the fixture coverage now checks missing Service and endpoint cases. However, the rendered kind RBAC does not grant the deployed web app permission to list Endpoints even though the backend depends on `kubectl get deploy,pod,svc,pvc,endpoints`, so the in-cluster app cannot perform the required endpoint readiness inspection.",
+  "blocking_issues": [
+    {
+      "severity": "blocking",
+      "file": "deploy/kind/control-plane/web-app-rbac.yaml",
+      "line": 22,
+      "requirement": "openspec/changes/update-web-app/specs/web-app-hub/spec.md:90",
+      "title": "Web app ServiceAccount cannot inspect endpoint readiness in kind",
+      "details": "The approved spec requires the rendered control-plane resources to include the RBAC required for the web app to inspect Kubernetes readiness, and the overview/runtime requirement specifically includes missing or unavailable web app endpoints. The backend now calls `kubectl get deploy,pod,svc,pvc,endpoints` and normalizes Endpoint readiness, but the web app Role only allows pods, services, and persistentvolumeclaims in the core API group. In-cluster, the ServiceAccount will be forbidden from listing endpoints, causing the Kubernetes source to fail rather than reporting the web app endpoint state. This keeps the previous health repair from working in the deployed control plane."
+    }
+  ],
+  "final_failure_classification": "implementation_defect",
+  "final_failure_evidence": "Rendered `deploy/kind/control-plane` shows Role `scion-ops-web-app` grants core resources `pods`, `services`, and `persistentvolumeclaims`, but omits `endpoints`; `scripts/web_app_hub.py:572` requests `deploy,pod,svc,pvc,endpoints` and `scripts/web_app_hub.py:629-646` derives endpoint health from those results.",
+  "previous_blocker_status": {
+    "status": "partially_repaired",
+    "notes": "The prior blocker that web app health was not a separate dependency is addressed in the browser-facing model: `readiness_status` now requires `web_app`, `build_snapshot` includes a separate `web_app` source, and tests cover missing Service and endpoint data. The remaining blocker is the deployed RBAC required to make that endpoint check work in kind."
+  },
+  "non_blocking_notes": [
+    "MCP-aligned structured fields, final-review outcomes, branch artifacts, OpenSpec validation fields, inbox/detail rendering, and fallback precedence are covered by focused fixture tests.",
+    "Kustomize renders the web app Deployment, Service, ServiceAccount, Role, and RoleBinding, and the Service exposes the documented NodePort."
+  ],
+  "verification": [
+    {
+      "command": "uv run scripts/validate-openspec-change.py update-web-app",
+      "status": "passed",
+      "notes": "OpenSpec change update-web-app: ok."
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 uv run scripts/test-web-app-hub.py",
+      "status": "passed",
+      "notes": "Fixture test script exited 0."
+    },
+    {
+      "command": "kubectl kustomize deploy/kind/control-plane",
+      "status": "passed",
+      "notes": "Rendered manifests include scion-ops-web-app Deployment, Service, ServiceAccount, Role, and RoleBinding; inspection found the Role omits endpoints permission."
+    },
+    {
+      "command": "uv run python -m py_compile scripts/web_app_hub.py scripts/kind-control-plane-smoke.py",
+      "status": "passed",
+      "notes": "Python syntax compilation succeeded."
+    }
+  ],
+  "verification_gaps": [
+    "Did not run a live kind cluster smoke against http://192.168.122.103:8787; review was limited to static rendering and fixture/no-spend checks.",
+    "Did not run `kubectl auth can-i list endpoints --as=system:serviceaccount:scion-agents:scion-ops-web-app` because no live kind API verification was performed."
+  ],
+  "pr_readiness": {
+    "ready": false,
+    "reason": "The deployed web app lacks RBAC needed for the endpoint health check required by the approved OpenSpec artifacts."
+  },
+  "notification": {
+    "to": "round-20260509t213633z-native3-implementation-steward",
+    "cc": "user:dev@localhost",
+    "summary": "Final review rejects integration: separate web_app health is now modeled, but web-app RBAC omits endpoints permission while the backend requires endpoint listing for readiness."
+  }
+}
