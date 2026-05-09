@@ -34,7 +34,13 @@ if str(ROOT) not in sys.path:
 if not str(os.environ.get("SCION_OPS_MCP_PORT", "8765")).isdigit():
     os.environ.pop("SCION_OPS_MCP_PORT", None)
 
-import mcp_servers.scion_ops as scion_ops
+try:
+    import mcp_servers.scion_ops as scion_ops
+except ModuleNotFoundError as exc:
+    scion_ops = None  # type: ignore[assignment]
+    SCION_OPS_IMPORT_ERROR: ModuleNotFoundError | None = exc
+else:
+    SCION_OPS_IMPORT_ERROR = None
 
 
 STALE_AFTER_SECONDS = 90
@@ -327,9 +333,13 @@ def source_stale(latest: str, now: datetime | None = None) -> bool:
 
 class RuntimeProvider:
     def hub_status(self) -> dict[str, Any]:
+        if scion_ops is None:
+            return error_source("hub", "runtime_unavailable", f"scion_ops unavailable: {SCION_OPS_IMPORT_ERROR}")
         return scion_ops.scion_ops_hub_status()
 
     def hub_messages(self) -> dict[str, Any]:
+        if scion_ops is None:
+            return error_source("messages", "runtime_unavailable", f"scion_ops unavailable: {SCION_OPS_IMPORT_ERROR}")
         try:
             client = scion_ops.HubClient("")
             messages = client.messages(limit=250)
@@ -338,6 +348,8 @@ class RuntimeProvider:
             return scion_ops._hub_error_payload(exc, "web_app_messages")
 
     def hub_notifications(self) -> dict[str, Any]:
+        if scion_ops is None:
+            return error_source("notifications", "runtime_unavailable", f"scion_ops unavailable: {SCION_OPS_IMPORT_ERROR}")
         try:
             client = scion_ops.HubClient("")
             notifications = client.notifications()
@@ -346,9 +358,13 @@ class RuntimeProvider:
             return scion_ops._hub_error_payload(exc, "web_app_notifications")
 
     def round_status(self, round_id: str) -> dict[str, Any]:
+        if scion_ops is None:
+            return error_source("round_status", "runtime_unavailable", f"scion_ops unavailable: {SCION_OPS_IMPORT_ERROR}", round_id=round_id)
         return scion_ops.scion_ops_round_status(round_id=round_id, include_transcript=True, num_lines=120)
 
     def round_events(self, round_id: str, cursor: str = "", include_existing: bool = False) -> dict[str, Any]:
+        if scion_ops is None:
+            return error_source("round_events", "runtime_unavailable", f"scion_ops unavailable: {SCION_OPS_IMPORT_ERROR}", round_id=round_id)
         return scion_ops.scion_ops_round_events(round_id=round_id, cursor=cursor, include_existing=include_existing)
 
     def mcp_status(self) -> dict[str, Any]:
@@ -368,7 +384,7 @@ class RuntimeProvider:
         namespace = os.environ.get("SCION_K8S_NAMESPACE", "scion-agents")
         args = [
             "kubectl",
-            *scion_ops._kubectl_context_args(),
+            *(scion_ops._kubectl_context_args() if scion_ops is not None else []),
             "-n",
             namespace,
             "get",
@@ -503,6 +519,7 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
                 "phase": "unknown",
                 "outcome": "",
                 "final_review": {},
+                "final_review_verdict": "",
                 "_structured_branches": [],
                 "_fallback_branches": [],
             },
@@ -564,6 +581,7 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
         elif not row["agents"] and (row["messages"] or row["notifications"]):
             row["status"] = "observed"
         if row["final_review"]:
+            row["final_review_verdict"] = str(row["final_review"].get("normalized_verdict") or row["final_review"].get("verdict") or "")
             if row["final_review"].get("status") == "blocked":
                 row["status"] = "blocked"
             elif row["status"] in {"unknown", "observed"}:
@@ -710,16 +728,20 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
     transcript = status.get("consensus_transcript") if isinstance(status.get("consensus_transcript"), dict) else {}
     final_reviews.sort(key=lambda item: item.get("time") or "")
     branches = structured_branches if structured_branches else fallback_branches
+    final_review = final_reviews[-1] if final_reviews else {}
+    visible_status = str(final_review.get("display") or status.get("status") or "unknown")
     return {
         "ok": bool(status.get("ok")) or bool(events.get("ok")),
         "round_id": round_id,
         "status": status,
+        "visible_status": visible_status,
         "events": events,
         "timeline": sorted(timeline, key=lambda item: item.get("time") or ""),
         "runner_output": transcript.get("output", "") if transcript.get("ok") else "",
         "runner_output_error": "" if transcript.get("ok") or not transcript else transcript.get("error") or transcript.get("output", ""),
         "outcome": outcome,
-        "final_review": final_reviews[-1] if final_reviews else {},
+        "final_review": final_review,
+        "final_review_verdict": str(final_review.get("normalized_verdict") or final_review.get("verdict") or ""),
         "branches": branches,
         "branch_source": "structured" if structured_branches else ("fallback" if branches else ""),
     }
@@ -838,7 +860,7 @@ INDEX_HTML = r"""<!doctype html>
       document.getElementById("round-detail").innerHTML = `
         <div class="bar"><button id="back-rounds">Back to rounds</button><button id="refresh-round">Refresh timeline</button></div>
         <div class="split">
-          <div class="detail"><h2 class="mono">${esc(roundId)}</h2><h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div></div>`).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
+          <div class="detail"><h2 class="mono">${esc(roundId)}</h2><div>${status(detail.visible_status || detail.status.status || "unknown")}</div><h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div></div>`).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
           <div class="detail"><h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? agents.map(agent => `<div class="card"><strong>${esc(agent.name || agent.slug)}</strong><div>${status(agent.phase || "unknown")}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`).join("") : `<div class="muted">No agents found.</div>`}<h3>Runner Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No runner output available.")}</div>`}</div>
         </div>`;
       document.getElementById("back-rounds").onclick = () => setView("rounds");

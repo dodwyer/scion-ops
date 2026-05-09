@@ -250,12 +250,30 @@ def test_final_review_accept_is_exposed_by_backend_and_frontend_template():
             }
         ],
     }
-    snapshot = web_app_hub.build_snapshot(FixtureProvider(notifications=notifications))
+    outcome = {
+        "status": "completed",
+        "source": "final_review_message",
+        "final_review": {
+            "source": "final_review_message",
+            "created": "2026-05-09T06:41:01+00:00",
+            "verdict": "accept",
+            "normalized_verdict": "accept",
+            "notes": "accepted",
+        },
+    }
+    provider = FixtureProvider(notifications=notifications, round_outcome=outcome)
+    snapshot = web_app_hub.build_snapshot(provider)
     row = snapshot["rounds"][0]
+    detail = web_app_hub.build_round_detail(provider, "20260509t063201z-6c02")
     assert row["final_review"]["normalized_verdict"] == "accept"
+    assert row["final_review_verdict"] == "accept"
     assert row["visible_status"] == "accepted"
+    assert detail["final_review"]["normalized_verdict"] == "accept"
+    assert detail["final_review_verdict"] == "accept"
+    assert detail["visible_status"] == "accepted"
     assert "Final Review" in web_app_hub.INDEX_HTML
     assert "visible_status" in web_app_hub.INDEX_HTML
+    assert "detail.visible_status" in web_app_hub.INDEX_HTML
     assert "review.display" in web_app_hub.INDEX_HTML
 
 
@@ -287,9 +305,13 @@ def test_final_review_changes_requested_is_not_collapsed_to_completed():
     row = snapshot["rounds"][0]
     detail = web_app_hub.build_round_detail(provider, "20260509t063201z-6c02")
     assert row["status"] == "blocked"
+    assert row["final_review_verdict"] == "request_changes"
     assert row["visible_status"] == "changes requested"
     assert row["visible_status"] != "completed"
     assert detail["final_review"]["display"] == "changes requested"
+    assert detail["final_review_verdict"] == "request_changes"
+    assert detail["visible_status"] == "changes requested"
+    assert detail["visible_status"] != "completed"
 
 
 if __name__ == "__main__":
