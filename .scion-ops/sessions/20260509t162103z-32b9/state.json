@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "session_id": "20260509t162103z-32b9",
+  "kind": "spec",
+  "change": "update-web-app",
+  "base_branch": "main",
+  "status": "running",
+  "phase": "clarifying",
+  "branches": {
+    "steward": "round-20260509t162103z-32b9-spec-steward",
+    "clarifier": "round-20260509t162103z-32b9-spec-clarifier",
+    "explorer": "round-20260509t162103z-32b9-spec-explorer",
+    "author": "round-20260509t162103z-32b9-spec-author",
+    "review": "round-20260509t162103z-32b9-spec-ops-review",
+    "integration": "round-20260509t162103z-32b9-spec-integration"
+  },
+  "agents": {
+    "clarifier": {"status": "pending", "id": null, "summary": null},
+    "explorer": {"status": "pending", "id": null, "summary": null},
+    "author": {"status": "pending", "id": null, "summary": null},
+    "review": {"status": "pending", "id": null, "summary": null}
+  },
+  "validation": {
+    "status": "pending",
+    "checks": []
+  },
+  "blockers": [],
+  "next_actions": [
+    "start spec-goal-clarifier agent",
+    "start spec-repo-explorer agent",
+    "await both discovery summaries",
+    "start spec-author agent",
+    "merge author branch to integration branch",
+    "start spec-ops-reviewer agent",
+    "validate integration branch",
+    "signal task_completed"
+  ]
+}
