@@ -1,0 +1,40 @@
+{
+  "review_type": "final",
+  "scores": {
+    "correctness": 5,
+    "completeness": 5,
+    "style": 5
+  },
+  "verdict": "accept",
+  "blocking_issues": [],
+  "nits": [],
+  "spec": {
+    "change": "update-web-app",
+    "conformance": 5,
+    "spec_completeness": 5,
+    "task_coverage": 5,
+    "operational_verification": 4,
+    "checked_artifacts": [
+      "openspec/changes/update-web-app/proposal.md",
+      "openspec/changes/update-web-app/design.md",
+      "openspec/changes/update-web-app/tasks.md",
+      "openspec/changes/update-web-app/specs/web-app-hub/spec.md",
+      "scripts/web_app_hub.py",
+      "scripts/test-web-app-hub.py",
+      "scripts/kind-control-plane-smoke.py",
+      "deploy/kind/control-plane/kustomization.yaml",
+      "deploy/kind/control-plane/web-app-deployment.yaml",
+      "deploy/kind/control-plane/web-app-rbac.yaml",
+      "deploy/kind/control-plane/web-app-service.yaml",
+      "Taskfile.yml",
+      "deploy/kind/cluster.yaml.tpl",
+      "scripts/kind-scion-runtime.sh",
+      "docs/kind-control-plane.md"
+    ],
+    "unresolved_questions": [],
+    "gaps": [
+      "Full kind smoke via task dev:test could not run in this review workspace because Kubernetes context kind-scion-ops is absent."
+    ]
+  },
+  "summary": "Final review accepts round-20260509t231048z-native5-integration for update-web-app. The RBAC repair covers the web app's read-only Kubernetes inspection path for deployments, pods, services, endpoints, and PVCs; kustomize renders the web app Deployment, Service, ServiceAccount, Role, and RoleBinding; and the web app adapter/tests preserve MCP-aligned branch, artifact, validation, blocker, warning, and final-review fields without collapsing blocked outcomes. Verification passed with task spec:validate -- update-web-app, PYTHONDONTWRITEBYTECODE=1 uv run scripts/test-web-app-hub.py, python3 -m py_compile for changed Python entry points, and kubectl kustomize deploy/kind/control-plane. No blocking issues remain."
+}
