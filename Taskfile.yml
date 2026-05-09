@@ -32,6 +32,10 @@ vars:
         *) path="/$path" ;;
       esac
       printf 'http://%s:%s%s' "${SCION_OPS_MCP_HOST:-${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}}" "${SCION_OPS_MCP_PORT:-8765}" "$path"
+  SCION_OPS_KIND_WEB_PORT:
+    sh: printf '%s' "${SCION_OPS_KIND_WEB_PORT:-8787}"
+  SCION_OPS_KIND_WEB_URL:
+    sh: printf 'http://%s:%s' "${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}" "${SCION_OPS_KIND_WEB_PORT:-8787}"
   HOME:
     sh: echo "$HOME"
   GOPATH:
@@ -164,6 +168,12 @@ tasks:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-ops-mcp
       - task: kind:mcp:status
 
+  update:web-app:
+    cmds:
+      - task kind:load-images -- localhost/scion-ops-mcp:latest
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-ops-web-app
+      - task: kind:web-app:status
+
   load:image:
     cmds:
       - task kind:load-images -- {{.CLI_ARGS}}
@@ -256,12 +266,15 @@ tasks:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-broker --timeout=120s
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-ops-mcp
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-mcp --timeout=120s
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-ops-web-app
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-web-app --timeout=120s
 
   kind:control-plane:status:
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-hub --timeout=120s
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-broker --timeout=120s
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-mcp --timeout=120s
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-web-app --timeout=120s
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' get deploy,svc,pvc,cm -l app.kubernetes.io/part-of=scion-control-plane
 
   kind:control-plane:logs:
@@ -277,6 +290,7 @@ tasks:
         SCION_OPS_KIND_HUB_PORT='{{.SCION_OPS_KIND_HUB_PORT}}' \
         SCION_OPS_KIND_HUB_URL='{{.SCION_OPS_KIND_HUB_URL}}' \
         SCION_OPS_MCP_URL='{{.SCION_OPS_MCP_URL}}' \
+        SCION_OPS_KIND_WEB_URL='{{.SCION_OPS_KIND_WEB_URL}}' \
         uv run scripts/kind-control-plane-smoke.py {{.CLI_ARGS}}
 
   kind:control-plane:delete:
@@ -331,6 +345,22 @@ tasks:
   kind:mcp:smoke:
     cmds:
       - PYTHONDONTWRITEBYTECODE=1 uv run scripts/smoke-mcp-server.py --transport http --url '{{.SCION_OPS_MCP_URL}}'
+
+  kind:web-app:status:
+    cmds:
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-web-app --timeout=120s
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' get deploy,svc -l app.kubernetes.io/name=scion-ops-web-app
+
+  kind:web-app:logs:
+    cmds:
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' logs -f deploy/scion-ops-web-app
+
+  kind:web-app:smoke:
+    cmds:
+      - |
+        PYTHONDONTWRITEBYTECODE=1 \
+        SCION_OPS_KIND_WEB_URL='{{.SCION_OPS_KIND_WEB_URL}}' \
+        uv run scripts/kind-control-plane-smoke.py --skip-setup --skip-bootstrap --skip-mcp --web-app-only {{.CLI_ARGS}}
 
   kind:bootstrap:
     cmds:

@@ -37,8 +37,10 @@ KIND_CLUSTER_CONFIG_TEMPLATE="${SCION_OPS_KIND_CLUSTER_CONFIG_TEMPLATE:-${REPO_R
 KIND_LISTEN_ADDRESS="${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}"
 HUB_HOST_PORT="${SCION_OPS_KIND_HUB_PORT:-18090}"
 MCP_HOST_PORT="${SCION_OPS_MCP_PORT:-8765}"
+WEB_APP_HOST_PORT="${SCION_OPS_KIND_WEB_PORT:-8787}"
 HUB_NODE_PORT="30090"
 MCP_NODE_PORT="30876"
+WEB_APP_NODE_PORT="30878"
 CONTEXT="kind-${CLUSTER_NAME}"
 SCION_SETTINGS_TEMPLATE="${SCION_SETTINGS_TEMPLATE:-${REPO_ROOT}/deploy/kind/scion-settings.base.yaml}"
 KIND_IMAGE_PLATFORM="${SCION_OPS_KIND_IMAGE_PLATFORM:-linux/amd64}"
@@ -134,6 +136,8 @@ render_cluster_config() {
     -e "s|__HUB_HOST_PORT__|$(sed_replacement_escape "$HUB_HOST_PORT")|g" \
     -e "s|__MCP_NODE_PORT__|$(sed_replacement_escape "$MCP_NODE_PORT")|g" \
     -e "s|__MCP_HOST_PORT__|$(sed_replacement_escape "$MCP_HOST_PORT")|g" \
+    -e "s|__WEB_APP_NODE_PORT__|$(sed_replacement_escape "$WEB_APP_NODE_PORT")|g" \
+    -e "s|__WEB_APP_HOST_PORT__|$(sed_replacement_escape "$WEB_APP_HOST_PORT")|g" \
     -e "s|__KIND_LISTEN_ADDRESS__|$(sed_replacement_escape "$(yaml_dq_escape "$KIND_LISTEN_ADDRESS")")|g" \
     -e "s|__WORKSPACE_HOST_PATH__|$(sed_replacement_escape "$(yaml_dq_escape "$WORKSPACE_HOST_PATH")")|g" \
     -e "s|__WORKSPACE_NODE_PATH__|$(sed_replacement_escape "$(yaml_dq_escape "$WORKSPACE_NODE_PATH")")|g" \
@@ -178,8 +182,10 @@ kind_native_ports_present() {
 
   [[ "$bindings" == *"\"${HUB_NODE_PORT}/tcp\""* ]] &&
     [[ "$bindings" == *"\"${MCP_NODE_PORT}/tcp\""* ]] &&
+    [[ "$bindings" == *"\"${WEB_APP_NODE_PORT}/tcp\""* ]] &&
     [[ "$bindings" == *"\"HostPort\":\"${HUB_HOST_PORT}\""* ]] &&
     [[ "$bindings" == *"\"HostPort\":\"${MCP_HOST_PORT}\""* ]] &&
+    [[ "$bindings" == *"\"HostPort\":\"${WEB_APP_HOST_PORT}\""* ]] &&
     [[ "$bindings" == *"\"HostIp\":\"${KIND_LISTEN_ADDRESS}\""* ]]
 }
 
@@ -205,6 +211,7 @@ this cluster with 'task down' and then 'task up'.
 Required mappings:
   ${KIND_LISTEN_ADDRESS}:${HUB_HOST_PORT} -> kind node ${HUB_NODE_PORT} -> scion-hub
   ${KIND_LISTEN_ADDRESS}:${MCP_HOST_PORT} -> kind node ${MCP_NODE_PORT} -> scion-ops-mcp
+  ${KIND_LISTEN_ADDRESS}:${WEB_APP_HOST_PORT} -> kind node ${WEB_APP_NODE_PORT} -> scion-ops-web-app
 EOF
 }
 
@@ -293,7 +300,8 @@ cmd_status() {
   printf 'workspace node: %s\n' "$WORKSPACE_NODE_PATH"
   printf 'scion-ops node: %s\n\n' "$SCION_OPS_REPO_NODE_PATH"
   printf 'Hub host URL: http://%s:%s\n' "$KIND_LISTEN_ADDRESS" "$HUB_HOST_PORT"
-  printf 'MCP host URL: http://%s:%s/mcp\n\n' "$KIND_LISTEN_ADDRESS" "$MCP_HOST_PORT"
+  printf 'MCP host URL: http://%s:%s/mcp\n' "$KIND_LISTEN_ADDRESS" "$MCP_HOST_PORT"
+  printf 'Web app URL:  http://%s:%s\n\n' "$KIND_LISTEN_ADDRESS" "$WEB_APP_HOST_PORT"
 
   if ! cluster_exists; then
     die "kind cluster $CLUSTER_NAME does not exist"
