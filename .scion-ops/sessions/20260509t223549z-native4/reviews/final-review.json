@@ -1,0 +1,54 @@
+{
+  "session_id": "20260509t223549z-native4",
+  "change": "update-web-app",
+  "base_branch": "round-20260509t185251z-1cfe-spec-integration",
+  "review_branch": "round-20260509t223549z-native4-integration",
+  "verdict": "reject",
+  "summary": "Reject: the implementation does not satisfy the approved OpenSpec requirement that the deployed web app be part of control-plane readiness and be reported as degraded when missing.",
+  "blocking_issues": [
+    {
+      "severity": "blocking",
+      "file": "scripts/web_app_hub.py",
+      "line": 42,
+      "requirement": "Operator Overview / Web app deployment is degraded; Kind Kustomize Installation / Control-plane kustomization is rendered",
+      "issue": "The Kubernetes readiness model still requires only scion-hub, scion-broker, and scion-ops-mcp. scion-ops-web-app is omitted from CONTROL_PLANE_NAMES, so normalize_kubernetes() does not mark the web app Deployment as missing.",
+      "impact": "If the web app Deployment, pod, Service, or endpoint is absent or unavailable, the overview/runtime data can still report Kubernetes and the overall control plane as healthy. This violates the approved OpenSpec scenario requiring the app to identify the web app dependency as degraded or unavailable while preserving other healthy details.",
+      "evidence": "A focused probe against the integration branch omitted scion-ops-web-app while providing healthy Hub, broker, and MCP deployments; normalize_kubernetes() returned status=healthy and missing_deployments=[]. The implementation lines that compute missing deployments use CONTROL_PLANE_NAMES at scripts/web_app_hub.py:642-645, and CONTROL_PLANE_NAMES omits scion-ops-web-app at scripts/web_app_hub.py:42."
+    }
+  ],
+  "verification": {
+    "passed": [
+      {
+        "command": "uv run scripts/test-web-app-hub.py",
+        "result": "passed"
+      },
+      {
+        "command": "python3 scripts/validate-openspec-change.py --project-root . --change update-web-app",
+        "result": "passed"
+      },
+      {
+        "command": "kubectl kustomize deploy/kind/control-plane | rg 'kind: (Deployment|Service)|name: scion-ops-web-app|nodePort: 30877|app.kubernetes.io/name: scion-ops-web-app'",
+        "result": "passed; rendered output includes scion-ops-web-app Service and Deployment evidence"
+      },
+      {
+        "command": "python3 -m py_compile scripts/web_app_hub.py scripts/kind-control-plane-smoke.py scripts/test-web-app-hub.py",
+        "result": "passed"
+      }
+    ],
+    "failed": [
+      {
+        "command": "uv run --with 'mcp>=1.13,<2' --with 'PyYAML>=6,<7' python - <<'PY' ... normalize_kubernetes(payload_without_web_app) ... PY",
+        "result": "returned status=healthy and missing_deployments=[] when scion-ops-web-app was omitted"
+      }
+    ],
+    "gaps": [
+      "No live kind cluster smoke was run in this review.",
+      "The existing fixture test healthy_k8s omits scion-ops-web-app yet still expects readiness=ready, so coverage currently codifies the spec violation instead of guarding against it."
+    ]
+  },
+  "pr_readiness": "not_ready",
+  "notes": [
+    "The implementation does render web app Kubernetes resources and adds web app lifecycle/smoke wiring.",
+    "The blocking gap is in the browser-facing readiness/runtime model, not in kustomize rendering."
+  ]
+}
