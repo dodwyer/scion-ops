@@ -5,13 +5,13 @@
   "kind": "implementation",
   "change": "update-web-app",
   "base_branch": "round-20260509t185251z-1cfe-spec-integration",
-  "status": "running",
-  "phase": "implementing",
+  "status": "ready",
+  "phase": "final_review_accepted",
   "branches": {
     "steward": "round-20260509t213633z-native3-implementation-steward",
     "implementer": "round-20260509t213633z-native3-impl-codex",
     "secondary_implementer": "round-20260509t213633z-native3-impl-claude",
-    "final_review": "round-20260509t213633z-native3-final-review",
+    "final_review": "round-20260509t213633z-native3-final-review-r3",
     "integration": "round-20260509t213633z-native3-integration"
   },
   "agents": {
@@ -19,29 +19,103 @@
       "branch": "round-20260509t213633z-native3-impl-codex",
       "type": "impl-codex",
       "scope": "Web App MCP Contract And UI",
-      "status": "running"
+      "status": "completed"
     },
     "round-20260509t213633z-native3-impl-claude": {
       "branch": "round-20260509t213633z-native3-impl-claude",
       "type": "impl-claude",
       "scope": "Kind Install, Lifecycle Tasks, Smoke, And Docs",
-      "status": "running"
+      "status": "completed"
+    },
+    "round-20260509t213633z-native3-impl-contract-doc": {
+      "branch": "round-20260509t213633z-native3-impl-contract-doc",
+      "type": "impl-codex",
+      "scope": "Browser-facing JSON contract documentation",
+      "status": "completed"
+    },
+    "round-20260509t213633z-native3-impl-web-health-repair": {
+      "branch": "round-20260509t213633z-native3-impl-web-health-repair",
+      "type": "impl-codex",
+      "scope": "Rejected repair branch; superseded because it reverted integrated work",
+      "status": "superseded"
+    },
+    "round-20260509t213633z-native3-impl-web-health-repair2": {
+      "branch": "round-20260509t213633z-native3-impl-web-health-repair2",
+      "type": "impl-codex",
+      "scope": "Final-review repair: separate web app health dependency",
+      "status": "completed"
+    },
+    "round-20260509t213633z-native3-impl-web-rbac-repair": {
+      "branch": "round-20260509t213633z-native3-impl-web-rbac-repair",
+      "type": "impl-codex",
+      "scope": "Final-review repair: endpoints RBAC",
+      "status": "completed"
+    },
+    "round-20260509t213633z-native3-final-review": {
+      "branch": "round-20260509t213633z-native3-final-review",
+      "type": "final-reviewer-codex",
+      "scope": "Final review r1",
+      "status": "rejected"
+    },
+    "round-20260509t213633z-native3-final-review-r2": {
+      "branch": "round-20260509t213633z-native3-final-review-r2",
+      "type": "final-reviewer-codex",
+      "scope": "Final review r2 after web app health repair",
+      "status": "rejected"
+    },
+    "round-20260509t213633z-native3-final-review-r3": {
+      "branch": "round-20260509t213633z-native3-final-review-r3",
+      "type": "final-reviewer-codex",
+      "scope": "Final review r3 after RBAC repair",
+      "status": "accepted"
     }
   },
   "implementation": {
-    "branch": "",
+    "branch": "round-20260509t213633z-native3-integration",
     "base_branch": "round-20260509t185251z-1cfe-spec-integration",
-    "integration_branch": "round-20260509t213633z-native3-integration"
+    "integration_branch": "round-20260509t213633z-native3-integration",
+    "commit": "ec4f1f86a851fccc2757bf7d863db8abf73d5a0d"
   },
-  "reviews": [],
-  "final_review": {},
+  "reviews": [
+    {
+      "branch": "round-20260509t213633z-native3-final-review",
+      "verdict": "reject",
+      "reason": "web app health was not a separate readiness dependency"
+    },
+    {
+      "branch": "round-20260509t213633z-native3-final-review-r2",
+      "verdict": "reject",
+      "reason": "web app RBAC omitted endpoints permission required by endpoint health checks"
+    },
+    {
+      "branch": "round-20260509t213633z-native3-final-review-r3",
+      "verdict": "accept",
+      "reason": "previous blockers repaired; PR ready"
+    }
+  ],
+  "final_review": {
+    "branch": "round-20260509t213633z-native3-final-review-r3",
+    "verdict_file": ".scion-ops/sessions/20260509t213633z-native3/reviews/final-review.json",
+    "verdict": "accept",
+    "pr_ready": true,
+    "commit": "04c6cc550b930ca9e2008086f3d34ab839052f41"
+  },
   "verification": {
-    "status": "pending"
+    "status": "passed",
+    "commands": [
+      "task verify",
+      "python3 scripts/validate-openspec-change.py update-web-app",
+      "kubectl kustomize deploy/kind/control-plane",
+      "bash -n scripts/kind-scion-runtime.sh",
+      "python3 -m py_compile scripts/web_app_hub.py scripts/test-web-app-hub.py scripts/kind-control-plane-smoke.py"
+    ],
+    "notes": [
+      "Rendered kustomize output includes scion-ops-web-app Deployment, Service, ServiceAccount, Role, RoleBinding, NodePort 30878, container port 8787, and endpoints RBAC.",
+      "Live kind endpoint smoke was not run in this review environment; final review accepted with this as a non-blocking verification gap."
+    ]
   },
   "blockers": [],
   "next_actions": [
-    "Monitor bounded implementer agents",
-    "Integrate accepted implementation branches",
-    "Run verification and final review"
+    "Open PR from round-20260509t213633z-native3-integration"
   ]
 }
