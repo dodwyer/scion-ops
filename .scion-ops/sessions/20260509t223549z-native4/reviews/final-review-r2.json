@@ -1,0 +1,46 @@
+{
+  "review_type": "final",
+  "scores": {
+    "correctness": 2,
+    "completeness": 3,
+    "style": 4
+  },
+  "verdict": "request_changes",
+  "blocking_issues": [
+    "deploy/kind/control-plane/web-app-rbac.yaml grants the web app ServiceAccount only pods, services, and deployments, but scripts/web_app_hub.py runs kubectl get deploy,pod,svc,endpoints,pvc. In cluster, that ServiceAccount cannot list endpoints or persistentvolumeclaims, so the Kubernetes readiness source will be reported as an authorization failure instead of identifying the web app Deployment, Service, pod, and endpoint as healthy/degraded. This blocks the approved web app Kubernetes readiness model."
+  ],
+  "final_failure_classification": "implementation_defect",
+  "final_failure_evidence": "Rendered kustomize shows the scion-ops-web-app Role has get/list only on pods, services, and apps/deployments, while RuntimeProvider.kubernetes_status requests deploy,pod,svc,endpoints,pvc. The OpenSpec requires RBAC required for the web app to inspect Hub, MCP, and Kubernetes readiness, and specifically requires missing/unavailable web app Deployment, Service, pod, or endpoint to be identified.",
+  "nits": [
+    "The overview checks array still renders only hub, broker, mcp, and kubernetes; it does not expose web_app as a separate source/check even though the approved spec says the contributing Hub, broker, MCP, web app, and Kubernetes checks should be healthy."
+  ],
+  "spec": {
+    "change": "update-web-app",
+    "conformance": 2,
+    "spec_completeness": 4,
+    "task_coverage": 3,
+    "operational_verification": 2,
+    "checked_artifacts": [
+      "openspec/changes/update-web-app/proposal.md",
+      "openspec/changes/update-web-app/design.md",
+      "openspec/changes/update-web-app/tasks.md",
+      "openspec/changes/update-web-app/specs/web-app-hub/spec.md",
+      "scripts/web_app_hub.py",
+      "scripts/test-web-app-hub.py",
+      "scripts/kind-control-plane-smoke.py",
+      "deploy/kind/control-plane/web-app-rbac.yaml",
+      "deploy/kind/control-plane/web-app-deployment.yaml",
+      "deploy/kind/control-plane/web-app-service.yaml",
+      "deploy/kind/control-plane/kustomization.yaml",
+      "deploy/kind/cluster.yaml.tpl",
+      "Taskfile.yml",
+      "docs/kind-control-plane.md"
+    ],
+    "unresolved_questions": [],
+    "gaps": [
+      "Verification did not include a live kind rollout or in-cluster ServiceAccount access check.",
+      "Direct system Python test execution is missing PyYAML; the web app fixture tests pass under uv."
+    ]
+  },
+  "summary": "Request changes. The implementation covers much of the MCP-aligned JSON and kind deployment surface, and targeted OpenSpec validation, uv web app fixture tests, and kustomize rendering pass. It is not PR-ready because the deployed web app's RBAC does not allow the Kubernetes readiness query it now performs, so the repaired readiness model fails in cluster."
+}

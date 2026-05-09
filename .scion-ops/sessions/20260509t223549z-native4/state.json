@@ -74,7 +74,12 @@
       "scripts/web_app_hub.py omits scion-ops-web-app from CONTROL_PLANE_NAMES, so missing web app deployment/service readiness can still be reported healthy."
     ],
     "replacement_branch": "round-20260509t223549z-native4-final-review-r2",
-    "replacement_status": "running"
+    "replacement_status": "rejected",
+    "replacement_verdict": "request_changes",
+    "replacement_commit": "c8aee19c437fc1cc0919b94921606e9192f80082",
+    "replacement_blocking_issues": [
+      "deploy/kind/control-plane/web-app-rbac.yaml does not grant endpoints or persistentvolumeclaims access required by scripts/web_app_hub.py Kubernetes readiness queries."
+    ]
   },
   "verification": {
     "status": "passed",
@@ -89,7 +94,8 @@
   },
   "blockers": [],
   "next_actions": [
-    "Wait for replacement final-review verdict",
-    "If accepted, mark session ready"
+    "Start narrow repair implementer for web app RBAC and overview health exposure",
+    "Integrate repair and rerun verification",
+    "Run final-review r3"
   ]
 }
