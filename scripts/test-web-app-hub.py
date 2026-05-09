@@ -478,6 +478,77 @@ def test_frontend_html_renders_verdict_fields():
     assert "final_review" in html
 
 
+def test_alternate_structured_agent_branch_fields_take_precedence_over_text_fallback():
+    """target_branch and branchName agent fields are treated as structured and suppress text fallback."""
+    agents = [
+        {
+            "name": "round-20260509t063201z-nnnn-impl",
+            "phase": "completed",
+            "activity": "completed",
+            "target_branch": "round-20260509t063201z-nnnn-impl-structured",
+            "taskSummary": "complete: round-20260509t063201z-nnnn-impl-from-text",
+        },
+        {
+            "name": "round-20260509t063201z-mmmm-impl",
+            "phase": "completed",
+            "activity": "completed",
+            "branchName": "round-20260509t063201z-mmmm-impl-structured",
+            "taskSummary": "complete: round-20260509t063201z-mmmm-impl-from-text",
+        },
+    ]
+    rounds = web_app_hub.build_rounds(agents, [], [])
+    by_id = {r["round_id"]: r for r in rounds}
+
+    # target_branch field: use structured, suppress text fallback
+    nnnn = by_id.get("20260509t063201z-nnnn")
+    assert nnnn is not None
+    assert "round-20260509t063201z-nnnn-impl-structured" in nnnn["branches"]
+    assert "round-20260509t063201z-nnnn-impl-from-text" not in nnnn["branches"]
+
+    # branchName field: use structured, suppress text fallback
+    mmmm = by_id.get("20260509t063201z-mmmm")
+    assert mmmm is not None
+    assert "round-20260509t063201z-mmmm-impl-structured" in mmmm["branches"]
+    assert "round-20260509t063201z-mmmm-impl-from-text" not in mmmm["branches"]
+
+
+def test_notification_sourced_final_verdict_not_collapsed_to_completed():
+    """A final-review verdict present only in a notification is surfaced in round rows."""
+    agents = [
+        {
+            "name": "round-20260509t063201z-pppp-consensus",
+            "template": "consensus-runner",
+            "phase": "completed",
+            "activity": "completed",
+            "taskSummary": "complete: round-20260509t063201z-pppp",
+            "updated": "2026-05-09T06:38:00+00:00",
+        },
+        {
+            "name": "round-20260509t063201z-pppp-final-review",
+            "phase": "completed",
+            "activity": "completed",
+            "taskSummary": "review complete",
+            "updated": "2026-05-09T06:39:00+00:00",
+        },
+    ]
+    # Verdict is only in a notification, not in any message
+    notifications = [
+        {
+            "id": "note-verdict-1",
+            "agentId": "round-20260509t063201z-pppp-final-review",
+            "sender": "round-20260509t063201z-pppp-final-review",
+            "msg": json.dumps({"verdict": "request_changes", "reviewer": "final-reviewer", "notes": "tests failing"}),
+            "createdAt": "2026-05-09T06:40:00+00:00",
+        }
+    ]
+    rounds = web_app_hub.build_rounds(agents, [], notifications)
+    assert len(rounds) == 1
+    row = rounds[0]
+    assert row["round_id"] == "20260509t063201z-pppp"
+    assert row["status"] == "request_changes"
+    assert row["status"] != "completed"
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

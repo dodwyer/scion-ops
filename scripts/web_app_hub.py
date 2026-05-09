@@ -468,7 +468,7 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
             continue
         row = ensure(round_id)
         row["agents"].append(agent)
-        structured = [str(v).strip() for v in (agent.get("branch"), agent.get("targetBranch")) if v and str(v).strip()]
+        structured = [str(v).strip() for v in (agent.get("branch"), agent.get("targetBranch"), agent.get("target_branch"), agent.get("branchName")) if v and str(v).strip()]
         if structured:
             has_structured.add(round_id)
             for branch in structured:
@@ -541,7 +541,7 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
 
     for row in grouped.values():
         statuses = [agent_status(agent) for agent in row["agents"]]
-        verdict_info = _extract_final_verdict(row["agents"], row["messages"])
+        verdict_info = _extract_final_verdict(row["agents"], row["messages"] + row["notifications"])
         if "blocked" in statuses:
             row["status"] = "blocked"
         elif any(status in {"running", "waiting"} for status in statuses):
