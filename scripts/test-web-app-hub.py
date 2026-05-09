@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 
@@ -22,7 +23,7 @@ SPEC.loader.exec_module(web_app_hub)
 
 
 class FixtureProvider:
-    def __init__(self, *, hub=None, messages=None, notifications=None, mcp=None, k8s=None, round_outcome=None, round_events=None) -> None:
+    def __init__(self, *, hub=None, messages=None, notifications=None, mcp=None, k8s=None, round_outcome=None, round_events=None, round_artifacts=None, round_status_extra=None) -> None:
         self._hub = hub if hub is not None else healthy_hub()
         self._messages = messages if messages is not None else healthy_messages()
         self._notifications = notifications if notifications is not None else healthy_notifications()
@@ -30,6 +31,8 @@ class FixtureProvider:
         self._k8s = k8s if k8s is not None else healthy_k8s()
         self._round_outcome = round_outcome if round_outcome is not None else {"status": "completed"}
         self._round_events = round_events
+        self._round_artifacts = round_artifacts if round_artifacts is not None else {}
+        self._round_status_extra = round_status_extra if round_status_extra is not None else {}
 
     def hub_status(self):
         return self._hub
@@ -47,7 +50,7 @@ class FixtureProvider:
         return self._k8s
 
     def round_status(self, round_id):
-        return {"ok": True, "round_id": round_id, "agents": self._hub.get("agents", []), "outcome": self._round_outcome}
+        return {"ok": True, "round_id": round_id, "agents": self._hub.get("agents", []), "outcome": self._round_outcome, **self._round_status_extra}
 
     def round_events(self, round_id, cursor="", include_existing=False):
         if self._round_events is not None:
@@ -60,6 +63,9 @@ class FixtureProvider:
                 {"type": "message", "message": {"createdAt": "2026-05-09T06:35:00+00:00", "msg": f"round {round_id} update"}}
             ],
         }
+
+    def round_artifacts(self, round_id):
+        return self._round_artifacts
 
 
 def healthy_hub():
@@ -340,6 +346,132 @@ def test_outcome_only_final_review_visible_in_rounds_list():
     row = snapshot["rounds"][0]
     assert row["final_review"]["normalized_verdict"] == "accept", "outcome-only final_review must be visible in rounds list"
     assert row["visible_status"] == "accepted"
+
+
+def spec_round_progress_payload():
+    return {
+        "ok": False,
+        "done": True,
+        "status": "blocked",
+        "health": "blocked",
+        "summary": "round 20260509t063201z-6c02 blocked validation=failed",
+        "source": "spec_round_runner",
+        "project_root": "/workspace",
+        "round_id": "20260509t063201z-6c02",
+        "change": "update-web-app",
+        "base_branch": "main",
+        "expected_branch": "round-20260509t063201z-6c02-spec-integration",
+        "pr_ready_branch": "",
+        "remote_branch_sha": "abc1234",
+        "base_branch_sha": "def5678",
+        "branch_changed": True,
+        "validation_status": "failed",
+        "validation": {
+            "ok": False,
+            "validator": "openspec_cli",
+            "change": "update-web-app",
+            "errors": [{"path": "openspec/changes/update-web-app/tasks.md", "message": "unchecked required task"}],
+            "warnings": [{"message": "minor warning"}],
+        },
+        "protocol": {
+            "integration_branch_valid": False,
+            "ops_review_agent_count": 1,
+            "ops_review_complete": True,
+            "finalizer_agent_count": 0,
+            "finalizer_complete": False,
+            "complete": False,
+        },
+        "blockers": ["OpenSpec validation failed on the remote branch"],
+        "warnings": ["spec finalizer has not completed"],
+        "progress_lines": ["round 20260509t063201z-6c02 blocked validation=failed"],
+        "artifacts": {
+            "source": "local_git",
+            "project_root": "/workspace",
+            "branches": ["round-20260509t063201z-6c02-spec-integration"],
+            "remote_branches": [{"branch": "round-20260509t063201z-6c02-spec-integration", "sha": "abc1234"}],
+            "workspaces": ["/workspace/.scion/agents/round-20260509t063201z-6c02-spec-author/workspace"],
+        },
+    }
+
+
+def test_run_spec_round_progress_fields_are_first_class_round_json():
+    messages = {
+        "ok": True,
+        "items": [
+            {
+                "id": "progress-1",
+                "sender": "round-20260509t063201z-6c02-spec-consensus",
+                "msg": json.dumps(spec_round_progress_payload()),
+                "createdAt": "2026-05-09T06:43:01+00:00",
+            }
+        ],
+    }
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(messages=messages, notifications={"ok": True, "items": []}))
+    row = snapshot["rounds"][0]
+    assert row["status"] == "blocked"
+    assert row["visible_status"] == "blocked"
+    assert row["expected_branch"] == "round-20260509t063201z-6c02-spec-integration"
+    assert row["remote_branch_sha"] == "abc1234"
+    assert row["branch_changed"] is True
+    assert row["validation_status"] == "failed"
+    assert row["protocol"]["ops_review_complete"] is True
+    assert row["blockers"] == ["OpenSpec validation failed on the remote branch"]
+    assert row["artifacts"]["remote_branches"][0]["sha"] == "abc1234"
+    assert row["openspec"]["validation_status"] == "failed"
+    assert snapshot["inbox"][0]["items"][0]["mcp_progress"]["validation_status"] == "failed"
+
+
+def test_round_artifacts_payload_is_exposed_on_round_detail():
+    artifacts = {
+        "source": "local_git",
+        "project_root": "/workspace",
+        "branches": ["round-20260509t063201z-6c02-impl-codex"],
+        "remote_branches": [{"branch": "round-20260509t063201z-6c02-impl-codex", "sha": "b16b00b5"}],
+        "workspaces": ["/workspace/.scion/agents/round-20260509t063201z-6c02-codex/workspace"],
+        "prompts": ["/workspace/.scion/agents/round-20260509t063201z-6c02-codex/prompt.md"],
+    }
+    detail = web_app_hub.build_round_detail(FixtureProvider(round_artifacts=artifacts), "20260509t063201z-6c02")
+    assert detail["artifacts"]["remote_branches"][0]["branch"] == "round-20260509t063201z-6c02-impl-codex"
+    assert "round-20260509t063201z-6c02-impl-codex" in detail["branches"]
+    assert detail["branch_source"] == "structured"
+
+
+def test_spec_status_and_validate_payloads_normalize_validation_errors():
+    spec_status = {
+        "ok": False,
+        "source": "local_git",
+        "project_root": "/workspace",
+        "change": "update-web-app",
+        "validation": {
+            "ok": False,
+            "validator": "openspec_cli",
+            "change": "update-web-app",
+            "errors": [{"path": "tasks.md", "message": "missing checkbox"}],
+            "warnings": [],
+        },
+        "openspec_status": {"ok": False, "output": "invalid"},
+    }
+    progress = web_app_hub.structured_mcp_progress(spec_status, source="spec_status")
+    assert progress["openspec"]["change"] == "update-web-app"
+    assert progress["openspec"]["validation_status"] == "failed"
+    assert progress["openspec"]["errors"][0]["message"] == "missing checkbox"
+
+    validate_result = {
+        "ok": True,
+        "source": "openspec_validator",
+        "project_root": "/workspace",
+        "change": "update-web-app",
+        "validation": {"ok": True, "validator": "python_validator", "errors": [], "warnings": []},
+    }
+    progress = web_app_hub.structured_mcp_progress(validate_result, source="validate_spec_change")
+    assert progress["openspec"]["validation_status"] == "passed"
+
+
+def test_browser_json_contract_documents_mcp_aligned_fields():
+    contract = web_app_hub.BROWSER_JSON_CONTRACT
+    assert contract["version"] == 2
+    assert "expected_branch" in contract["endpoints"]["/api/snapshot"]["rounds"]
+    assert "artifacts" in contract["endpoints"]["/api/rounds/{round_id}"]
 
 
 if __name__ == "__main__":

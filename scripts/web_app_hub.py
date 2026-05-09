@@ -56,6 +56,49 @@ BRANCH_FIELD_NAMES = {
     "final_branch",
 }
 
+BROWSER_JSON_CONTRACT: dict[str, Any] = {
+    "source": "web_app_hub",
+    "version": 2,
+    "endpoints": {
+        "/api/snapshot": {
+            "rounds": [
+                "round_id",
+                "status",
+                "visible_status",
+                "terminal_status",
+                "expected_branch",
+                "pr_ready_branch",
+                "remote_branch_sha",
+                "branch_changed",
+                "validation_status",
+                "blockers",
+                "warnings",
+                "protocol",
+                "artifacts",
+                "openspec",
+                "final_review",
+                "timeline_cursor",
+            ],
+            "sources": ["hub", "broker", "mcp", "kubernetes", "messages", "notifications"],
+        },
+        "/api/rounds/{round_id}": [
+            "status",
+            "events",
+            "timeline",
+            "timeline_cursor",
+            "terminal",
+            "mcp_progress",
+            "artifacts",
+            "openspec",
+            "final_review",
+            "branches",
+        ],
+        "/api/rounds/{round_id}/events": ["events", "cursor", "changed", "outcome", "terminal"],
+        "/api/inbox": ["round_id", "items", "mcp_progress"],
+        "/api/runtime": ["sources"],
+    },
+}
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -221,6 +264,170 @@ def final_review_from_outcome(outcome: Any) -> dict[str, Any]:
     }
 
 
+def string_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value if str(item or "").strip()]
+    if str(value or "").strip():
+        return [str(value)]
+    return []
+
+
+def compact_protocol(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    keys = (
+        "integration_branch_valid",
+        "ops_review_agent_count",
+        "ops_review_complete",
+        "finalizer_agent_count",
+        "finalizer_complete",
+        "complete",
+    )
+    return {key: value[key] for key in keys if key in value}
+
+
+def normalize_artifacts(data: Any) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        return {}
+    artifacts = data.get("artifacts") if isinstance(data.get("artifacts"), dict) else data
+    if artifacts is data and not any(key in artifacts for key in ("branches", "remote_branches", "workspaces", "prompts")):
+        return {}
+    remote_branches = [
+        {"branch": str(item.get("branch") or ""), "sha": str(item.get("sha") or "")}
+        for item in artifacts.get("remote_branches", [])
+        if isinstance(item, dict) and item.get("branch")
+    ]
+    local_branches = [str(item) for item in artifacts.get("branches", []) if str(item or "").strip()]
+    result: dict[str, Any] = {
+        "source": artifacts.get("source") or data.get("source") or "",
+        "project_root": artifacts.get("project_root") or data.get("project_root") or "",
+        "branches": local_branches,
+        "remote_branches": remote_branches,
+        "workspaces": [str(item) for item in artifacts.get("workspaces", []) if str(item or "").strip()],
+        "prompts": [str(item) for item in artifacts.get("prompts", []) if str(item or "").strip()],
+    }
+    expected = normalize_branch(data.get("expected_branch"))
+    if expected and not data.get("remote_branch_sha"):
+        match = next((item for item in remote_branches if item.get("branch") == expected), {})
+        if match.get("sha"):
+            result["expected_branch_sha"] = match["sha"]
+    return {key: value for key, value in result.items() if value}
+
+
+def normalize_openspec(data: Any) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        return {}
+    validation = data.get("validation") if isinstance(data.get("validation"), dict) else {}
+    if not validation and data.get("source") == "openspec_validator":
+        validation = data
+    status = str(data.get("validation_status") or "")
+    if not status and validation:
+        status = "passed" if validation.get("ok") else "failed"
+    errors = validation.get("errors") if isinstance(validation.get("errors"), list) else []
+    warnings = validation.get("warnings") if isinstance(validation.get("warnings"), list) else []
+    result = {
+        "source": data.get("source") or "",
+        "project_root": data.get("project_root") or "",
+        "change": data.get("change") or validation.get("change") or "",
+        "validation_status": status,
+        "validation_ok": validation.get("ok") if validation else None,
+        "validator": validation.get("validator") or "",
+        "errors": errors,
+        "warnings": warnings,
+        "openspec_status": data.get("openspec_status") if isinstance(data.get("openspec_status"), dict) else {},
+    }
+    return {key: value for key, value in result.items() if value not in ("", None, [], {})}
+
+
+def finding_texts(findings: Any) -> list[str]:
+    if not isinstance(findings, list):
+        return []
+    values = []
+    for item in findings:
+        if isinstance(item, dict):
+            text = item.get("message") or item.get("detail") or item.get("error") or ""
+            path = item.get("path") or item.get("file") or ""
+            values.append(f"{path}: {text}" if path and text else str(text or path))
+        else:
+            values.append(str(item))
+    return [value for value in values if value.strip()]
+
+
+def structured_mcp_progress(data: Any, *, source: str, time_value: str = "") -> dict[str, Any]:
+    if not isinstance(data, dict):
+        return {}
+    has_progress = any(
+        key in data
+        for key in (
+            "expected_branch",
+            "pr_ready_branch",
+            "remote_branch_sha",
+            "base_branch_sha",
+            "branch_changed",
+            "validation_status",
+            "protocol",
+            "blockers",
+            "warnings",
+            "artifacts",
+        )
+    )
+    artifacts = normalize_artifacts(data)
+    openspec = normalize_openspec(data)
+    if not has_progress and not artifacts and not openspec:
+        return {}
+    result: dict[str, Any] = {
+        "source": source or data.get("source") or "",
+        "time": time_value,
+        "tool_source": data.get("source") or "",
+        "status": data.get("status") or "",
+        "health": data.get("health") or "",
+        "summary": short_text(data.get("summary"), 260),
+        "expected_branch": normalize_branch(data.get("expected_branch")),
+        "pr_ready_branch": normalize_branch(data.get("pr_ready_branch")),
+        "remote_branch_sha": str(data.get("remote_branch_sha") or ""),
+        "base_branch_sha": str(data.get("base_branch_sha") or ""),
+        "branch_changed": data.get("branch_changed") if "branch_changed" in data else None,
+        "validation_status": str(data.get("validation_status") or openspec.get("validation_status") or ""),
+        "protocol": compact_protocol(data.get("protocol")),
+        "blockers": string_list(data.get("blockers")),
+        "warnings": string_list(data.get("warnings")) + finding_texts(openspec.get("warnings", [])),
+        "progress_lines": string_list(data.get("progress_lines")),
+        "terminal": data.get("terminal") if isinstance(data.get("terminal"), dict) else {},
+        "artifacts": artifacts,
+        "openspec": openspec,
+    }
+    return {key: value for key, value in result.items() if value not in ("", None, [], {})}
+
+
+def mcp_progress_from_item(item: dict[str, Any], *, source: str) -> dict[str, Any]:
+    payload = parse_json_object(item.get("msg") or item.get("message") or item.get("summary"))
+    return structured_mcp_progress(payload or item, source=source, time_value=event_time(item))
+
+
+def merge_mcp_progress(target: dict[str, Any], progress: dict[str, Any]) -> None:
+    if not progress:
+        return
+    current_time = str(target.get("mcp_progress", {}).get("time") or "")
+    incoming_time = str(progress.get("time") or "")
+    if target.get("mcp_progress") and incoming_time and current_time and incoming_time < current_time:
+        return
+    target["mcp_progress"] = progress
+    for key in ("expected_branch", "pr_ready_branch", "remote_branch_sha", "base_branch_sha", "validation_status"):
+        if progress.get(key):
+            target[key] = progress[key]
+    if "branch_changed" in progress:
+        target["branch_changed"] = progress["branch_changed"]
+    for key in ("protocol", "artifacts", "openspec", "terminal"):
+        if progress.get(key):
+            target[key] = progress[key]
+    for key in ("blockers", "warnings", "progress_lines"):
+        for item in progress.get(key, []):
+            if item not in target[key]:
+                target[key].append(item)
+    if progress.get("status"):
+        target["terminal_status"] = progress["status"]
+
+
 def ok_source(name: str, status: str, **extra: Any) -> dict[str, Any]:
     return {"source": name, "ok": status == "healthy", "status": status, **extra}
 
@@ -350,6 +557,9 @@ class RuntimeProvider:
 
     def round_events(self, round_id: str, cursor: str = "", include_existing: bool = False) -> dict[str, Any]:
         return scion_ops.scion_ops_round_events(round_id=round_id, cursor=cursor, include_existing=include_existing)
+
+    def round_artifacts(self, round_id: str) -> dict[str, Any]:
+        return scion_ops.scion_ops_round_artifacts(round_id=round_id)
 
     def mcp_status(self) -> dict[str, Any]:
         url = os.environ.get("SCION_OPS_MCP_URL", "http://192.168.122.103:8765/mcp")
@@ -503,6 +713,22 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
                 "phase": "unknown",
                 "outcome": "",
                 "final_review": {},
+                "mcp_progress": {},
+                "terminal_status": "",
+                "expected_branch": "",
+                "pr_ready_branch": "",
+                "remote_branch_sha": "",
+                "base_branch_sha": "",
+                "branch_changed": None,
+                "validation_status": "",
+                "protocol": {},
+                "blockers": [],
+                "warnings": [],
+                "progress_lines": [],
+                "artifacts": {},
+                "openspec": {},
+                "terminal": {},
+                "timeline_cursor": "",
                 "_structured_branches": [],
                 "_fallback_branches": [],
             },
@@ -543,6 +769,7 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
                 add_unique(row["_structured_branches"], branch)
             for branch in structured_branch_refs(payload):
                 add_unique(row["_structured_branches"], branch)
+            merge_mcp_progress(row, mcp_progress_from_item(item, source=collection_name[:-1]))
             for branch in fallback_branch_refs(item.get("msg"), item.get("message"), item.get("summary")):
                 add_unique(row["_fallback_branches"], branch)
             review = final_review_from_item(item, source=collection_name[:-1])
@@ -558,6 +785,9 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
             try:
                 status_data = provider.round_status(round_id)
                 outcome = status_data.get("outcome") or {}
+                merge_mcp_progress(row, structured_mcp_progress(status_data, source="round_status"))
+                merge_mcp_progress(row, structured_mcp_progress(outcome, source="round_outcome"))
+                row["timeline_cursor"] = str(status_data.get("cursor") or row.get("timeline_cursor") or "")
                 outcome_review = final_review_from_outcome(outcome)
                 if outcome_review:
                     existing_time = str(row.get("final_review", {}).get("time") or "")
@@ -585,11 +815,26 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
             row["visible_status"] = str(row["final_review"].get("display") or row["status"])
         else:
             row["visible_status"] = row["status"]
+        if row["blockers"]:
+            row["status"] = "blocked"
+            row["visible_status"] = "blocked"
+        elif row["validation_status"] == "failed" and row["status"] in {"unknown", "observed", "completed"}:
+            row["status"] = "blocked"
+            row["visible_status"] = "validation failed"
+        elif row["warnings"] and row["status"] in {"unknown", "observed", "completed"}:
+            row["visible_status"] = "degraded"
         phases = [str(agent.get("phase") or "") for agent in row["agents"] if agent.get("phase")]
         row["phase"] = Counter(phases).most_common(1)[0][0] if phases else row["phase"]
         summaries = [str(agent.get("taskSummary") or "") for agent in row["agents"] if agent.get("taskSummary")]
         terminal = next((summary for summary in summaries if "complete:" in summary.lower() or "blocked" in summary.lower()), "")
         row["outcome"] = row["final_review"].get("summary") or short_text(terminal)
+        for branch in (row["expected_branch"], row["pr_ready_branch"]):
+            add_unique(row["_structured_branches"], branch)
+        for branch in row.get("artifacts", {}).get("branches", []):
+            add_unique(row["_structured_branches"], branch)
+        for remote_branch in row.get("artifacts", {}).get("remote_branches", []):
+            if isinstance(remote_branch, dict):
+                add_unique(row["_structured_branches"], remote_branch.get("branch"))
         if row["_structured_branches"]:
             row["branches"] = row["_structured_branches"]
             row["branch_source"] = "structured"
@@ -622,6 +867,7 @@ def build_inbox(messages: list[dict[str, Any]], notifications: list[dict[str, An
                 "time": event_time(item),
                 "source_id": item.get("id") or item.get("agentId") or item.get("sender") or "",
                 "summary": short_text(item.get("msg") or item.get("message") or item.get("summary") or item.get("status"), 260),
+                "mcp_progress": mcp_progress_from_item(item, source=kind),
                 "raw": item,
             })
     result = []
@@ -685,10 +931,35 @@ def build_snapshot(provider: RuntimeProvider | Any) -> dict[str, Any]:
 def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[str, Any]:
     status = provider.round_status(round_id)
     events = provider.round_events(round_id, include_existing=True)
+    artifact_payload: dict[str, Any] = {}
+    if hasattr(provider, "round_artifacts"):
+        try:
+            artifact_payload = provider.round_artifacts(round_id)
+        except Exception:
+            artifact_payload = {}
     timeline: list[dict[str, Any]] = []
     structured_branches: list[str] = []
     fallback_branches: list[str] = []
     final_reviews: list[dict[str, Any]] = []
+    progress_state: dict[str, Any] = {
+        "mcp_progress": {},
+        "terminal_status": "",
+        "expected_branch": "",
+        "pr_ready_branch": "",
+        "remote_branch_sha": "",
+        "base_branch_sha": "",
+        "branch_changed": None,
+        "validation_status": "",
+        "protocol": {},
+        "blockers": [],
+        "warnings": [],
+        "progress_lines": [],
+        "artifacts": {},
+        "openspec": {},
+        "terminal": {},
+    }
+    merge_mcp_progress(progress_state, structured_mcp_progress(status, source="round_status"))
+    merge_mcp_progress(progress_state, structured_mcp_progress(artifact_payload, source="round_artifacts"))
     detail_agents = status.get("agents", []) if isinstance(status.get("agents"), list) else []
     for agent in detail_agents:
         for branch in structured_branch_refs(agent):
@@ -698,6 +969,8 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
     outcome = status.get("outcome") or events.get("outcome") or {}
     for branch in structured_branch_refs(outcome):
         add_unique(structured_branches, branch)
+    merge_mcp_progress(progress_state, structured_mcp_progress(outcome, source="round_outcome"))
+    merge_mcp_progress(progress_state, structured_mcp_progress(events, source="round_events"))
     outcome_review = final_review_from_outcome(outcome)
     if outcome_review:
         final_reviews.append(outcome_review)
@@ -709,6 +982,7 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
                 add_unique(structured_branches, branch)
             for branch in structured_branch_refs(payload):
                 add_unique(structured_branches, branch)
+            merge_mcp_progress(progress_state, mcp_progress_from_item(item, source=str(event.get("type") or "event")))
             for branch in fallback_branch_refs(item.get("msg"), item.get("message"), item.get("summary"), item.get("taskSummary")):
                 add_unique(fallback_branches, branch)
             if event.get("message") or event.get("notification"):
@@ -723,20 +997,46 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
             })
     transcript = status.get("consensus_transcript") if isinstance(status.get("consensus_transcript"), dict) else {}
     final_reviews.sort(key=lambda item: item.get("time") or "")
+    for branch in (progress_state.get("expected_branch"), progress_state.get("pr_ready_branch")):
+        add_unique(structured_branches, branch)
+    for branch in progress_state.get("artifacts", {}).get("branches", []):
+        add_unique(structured_branches, branch)
+    for remote_branch in progress_state.get("artifacts", {}).get("remote_branches", []):
+        if isinstance(remote_branch, dict):
+            add_unique(structured_branches, remote_branch.get("branch"))
     branches = structured_branches if structured_branches else fallback_branches
     final_review = final_reviews[-1] if final_reviews else {}
     visible_status = str(final_review.get("display") or status.get("status") or "unknown")
+    if progress_state["blockers"]:
+        visible_status = "blocked"
+    elif progress_state["validation_status"] == "failed":
+        visible_status = "validation failed"
     return {
         "ok": bool(status.get("ok")) or bool(events.get("ok")),
         "round_id": round_id,
         "status": status,
         "events": events,
         "timeline": sorted(timeline, key=lambda item: item.get("time") or ""),
+        "timeline_cursor": events.get("cursor") or status.get("cursor") or "",
         "runner_output": transcript.get("output", "") if transcript.get("ok") else "",
         "runner_output_error": "" if transcript.get("ok") or not transcript else transcript.get("error") or transcript.get("output", ""),
         "outcome": outcome,
         "final_review": final_review,
         "visible_status": visible_status,
+        "terminal": progress_state.get("terminal") or events.get("terminal") or status.get("terminal") or {},
+        "mcp_progress": progress_state.get("mcp_progress") or {},
+        "expected_branch": progress_state.get("expected_branch") or "",
+        "pr_ready_branch": progress_state.get("pr_ready_branch") or "",
+        "remote_branch_sha": progress_state.get("remote_branch_sha") or "",
+        "base_branch_sha": progress_state.get("base_branch_sha") or "",
+        "branch_changed": progress_state.get("branch_changed"),
+        "validation_status": progress_state.get("validation_status") or "",
+        "protocol": progress_state.get("protocol") or {},
+        "blockers": progress_state.get("blockers") or [],
+        "warnings": progress_state.get("warnings") or [],
+        "progress_lines": progress_state.get("progress_lines") or [],
+        "artifacts": progress_state.get("artifacts") or normalize_artifacts(artifact_payload),
+        "openspec": progress_state.get("openspec") or {},
         "branches": branches,
         "branch_source": "structured" if structured_branches else ("fallback" if branches else ""),
     }
@@ -809,6 +1109,8 @@ INDEX_HTML = r"""<!doctype html>
       return `<span class="status ${esc(cls)}"><span class="dot"></span>${esc(label)}</span>`;
     };
     const fmt = value => value ? new Date(value).toLocaleString() : "unknown";
+    const list = (items, cls = "") => (items || []).length ? `<ul class="${cls}">${items.map(item => `<li>${esc(item)}</li>`).join("")}</ul>` : "";
+    const yesNo = value => value === true ? "yes" : value === false ? "no" : "";
     async function getJson(url) {
       const response = await fetch(url, { cache: "no-store" });
       if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
@@ -840,8 +1142,8 @@ INDEX_HTML = r"""<!doctype html>
     function renderRounds() {
       const rows = state.snapshot.rounds;
       document.getElementById("rounds").innerHTML = rows.length ? `
-        <div class="table-wrap"><table><thead><tr><th>Round</th><th>Status</th><th>Phase</th><th>Agents</th><th>Latest update</th><th>Outcome</th><th>Branches</th></tr></thead><tbody>
-        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}</td><td>${esc(row.phase)}</td><td>${row.agent_count}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.outcome || "")}</td><td>${(row.branches || []).map(branch => `<div class="mono">${esc(branch)}</div>`).join("")}${row.branch_source ? `<div class="muted">${esc(row.branch_source)}</div>` : ""}</td></tr>`).join("")}
+        <div class="table-wrap"><table><thead><tr><th>Round</th><th>Status</th><th>Phase</th><th>Agents</th><th>Latest update</th><th>Spec State</th><th>Outcome</th><th>Branches</th></tr></thead><tbody>
+        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}</td><td>${esc(row.phase)}</td><td>${row.agent_count}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${row.expected_branch ? `<div><strong>expected</strong><div class="mono">${esc(row.expected_branch)}</div></div>` : ""}${row.pr_ready_branch ? `<div><strong>PR-ready</strong><div class="mono">${esc(row.pr_ready_branch)}</div></div>` : ""}${row.validation_status ? `<div>validation ${status(row.validation_status)}</div>` : ""}${row.remote_branch_sha ? `<div class="muted">remote ${esc(row.remote_branch_sha.slice(0, 12))}</div>` : ""}${yesNo(row.branch_changed) ? `<div class="muted">branch changed: ${esc(yesNo(row.branch_changed))}</div>` : ""}${list(row.blockers, "error-box")}${list(row.warnings)}</td><td>${esc(row.outcome || "")}</td><td>${(row.branches || []).map(branch => `<div class="mono">${esc(branch)}</div>`).join("")}${row.branch_source ? `<div class="muted">${esc(row.branch_source)}</div>` : ""}</td></tr>`).join("")}
         </tbody></table></div>` : `<div class="card"><strong>No rounds found</strong><div class="muted">Hub returned no round-identifiable agents, messages, or notifications.</div></div>`;
       document.querySelectorAll("[data-round]").forEach(row => row.onclick = () => openRound(row.dataset.round));
     }
@@ -856,7 +1158,7 @@ INDEX_HTML = r"""<!doctype html>
         <div class="bar"><button id="back-rounds">Back to rounds</button><button id="refresh-round">Refresh timeline</button></div>
         <div class="split">
           <div class="detail"><h2 class="mono">${esc(roundId)}</h2><div>${status(detail.visible_status || detail.status.status || "unknown")}</div><h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div></div>`).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
-          <div class="detail"><h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? agents.map(agent => `<div class="card"><strong>${esc(agent.name || agent.slug)}</strong><div>${status(agent.phase || "unknown")}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`).join("") : `<div class="muted">No agents found.</div>`}<h3>Runner Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No runner output available.")}</div>`}</div>
+          <div class="detail"><h3>Spec State</h3>${detail.expected_branch ? `<strong>Expected branch</strong><div class="mono">${esc(detail.expected_branch)}</div>` : ""}${detail.pr_ready_branch ? `<strong>PR-ready branch</strong><div class="mono">${esc(detail.pr_ready_branch)}</div>` : ""}${detail.validation_status ? `<div>Validation ${status(detail.validation_status)}</div>` : ""}${detail.remote_branch_sha ? `<div class="muted">remote ${esc(detail.remote_branch_sha)}</div>` : ""}${yesNo(detail.branch_changed) ? `<div class="muted">branch changed: ${esc(yesNo(detail.branch_changed))}</div>` : ""}${list(detail.blockers, "error-box")}${list(detail.warnings)}<h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? agents.map(agent => `<div class="card"><strong>${esc(agent.name || agent.slug)}</strong><div>${status(agent.phase || "unknown")}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`).join("") : `<div class="muted">No agents found.</div>`}<h3>Runner Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No runner output available.")}</div>`}</div>
         </div>`;
       document.getElementById("back-rounds").onclick = () => setView("rounds");
       document.getElementById("refresh-round").onclick = () => openRound(roundId);
@@ -864,7 +1166,7 @@ INDEX_HTML = r"""<!doctype html>
     function renderInbox() {
       const groups = state.snapshot.inbox;
       document.getElementById("inbox").innerHTML = groups.length ? groups.map(group => `
-        <div class="detail"><h2>${esc(group.round_id)}</h2>${group.items.map(item => `<div class="timeline item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)} ${esc(item.source_id)}</div><div>${esc(item.summary)}</div></div>`).join("")}</div>`).join("") : `<div class="card"><strong>No inbox updates</strong><div class="muted">Hub returned no messages or notifications.</div></div>`;
+        <div class="detail"><h2>${esc(group.round_id)}</h2>${group.items.map(item => `<div class="timeline item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)} ${esc(item.source_id)}</div><div>${esc(item.summary)}</div>${item.mcp_progress?.validation_status ? `<div>validation ${status(item.mcp_progress.validation_status)}</div>` : ""}${list(item.mcp_progress?.blockers || [], "error-box")}${list(item.mcp_progress?.warnings || [])}</div>`).join("")}</div>`).join("") : `<div class="card"><strong>No inbox updates</strong><div class="muted">Hub returned no messages or notifications.</div></div>`;
     }
     function renderRuntime() {
       const sources = state.snapshot.sources;
@@ -909,6 +1211,8 @@ class HubRequestHandler(BaseHTTPRequestHandler):
         try:
             if path == "/":
                 self.respond_html(INDEX_HTML)
+            elif path == "/api/contract":
+                self.respond_json(BROWSER_JSON_CONTRACT)
             elif path == "/api/snapshot":
                 self.respond_json(build_snapshot(self.provider))
             elif path == "/api/overview":
