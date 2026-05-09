@@ -6,7 +6,7 @@
   "change": "update-web-app",
   "base_branch": "round-20260509t185251z-1cfe-spec-integration",
   "status": "running",
-  "phase": "starting",
+  "phase": "implementation",
   "branches": {
     "steward": "round-20260509t211335z-native1-implementation-steward",
     "implementer": "round-20260509t211335z-native1-impl-codex",
@@ -14,7 +14,13 @@
     "final_review": "round-20260509t211335z-native1-final-review",
     "integration": "round-20260509t211335z-native1-integration"
   },
-  "agents": {},
+  "agents": {
+    "primary_implementer": {
+      "name": "round-20260509t211335z-native1-impl-codex",
+      "branch": "round-20260509t211335z-native1-impl-codex",
+      "status": "running"
+    }
+  },
   "implementation": {
     "branch": "",
     "base_branch": "round-20260509t185251z-1cfe-spec-integration",
@@ -27,7 +33,6 @@
   },
   "blockers": [],
   "next_actions": [
-    "Start primary impl-codex agent",
     "Integrate the accepted implementation branch",
     "Run verification and final review"
   ]
