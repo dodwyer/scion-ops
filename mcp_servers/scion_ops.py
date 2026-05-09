@@ -78,6 +78,20 @@ def _env_bool(name: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_port(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None or not value.strip():
+        return default
+    raw = value.strip()
+    try:
+        return int(raw)
+    except ValueError:
+        parsed = urllib.parse.urlparse(raw)
+        if parsed.port is not None:
+            return parsed.port
+    raise ValueError(f"{name} must be an integer port or URL with a port, got {value!r}")
+
+
 mcp = FastMCP(
     "scion-ops",
     instructions=(
@@ -87,7 +101,7 @@ mcp = FastMCP(
         "server uses its current working checkout."
     ),
     host=os.environ.get("SCION_OPS_MCP_HOST", "127.0.0.1"),
-    port=int(os.environ.get("SCION_OPS_MCP_PORT", "8765")),
+    port=_env_port("SCION_OPS_MCP_PORT", 8765),
     streamable_http_path=os.environ.get("SCION_OPS_MCP_PATH", "/mcp"),
     json_response=_env_bool("SCION_OPS_MCP_JSON_RESPONSE", True),
     stateless_http=_env_bool("SCION_OPS_MCP_STATELESS_HTTP", True),
