@@ -40,6 +40,9 @@ spec:
                   fi
                 done
               fi
+              export SCION_GROVE_ID="${SCION_GROVE_ID:-$(cat "${SCION_OPS_ROOT}/.scion/grove-id" 2>/dev/null || true)}"
+              export SCION_OPS_GROVE_ID="${SCION_OPS_GROVE_ID:-$SCION_GROVE_ID}"
+              git config --global --add safe.directory "${SCION_OPS_ROOT}" >/dev/null 2>&1 || true
               exec python "${SCION_OPS_ROOT}/scripts/web_app_hub.py"
           env:
             - name: HOME
