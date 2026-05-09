@@ -18,6 +18,12 @@
     "primary_implementer": {
       "name": "round-20260509t211335z-native1-impl-codex",
       "branch": "round-20260509t211335z-native1-impl-codex",
+      "status": "running",
+      "note": "Remote branch still matches spec base after status nudge; interrupt/status message failed through runtime broker."
+    },
+    "secondary_implementer": {
+      "name": "round-20260509t211335z-native1-impl-claude",
+      "branch": "round-20260509t211335z-native1-impl-claude",
       "status": "running"
     }
   },
