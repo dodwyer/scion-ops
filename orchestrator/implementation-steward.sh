@@ -178,7 +178,7 @@ if [[ "${SCION_OPS_DRY_RUN:-0}" == "1" ]]; then
   cat <<EOF
 
 Dry run command:
-  $SCION_BIN --profile "$SCION_PROFILE" --grove "$PROJECT_ROOT" start "$STEWARD_NAME" --type implementation-steward --branch "$STEWARD_BRANCH" --broker "$BROKER" --harness-auth auth-file --no-upload --non-interactive --yes --notify "<prompt>"
+  $SCION_BIN --profile "$SCION_PROFILE" --grove "$PROJECT_ROOT" start "$STEWARD_NAME" --type implementation-steward --branch "$STEWARD_BRANCH" --broker "$BROKER" --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --yes --notify "<prompt>"
 
 Rendered prompt:
 $TASK_PROMPT
@@ -195,6 +195,7 @@ fi
   --type implementation-steward \
   --branch "$STEWARD_BRANCH" \
   --broker "$BROKER" \
+  --harness-config codex-exec \
   --harness-auth auth-file \
   --no-upload \
   --non-interactive \

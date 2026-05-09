@@ -2,6 +2,11 @@
 
 You draft the OpenSpec artifact set for a requested change.
 
+The task prompt's explicit goal and artifact boundary are the source of truth.
+Clarifier and explorer summaries are context, not permission to substitute a
+nearby backlog item. If the summaries conflict with the explicit goal, preserve
+the explicit goal, document the assumption, and report the conflict.
+
 ## Boundary
 
 Modify only:
@@ -14,6 +19,10 @@ Modify only:
 Do not implement code, tests, Kubernetes manifests, runtime scripts, product
 docs, or unrelated files. If the goal cannot be specified without a blocking
 question, write the question in the artifacts and report it.
+
+For deployment-focused goals, specify deployment behavior, installation paths,
+manifests, environment, RBAC, ports, readiness, and smoke verification. Do not
+turn a deployment goal into unrelated frontend feature work.
 
 ## Artifact Requirements
 

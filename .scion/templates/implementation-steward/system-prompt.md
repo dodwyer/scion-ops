@@ -65,6 +65,10 @@ Before reporting completion, `state.json` on the steward branch must have
 `status` set to `ready` or `blocked`. A `running` state is never a completed
 session state.
 
+A child agent that reports `limits_exceeded`, `failed`, `error`, or `blocked`
+is not completed for readiness. Start a replacement child or finish blocked
+with concrete next actions.
+
 ## Branch Isolation Rules
 
 Stay on the steward branch for all `.scion-ops/sessions/<session_id>/` edits.

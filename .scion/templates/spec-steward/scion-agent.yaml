@@ -1,7 +1,6 @@
 schema_version: "1"
 description: "OpenSpec spec steward - coordinates long-running spec creation with shared session state."
-default_harness_config: claude
-model: claude-sonnet-4-6
+default_harness_config: codex-exec
 system_prompt: system-prompt.md
 agent_instructions: agents.md
 max_turns: 200

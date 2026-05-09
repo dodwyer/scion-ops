@@ -16,6 +16,24 @@ assert_template_absent() {
   fi
 }
 
+json_field() {
+  local field="$1"
+  python3 -c '
+import json
+import re
+import sys
+
+field = sys.argv[1]
+raw = sys.stdin.read()
+raw = re.sub(r"\x1b\[[0-9;]*m", "", raw)
+start = raw.find("{")
+if start < 0:
+    raise SystemExit(1)
+data = json.loads(raw[start:])
+print(data.get(field) or "")
+' "$field"
+}
+
 SCION_BIN="${SCION_BIN:-scion}"
 HUB_ENDPOINT="${SCION_HUB_ENDPOINT:-${HUB_ENDPOINT:-}}"
 PROJECT_ROOT_INPUT="${1:-${SCION_OPS_PROJECT_ROOT:-$(pwd -P)}}"
@@ -68,11 +86,39 @@ required_templates=(
   implementation-steward
 )
 
+declare -A expected_template_harness=(
+  [spec-consensus-runner]=codex-exec
+  [spec-goal-clarifier]=codex-exec
+  [spec-repo-explorer]=codex-exec
+  [spec-author]=codex-exec
+  [spec-ops-reviewer]=codex-exec
+  [spec-finalizer]=codex-exec
+  [spec-steward]=codex-exec
+  [implementation-steward]=codex-exec
+  [impl-codex]=codex-exec
+  [reviewer-codex]=codex-exec
+  [final-reviewer-codex]=codex-exec
+)
+
 for template in "${required_templates[@]}"; do
-  (cd "$PROJECT_ROOT" && SCION_HUB_ENDPOINT="$HUB_ENDPOINT" "$SCION_BIN" --global templates show "$template" \
-    --hub \
-    --non-interactive) \
-    >/dev/null || die "Hub template ${template} is missing; run task bootstrap"
+  template_json="$(
+    (
+      cd "$PROJECT_ROOT" &&
+        SCION_HUB_ENDPOINT="$HUB_ENDPOINT" "$SCION_BIN" --global templates show "$template" \
+          --hub \
+          --format json \
+          --non-interactive
+    ) 2>&1
+  )" || die "Hub template ${template} is missing; run task bootstrap"
+
+  expected="${expected_template_harness[$template]:-}"
+  if [[ -n "$expected" && "${SCION_OPS_SKIP_TEMPLATE_HARNESS_PREFLIGHT:-0}" != "1" ]]; then
+    actual="$(printf '%s' "$template_json" | json_field harness)" ||
+      die "could not read Hub template harness for ${template}; run task bootstrap"
+    if [[ "$actual" != "$expected" ]]; then
+      die "Hub template ${template} uses harness ${actual:-<empty>}, expected ${expected}; run task bootstrap"
+    fi
+  fi
 done
 
 spec_consensus_prompt="${SCION_OPS_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.scion/templates/spec-consensus-runner/system-prompt.md"

@@ -133,6 +133,8 @@ required_first_actions:
    scion --profile "$SCION_PROFILE" start "$CLARIFIER_NAME" --type spec-goal-clarifier --branch "$CLARIFIER_NAME" --broker "$BROKER" --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
 change: $CHANGE
 base_branch: $BASE_BRANCH
+explicit_goal:
+$GOAL
 collection_recipient: $COLLECTION_RECIPIENT
 expected_branch: $CLARIFIER_NAME
 artifact_boundary: no file changes; clarify scope only
@@ -143,6 +145,8 @@ Clarify the requested OpenSpec change. Do not edit files. Send a concise complet
    scion --profile "$SCION_PROFILE" start "$EXPLORER_NAME" --type spec-repo-explorer --branch "$EXPLORER_NAME" --broker "$BROKER" --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
 change: $CHANGE
 base_branch: $BASE_BRANCH
+explicit_goal:
+$GOAL
 collection_recipient: $COLLECTION_RECIPIENT
 expected_branch: $EXPLORER_NAME
 artifact_boundary: no file changes; inspect repo only
@@ -158,6 +162,8 @@ Explore the repository for this OpenSpec change. Do not edit files. Send a conci
    scion --profile "$SCION_PROFILE" start "$AUTHOR_NAME" --type spec-author --branch "$AUTHOR_NAME" --broker "$BROKER" --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
 change: $CHANGE
 base_branch: $BASE_BRANCH
+explicit_goal:
+$GOAL
 collection_recipient: $COLLECTION_RECIPIENT
 expected_branch: $AUTHOR_NAME
 artifact_boundary: openspec/changes/$CHANGE only
@@ -170,6 +176,8 @@ Write only OpenSpec artifacts for $CHANGE. Use the clarifier and explorer summar
    scion --profile "$SCION_PROFILE" start "$OPS_REVIEW_NAME" --type spec-ops-reviewer --branch "$OPS_REVIEW_NAME" --broker "$BROKER" --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
 change: $CHANGE
 base_branch: $BASE_BRANCH
+explicit_goal:
+$GOAL
 collection_recipient: $COLLECTION_RECIPIENT
 review_branch: $FINAL_BRANCH
 expected_summary: verdict accept/reject/blocked, blocking issues, recommendations, and test gaps
@@ -200,7 +208,7 @@ if [[ "${SCION_OPS_DRY_RUN:-0}" == "1" ]]; then
   cat <<EOF
 
 Dry run command:
-  $SCION_BIN --profile "$SCION_PROFILE" --grove "$PROJECT_ROOT" start "$STEWARD_NAME" --type spec-steward --branch "$STEWARD_BRANCH" --broker "$BROKER" --harness-auth auth-file --no-upload --non-interactive --yes --notify "<prompt>"
+  $SCION_BIN --profile "$SCION_PROFILE" --grove "$PROJECT_ROOT" start "$STEWARD_NAME" --type spec-steward --branch "$STEWARD_BRANCH" --broker "$BROKER" --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --yes --notify "<prompt>"
 
 Rendered prompt:
 $TASK_PROMPT
@@ -217,6 +225,7 @@ fi
   --type spec-steward \
   --branch "$STEWARD_BRANCH" \
   --broker "$BROKER" \
+  --harness-config codex-exec \
   --harness-auth auth-file \
   --no-upload \
   --non-interactive \

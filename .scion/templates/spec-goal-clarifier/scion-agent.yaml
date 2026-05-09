@@ -1,6 +1,5 @@
 schema_version: "1"
 description: "Spec goal clarifier - narrows the user goal before spec drafting."
-harness_config: codex-exec
 default_harness_config: codex-exec
 system_prompt: system-prompt.md
 agent_instructions: agents.md

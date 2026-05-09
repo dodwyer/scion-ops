@@ -1,6 +1,5 @@
 schema_version: "1"
 description: "Spec consensus runner - coordinates OpenSpec artifact rounds without implementation changes."
-harness_config: codex-exec
 default_harness_config: codex-exec
 system_prompt: system-prompt.md
 max_turns: 80

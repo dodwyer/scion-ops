@@ -94,7 +94,9 @@ take over authoring.
 
 Delegation is required for a ready session. A spec session cannot be ready
 unless `state.json` records completed clarifier, explorer, author, and
-ops-reviewer agents.
+ops-reviewer agents. A child that reports `limits_exceeded`, `failed`,
+`error`, or `blocked` is not completed for readiness, even if it produced a
+partial summary. Start a replacement child or finish blocked.
 
 ## Branches And Agents
 

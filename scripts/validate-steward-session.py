@@ -19,6 +19,17 @@ from typing import Any
 READY_STATUSES = {"ready", "completed", "success"}
 PASSING_STATUSES = {"passed", "success", "ok"}
 ACCEPT_VERDICTS = {"accept", "accepted", "pass", "passed"}
+COMPLETED_AGENT_STATUS_TOKENS = ("completed", "complete", "succeeded", "success", "passed", "ready")
+FAILED_AGENT_STATUS_TOKENS = (
+    "failed",
+    "failure",
+    "error",
+    "errored",
+    "limits_exceeded",
+    "limit_exceeded",
+    "blocked",
+    "rejected",
+)
 SPEC_REQUIRED_AGENT_MARKERS = {
     "clarifier": ("spec-clarifier", "spec-goal-clarifier"),
     "explorer": ("spec-explorer", "spec-repo-explorer"),
@@ -203,9 +214,66 @@ def _agent_text(state: dict[str, Any]) -> str:
     return json.dumps(agents, sort_keys=True).lower() + "\n" + "\n".join(str(key).lower() for key in agents)
 
 
-def _agent_role_present(state: dict[str, Any], markers: tuple[str, ...]) -> bool:
-    text = _agent_text(state)
+def _agent_entries(state: dict[str, Any]) -> list[tuple[str, Any]]:
+    agents = state.get("agents")
+    if not isinstance(agents, dict):
+        return []
+    return list(agents.items())
+
+
+def _agent_matches(name: str, payload: Any, markers: tuple[str, ...]) -> bool:
+    text = name.lower()
+    if isinstance(payload, dict):
+        text += "\n" + json.dumps(payload, sort_keys=True).lower()
+    else:
+        text += "\n" + _text(payload).lower()
     return any(marker in text for marker in markers)
+
+
+def _agent_status_values(payload: Any) -> list[str]:
+    if isinstance(payload, str):
+        return [_normalize_status(payload)]
+    if not isinstance(payload, dict):
+        return []
+
+    values: list[str] = []
+    for key in (
+        "status",
+        "phase",
+        "activity",
+        "health",
+        "containerStatus",
+        "container_status",
+        "task_status",
+        "verdict",
+    ):
+        value = payload.get(key)
+        if value is not None:
+            values.append(_normalize_status(value))
+    return values
+
+
+def _has_status_token(statuses: list[str], tokens: tuple[str, ...]) -> bool:
+    return any(token in status for status in statuses for token in tokens)
+
+
+def _agent_role_completion(state: dict[str, Any], markers: tuple[str, ...]) -> tuple[bool, str]:
+    matches = [(name, payload) for name, payload in _agent_entries(state) if _agent_matches(name, payload, markers)]
+    if not matches:
+        return False, "missing"
+
+    saw_incomplete = False
+    for _name, payload in matches:
+        statuses = _agent_status_values(payload)
+        if _has_status_token(statuses, FAILED_AGENT_STATUS_TOKENS):
+            return False, "failed"
+        if _has_status_token(statuses, COMPLETED_AGENT_STATUS_TOKENS):
+            return True, ""
+        saw_incomplete = True
+
+    if saw_incomplete:
+        return False, "incomplete"
+    return False, "missing_status"
 
 
 def _openspec_validation_from_worktree_or_branch(
@@ -349,17 +417,27 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
 
         if args.kind == "spec":
             for role, markers in SPEC_REQUIRED_AGENT_MARKERS.items():
-                if not _agent_role_present(state, markers):
-                    errors.append(Finding(f"state.agents.{role}", "ready spec sessions must record this completed specialist agent"))
+                completed, reason = _agent_role_completion(state, markers)
+                if not completed:
+                    errors.append(
+                        Finding(
+                            f"state.agents.{role}",
+                            f"ready spec sessions must record this specialist agent with a successful completion status ({reason})",
+                        )
+                    )
             review_verdict = _normalize_status(_get_path(state, "review.verdict"))
             if review_verdict not in ACCEPT_VERDICTS:
                 errors.append(Finding("state.review.verdict", "spec sessions require an accepting ops-review verdict"))
 
         if args.kind == "implementation":
             for role, markers in IMPLEMENTATION_REQUIRED_AGENT_MARKERS.items():
-                if not _agent_role_present(state, markers):
+                completed, reason = _agent_role_completion(state, markers)
+                if not completed:
                     errors.append(
-                        Finding(f"state.agents.{role}", "ready implementation sessions must record this completed agent")
+                        Finding(
+                            f"state.agents.{role}",
+                            f"ready implementation sessions must record this agent with a successful completion status ({reason})",
+                        )
                     )
             final_verdict = _normalize_status(_get_path(state, "final_review.verdict"))
             if final_verdict not in ACCEPT_VERDICTS:

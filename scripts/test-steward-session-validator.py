@@ -154,6 +154,18 @@ def main() -> int:
         assert payload["ok"] is True, payload
         assert payload["branch"]["resolved_ref"] == "round-s1-spec-integration", payload
 
+        failed_child = _spec_state()
+        failed_child["agents"]["round-s1-spec-clarifier"] = {
+            "template": "spec-goal-clarifier",
+            "status": "completed",
+            "activity": "limits_exceeded",
+        }
+        _write_state(root, failed_child)
+        code, payload = _run(root, "spec", "--require-ready")
+        assert code == 1, payload
+        assert payload["ok"] is False, payload
+        assert any("state.agents.clarifier" in item["path"] for item in payload["errors"]), payload
+
         _git(root, "checkout", "-b", "round-s1-spec-steward")
         _write_state(root, _spec_state())
         _git(root, "add", ".scion-ops/sessions/s1/state.json")
