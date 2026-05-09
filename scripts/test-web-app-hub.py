@@ -148,7 +148,9 @@ def healthy_k8s():
             {"name": "scion-ops-mcp", "desired": 1, "available": 1, "ready": True},
             {"name": "scion-ops-web-app", "desired": 1, "available": 1, "ready": True},
         ],
-        "pods": [],
+        "pods": [{"name": "scion-ops-web-app-abc123", "phase": "Running", "ready": True}],
+        "services": [{"name": "scion-ops-web-app", "type": "ClusterIP"}],
+        "endpoints": [{"name": "scion-ops-web-app", "ready_addresses": 1, "not_ready_addresses": 0, "ready": True}],
     }
 
 
@@ -160,9 +162,14 @@ def test_healthy_snapshot_is_ready():
     finally:
         web_app_hub.utc_now = original
     assert snapshot["readiness"] == "ready"
+    assert snapshot["sources"]["web_app"]["status"] == "healthy"
+    assert snapshot["overview"]["checks"]["web_app"]["status"] == "healthy"
     assert snapshot["overview"]["active_round_count"] == 1
     assert snapshot["rounds"][0]["round_id"] == "20260509t063201z-6c02"
     assert snapshot["inbox"][0]["round_id"] == "20260509t063201z-6c02"
+    runtime = {"sources": snapshot["sources"]}
+    assert runtime["sources"]["web_app"]["deployment"]["name"] == "scion-ops-web-app"
+    assert '"web_app"' in web_app_hub.INDEX_HTML
 
 
 def test_empty_snapshot_distinguishes_no_rounds_from_source_failure():
@@ -227,6 +234,43 @@ def test_kubernetes_normalization_reports_missing_control_plane():
     assert "scion-broker" in status["missing_deployments"]
     assert "scion-ops-mcp" in status["missing_deployments"]
     assert "scion-ops-web-app" in status["missing_deployments"]
+
+
+def test_missing_web_app_service_degrades_readiness():
+    k8s = healthy_k8s()
+    k8s["services"] = []
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(k8s=k8s))
+    assert snapshot["readiness"] == "degraded"
+    assert snapshot["sources"]["web_app"]["status"] == "degraded"
+    assert "service" in snapshot["sources"]["web_app"]["missing"]
+
+
+def test_missing_web_app_endpoint_degrades_readiness():
+    k8s = healthy_k8s()
+    k8s["endpoints"] = []
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(k8s=k8s))
+    assert snapshot["readiness"] == "degraded"
+    assert snapshot["sources"]["web_app"]["status"] == "degraded"
+    assert "endpoint" in snapshot["sources"]["web_app"]["missing"]
+
+
+def test_normalized_kubernetes_missing_web_app_service_and_endpoint_degrades():
+    payload = {
+        "items": [
+            {"kind": "Deployment", "metadata": {"name": "scion-hub", "labels": {"app.kubernetes.io/part-of": "scion-control-plane"}}, "spec": {"replicas": 1}, "status": {"availableReplicas": 1}},
+            {"kind": "Deployment", "metadata": {"name": "scion-broker", "labels": {"app.kubernetes.io/part-of": "scion-control-plane"}}, "spec": {"replicas": 1}, "status": {"availableReplicas": 1}},
+            {"kind": "Deployment", "metadata": {"name": "scion-ops-mcp", "labels": {"app.kubernetes.io/part-of": "scion-control-plane"}}, "spec": {"replicas": 1}, "status": {"availableReplicas": 1}},
+            {"kind": "Deployment", "metadata": {"name": "scion-ops-web-app", "labels": {"app.kubernetes.io/part-of": "scion-control-plane"}}, "spec": {"replicas": 1}, "status": {"availableReplicas": 1}},
+            {"kind": "Pod", "metadata": {"name": "scion-ops-web-app-abc123", "labels": {"app.kubernetes.io/part-of": "scion-control-plane"}}, "status": {"phase": "Running", "conditions": [{"type": "Ready", "status": "True"}]}},
+        ]
+    }
+    status = web_app_hub.normalize_kubernetes(payload, namespace="scion-agents")
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(k8s=status))
+    assert status["status"] == "degraded"
+    assert status["missing_services"] == ["scion-ops-web-app"]
+    assert status["missing_endpoints"] == ["scion-ops-web-app"]
+    assert snapshot["readiness"] == "degraded"
+    assert snapshot["sources"]["web_app"]["missing"] == ["service", "endpoint"]
 
 
 def test_structured_branch_fields_take_precedence_over_fallback_text_and_names():
