@@ -210,6 +210,125 @@ def test_kubernetes_normalization_reports_missing_control_plane():
     assert "scion-ops-mcp" in status["missing_deployments"]
 
 
+def test_structured_branch_field_takes_precedence_over_text_fallback():
+    """Structured agent.branch/targetBranch is used directly; text parsing is fallback only."""
+    agents = [
+        {
+            "name": "round-20260509t063201z-aaaa-impl",
+            "phase": "completed",
+            "activity": "completed",
+            "branch": "main",  # structured field present
+            "taskSummary": "complete: round-20260509t063201z-aaaa-impl-from-text",  # would match if fallback used
+        },
+        {
+            "name": "round-20260509t063201z-bbbb-impl",
+            "phase": "completed",
+            "activity": "completed",
+            # no structured branch field — text parsing is the fallback
+            "taskSummary": "complete: round-20260509t063201z-bbbb-impl-from-text",
+        },
+    ]
+    rounds = web_app_hub.build_rounds(agents, [], [])
+    by_id = {r["round_id"]: r for r in rounds}
+
+    # Agent with structured 'branch': use it directly, do not text-parse taskSummary
+    aaaa_round = by_id.get("20260509t063201z-aaaa")
+    assert aaaa_round is not None
+    assert "main" in aaaa_round["branches"]
+    assert "round-20260509t063201z-aaaa-impl-from-text" not in aaaa_round["branches"]
+
+    # Agent without structured field: text parsing is used as fallback
+    bbbb_round = by_id.get("20260509t063201z-bbbb")
+    assert bbbb_round is not None
+    assert "round-20260509t063201z-bbbb-impl-from-text" in bbbb_round["branches"]
+
+
+def test_targeted_branch_field_takes_precedence_over_text_fallback():
+    """Structured agent.targetBranch is used directly when present."""
+    agents = [
+        {
+            "name": "round-20260509t063201z-cccc-impl",
+            "phase": "completed",
+            "activity": "completed",
+            "targetBranch": "round-20260509t063201z-cccc-impl-structured",
+            "taskSummary": "complete: round-20260509t063201z-cccc-impl-from-text",
+        },
+    ]
+    rounds = web_app_hub.build_rounds(agents, [], [])
+    assert len(rounds) == 1
+    row = rounds[0]
+    assert "round-20260509t063201z-cccc-impl-structured" in row["branches"]
+    assert "round-20260509t063201z-cccc-impl-from-text" not in row["branches"]
+
+
+def test_final_review_verdict_accepted_exposed_by_backend():
+    """Backend exposes 'accepted' verdict for final-review agents and sets status to 'accepted'."""
+    agents = [
+        {
+            "name": "round-20260509t063201z-dddd-consensus",
+            "template": "consensus-runner",
+            "phase": "completed",
+            "activity": "completed",
+            "taskSummary": "complete: round-20260509t063201z-dddd",
+            "updated": "2026-05-09T06:38:00+00:00",
+        },
+        {
+            "name": "round-20260509t063201z-dddd-final-review",
+            "phase": "completed",
+            "activity": "completed",
+            "taskSummary": "final verdict: accept — all checks passed",
+            "updated": "2026-05-09T06:39:00+00:00",
+        },
+    ]
+    rounds = web_app_hub.build_rounds(agents, [], [])
+    assert len(rounds) == 1
+    row = rounds[0]
+    assert row["round_id"] == "20260509t063201z-dddd"
+    assert row["final_verdict"] == "accepted"
+    assert row["status"] == "accepted"
+
+
+def test_final_review_verdict_changes_requested_not_collapsed_to_completed():
+    """Backend exposes 'request_changes' and does NOT collapse it to generic 'completed'."""
+    agents = [
+        {
+            "name": "round-20260509t063201z-eeee-consensus",
+            "template": "consensus-runner",
+            "phase": "completed",
+            "activity": "completed",
+            "taskSummary": "complete: round-20260509t063201z-eeee",
+            "updated": "2026-05-09T06:38:00+00:00",
+        },
+        {
+            "name": "round-20260509t063201z-eeee-final-review",
+            "phase": "completed",
+            "activity": "completed",
+            "taskSummary": "final verdict: request_changes — tests failing",
+            "updated": "2026-05-09T06:39:00+00:00",
+        },
+    ]
+    rounds = web_app_hub.build_rounds(agents, [], [])
+    assert len(rounds) == 1
+    row = rounds[0]
+    assert row["round_id"] == "20260509t063201z-eeee"
+    assert row["final_verdict"] == "request_changes"
+    assert row["status"] == "request_changes"
+    assert row["status"] != "completed"
+
+
+def test_frontend_html_renders_verdict_fields():
+    """Frontend HTML includes CSS and JS hooks for rendering final review verdicts."""
+    html = web_app_hub.INDEX_HTML
+    # CSS must style request_changes distinctly (not as completed/good)
+    assert "request_changes" in html
+    # CSS must style accepted
+    assert "accepted" in html
+    # JS must reference final_verdict field from round data
+    assert "final_verdict" in html
+    # JS must reference final_review from detail outcome
+    assert "final_review" in html
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

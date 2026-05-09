@@ -133,6 +133,75 @@ def run_command(args: list[str], *, timeout: int = 12) -> dict[str, Any]:
     return payload
 
 
+def _extract_final_verdict(agents: list[dict[str, Any]], messages: list[dict[str, Any]]) -> dict[str, Any]:
+    """Extract final review verdict from agents and messages for a round."""
+    def is_final_agent(agent: dict[str, Any]) -> bool:
+        template = str(agent.get("template") or "")
+        name = str(agent.get("name") or agent.get("slug") or "")
+        return template.startswith("final-reviewer-") or name.endswith("-final-review")
+
+    def normalize_verdict(value: Any) -> str:
+        v = str(value or "").strip().lower()
+        if v in {"accept", "accepted", "success", "pass", "passed"}:
+            return "accept"
+        if v in {"reject", "rejected", "request_changes", "changes_requested", "revise", "blocked", "fail", "failed"}:
+            return "request_changes"
+        return v
+
+    final_agents = [a for a in agents if is_final_agent(a)]
+    final_names = {str(v) for a in final_agents for v in (a.get("name"), a.get("slug"), a.get("id")) if v}
+
+    for item in messages:
+        text = str(item.get("msg") or item.get("message") or "")
+        payload: dict[str, Any] = {}
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, dict):
+                payload = parsed
+        except (ValueError, TypeError):
+            m = re.search(r"\{[^{}]*\}", text)
+            if m:
+                try:
+                    parsed = json.loads(m.group())
+                    if isinstance(parsed, dict):
+                        payload = parsed
+                except (ValueError, TypeError):
+                    pass
+        if not payload or "verdict" not in payload:
+            continue
+        sender = str(item.get("sender") or item.get("senderId") or item.get("agentId") or "")
+        reviewer = str(payload.get("reviewer") or "").lower()
+        branch = str(payload.get("branch") or payload.get("target_branch") or "").lower()
+        is_final = (
+            reviewer.startswith("final-")
+            or "final-review" in branch
+            or any(name and name in sender for name in final_names)
+        )
+        if not is_final:
+            continue
+        nv = normalize_verdict(payload.get("verdict"))
+        return {
+            "verdict": str(payload.get("verdict") or ""),
+            "normalized": nv,
+            "status": "accepted" if nv == "accept" else "request_changes",
+            "notes": str(payload.get("notes") or "")[:300],
+        }
+
+    for agent in final_agents:
+        summary = str(agent.get("taskSummary") or "")
+        m = re.search(r"final verdict:\s*([A-Za-z_ -]+)", summary, re.IGNORECASE)
+        if m:
+            nv = normalize_verdict(m.group(1))
+            return {
+                "verdict": m.group(1).strip(),
+                "normalized": nv,
+                "status": "accepted" if nv == "accept" else "request_changes",
+                "notes": "",
+            }
+
+    return {}
+
+
 def extract_round_id(*values: Any) -> str:
     for value in values:
         match = ROUND_RE.search(str(value or ""))
@@ -356,8 +425,14 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
             continue
         row = ensure(round_id)
         row["agents"].append(agent)
-        for value in (agent.get("branch"), agent.get("targetBranch"), agent.get("taskSummary")):
-            text = str(value or "")
+        # Structured fields take precedence; text parsing is fallback only
+        structured = [str(v).strip() for v in (agent.get("branch"), agent.get("targetBranch")) if v and str(v).strip()]
+        if structured:
+            for branch in structured:
+                if branch not in row["branches"]:
+                    row["branches"].append(branch)
+        else:
+            text = str(agent.get("taskSummary") or "")
             for branch in re.findall(r"round-[A-Za-z0-9._:/@+-]+", text):
                 if branch not in row["branches"]:
                     row["branches"].append(branch)
@@ -388,14 +463,24 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
 
     for row in grouped.values():
         statuses = [agent_status(agent) for agent in row["agents"]]
+        verdict_info = _extract_final_verdict(row["agents"], row["messages"])
         if "blocked" in statuses:
             row["status"] = "blocked"
         elif any(status in {"running", "waiting"} for status in statuses):
             row["status"] = "running" if "running" in statuses else "waiting"
         elif statuses and all(status == "completed" for status in statuses):
-            row["status"] = "completed"
+            # Use final review verdict to avoid collapsing to generic "completed"
+            if verdict_info.get("status") == "request_changes":
+                row["status"] = "request_changes"
+            elif verdict_info.get("status") == "accepted":
+                row["status"] = "accepted"
+            else:
+                row["status"] = "completed"
         elif not row["agents"] and (row["messages"] or row["notifications"]):
             row["status"] = "observed"
+        row["final_verdict"] = verdict_info.get("status") or ""
+        row["final_verdict_raw"] = verdict_info.get("verdict") or ""
+        row["final_verdict_notes"] = verdict_info.get("notes") or ""
         phases = [str(agent.get("phase") or "") for agent in row["agents"] if agent.get("phase")]
         row["phase"] = Counter(phases).most_common(1)[0][0] if phases else row["phase"]
         summaries = [str(agent.get("taskSummary") or "") for agent in row["agents"] if agent.get("taskSummary")]
@@ -532,8 +617,8 @@ INDEX_HTML = r"""<!doctype html>
     .card, .table-wrap, .detail { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; }
     .status { display:inline-flex; align-items:center; gap:6px; font-weight:650; text-transform:capitalize; }
     .dot { width:9px; height:9px; border-radius:50%; background:var(--muted); display:inline-block; }
-    .ready .dot, .healthy .dot, .completed .dot { background:var(--good); }
-    .degraded .dot, .waiting .dot, .stale .dot, .observed .dot { background:var(--warn); }
+    .ready .dot, .healthy .dot, .completed .dot, .accepted .dot { background:var(--good); }
+    .degraded .dot, .waiting .dot, .stale .dot, .observed .dot, .request_changes .dot { background:var(--warn); }
     .unavailable .dot, .blocked .dot, .error .dot { background:var(--bad); }
     .running .dot { background:var(--info); }
     .muted { color:var(--muted); }
@@ -606,7 +691,7 @@ INDEX_HTML = r"""<!doctype html>
       const rows = state.snapshot.rounds;
       document.getElementById("rounds").innerHTML = rows.length ? `
         <div class="table-wrap"><table><thead><tr><th>Round</th><th>Status</th><th>Phase</th><th>Agents</th><th>Latest update</th><th>Outcome</th></tr></thead><tbody>
-        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.status)}</td><td>${esc(row.phase)}</td><td>${row.agent_count}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.outcome || "")}</td></tr>`).join("")}
+        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.status)}</td><td>${esc(row.phase)}</td><td>${row.agent_count}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.outcome || "")}${row.final_verdict ? `<div>${status(row.final_verdict)}</div>` : ""}</td></tr>`).join("")}
         </tbody></table></div>` : `<div class="card"><strong>No rounds found</strong><div class="muted">Hub returned no round-identifiable agents, messages, or notifications.</div></div>`;
       document.querySelectorAll("[data-round]").forEach(row => row.onclick = () => openRound(row.dataset.round));
     }
@@ -616,11 +701,18 @@ INDEX_HTML = r"""<!doctype html>
       document.getElementById("round-detail").innerHTML = `<div class="card">Loading ${esc(roundId)}...</div>`;
       const detail = await getJson(`/api/rounds/${encodeURIComponent(roundId)}`);
       const agents = detail.status.agents || [];
+      const outcome = detail.outcome || {};
+      const finalReview = (outcome.final_review && typeof outcome.final_review === 'object') ? outcome.final_review : null;
+      const verdictHtml = finalReview && finalReview.verdict
+        ? `<h3>Final Review</h3><div>${status(finalReview.status || "unknown")}</div><div class="muted">${esc(finalReview.verdict)}</div>${finalReview.notes ? `<div class="muted">${esc(finalReview.notes)}</div>` : ""}`
+        : (outcome.status && outcome.status !== "completed"
+          ? `<h3>Final Review</h3><div>${status(outcome.status)}</div>`
+          : "");
       document.getElementById("round-detail").innerHTML = `
         <div class="bar"><button id="back-rounds">Back to rounds</button><button id="refresh-round">Refresh timeline</button></div>
         <div class="split">
           <div class="detail"><h2 class="mono">${esc(roundId)}</h2><h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div></div>`).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
-          <div class="detail"><h3>Agents</h3>${agents.length ? agents.map(agent => `<div class="card"><strong>${esc(agent.name || agent.slug)}</strong><div>${status(agent.phase || "unknown")}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`).join("") : `<div class="muted">No agents found.</div>`}<h3>Runner Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No runner output available.")}</div>`}</div>
+          <div class="detail"><h3>Agents</h3>${agents.length ? agents.map(agent => `<div class="card"><strong>${esc(agent.name || agent.slug)}</strong><div>${status(agent.phase || "unknown")}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`).join("") : `<div class="muted">No agents found.</div>`}${verdictHtml}<h3>Runner Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No runner output available.")}</div>`}</div>
         </div>`;
       document.getElementById("back-rounds").onclick = () => setView("rounds");
       document.getElementById("refresh-round").onclick = () => openRound(roundId);
