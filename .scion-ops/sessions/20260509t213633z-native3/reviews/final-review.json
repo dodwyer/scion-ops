@@ -1,0 +1,41 @@
+{
+  "review_type": "final",
+  "scores": {
+    "correctness": 5,
+    "completeness": 5,
+    "style": 5
+  },
+  "verdict": "accept",
+  "blocking_issues": [],
+  "nits": [],
+  "spec": {
+    "change": "update-web-app",
+    "conformance": 5,
+    "spec_completeness": 5,
+    "task_coverage": 5,
+    "operational_verification": 4,
+    "checked_artifacts": [
+      "openspec/changes/update-web-app/specs/web-app-hub/spec.md",
+      "openspec/changes/update-web-app/tasks.md",
+      "openspec/changes/update-web-app/design.md",
+      "scripts/web_app_hub.py",
+      "scripts/test-web-app-hub.py",
+      "scripts/kind-control-plane-smoke.py",
+      "Taskfile.yml",
+      "deploy/kind/cluster.yaml.tpl",
+      "deploy/kind/control-plane/kustomization.yaml",
+      "deploy/kind/control-plane/web-app-deployment.yaml",
+      "deploy/kind/control-plane/web-app-rbac.yaml",
+      "deploy/kind/control-plane/web-app-service.yaml",
+      "docs/web-app-json-contract.md",
+      "docs/kind-control-plane.md",
+      "scripts/kind-scion-runtime.sh",
+      "README.md"
+    ],
+    "unresolved_questions": [],
+    "gaps": [
+      "Live kind endpoint smoke was not run in this review environment; verification used rendered kustomize plus no-spend/static fixture checks."
+    ]
+  },
+  "summary": "Final review accepts round-20260509t213633z-native3-integration for update-web-app. The prior blockers are repaired: the web app is represented as a first-class control-plane health dependency, Kubernetes normalization and snapshot readiness now degrade on missing web app Deployment/Service/pod/Endpoint, web app RBAC grants read-only access to deployments, pods, services, PVCs, and endpoints, and the smoke/task lifecycle includes the web app endpoint and narrow update/status/log/smoke paths. Verification passed: OpenSpec validation, web app fixture tests, rendered control-plane kustomize containing web app Deployment/Service/RBAC, git diff --check, and task verify. No blocking issues remain; PR is ready."
+}
