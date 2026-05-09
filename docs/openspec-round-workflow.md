@@ -136,6 +136,30 @@ Implementation PR review checks:
 - scope drift is treated as blocking
 - target repo verification passed
 
+## Final Review Repair
+
+Before final review starts, the integrator must hand off the integration branch
+and commit under review, canonical verification commands, observed results, and
+known caveats or environment assumptions. Missing commands or results block
+final review startup as a handoff correction; they are not implementation or
+integration defects by themselves.
+
+Failed final reviews are classified as exactly one of:
+
+- `implementation_defect`
+- `integration_defect`
+- `verification_contract`
+- `environment_failure`
+- `transient_agent_failure`
+
+The coordinator tracks `max_final_repair_rounds` separately from earlier
+implementation, peer-review, and integration repair budgets. Implementation
+defects return to focused implementation repair and peer review before
+reintegration. Integration defects return to integrator repair and a refreshed
+handoff. Verification-contract corrections, environment failures, and transient
+agent failures preserve otherwise accepted integration branches unless later
+evidence exposes a separate implementation or integration defect.
+
 ## Runtime Dependency Policy
 
 The MCP runtime includes the pinned OpenSpec CLI and uses it for canonical

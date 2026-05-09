@@ -1178,6 +1178,8 @@ def _final_review_outcome(snapshot: dict[str, Any]) -> dict[str, Any]:
             "test_results": str(payload.get("test_results") or ""),
             "branch": str(payload.get("branch") or payload.get("target_branch") or ""),
             "blocking_issues": payload.get("blocking_issues") if isinstance(payload.get("blocking_issues"), list) else [],
+            "final_failure_classification": str(payload.get("final_failure_classification") or ""),
+            "final_failure_evidence": str(payload.get("final_failure_evidence") or ""),
             "notes": _short_text(payload.get("notes"), limit=500),
         })
 

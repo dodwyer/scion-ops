@@ -20,6 +20,11 @@ After `task_completed`, stop. Do not ask "what next?".
 - Run the project test command. Any failing test is a blocking issue.
   Use the `base_branch` from the task prompt when inspecting diffs; do not
   assume `main` exists.
+- If the final verdict is `request_changes`, include exactly one
+  `final_failure_classification` and concrete `final_failure_evidence` so the
+  coordinator can route repair. Valid classifications are
+  `implementation_defect`, `integration_defect`, `verification_contract`,
+  `environment_failure`, and `transient_agent_failure`.
 
 The verdict JSON must have this shape:
 

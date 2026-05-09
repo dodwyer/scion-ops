@@ -115,6 +115,16 @@ def main() -> int:
             },
             "summary": "Spec review found blocking operational gaps.",
         },
+        {
+            "review_type": "final",
+            "scores": {"correctness": 2, "completeness": 4, "style": 4},
+            "verdict": "request_changes",
+            "blocking_issues": ["tests failing on integrated branch"],
+            "final_failure_classification": "integration_defect",
+            "final_failure_evidence": "The integration branch omitted a required file from the accepted implementation.",
+            "nits": [],
+            "summary": "Final review found an integration assembly defect.",
+        },
     ]
     failures: list[str] = []
     for index, sample in enumerate(samples):

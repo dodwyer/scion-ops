@@ -78,6 +78,8 @@ The task prompt will include:
 
 - `round_id`
 - `max_review_rounds` (default 3)
+- `max_final_repair_rounds` (default 2; tracked separately from implementer,
+  peer-review, and integration repair budgets)
 - `agent_max_duration` (default `90m`; use this for implementer and
   integrator agents)
 - `base_branch` (the branch the round started from; default `main`)
@@ -140,7 +142,12 @@ At minimum include:
   "implementers": {},
   "review_rounds": [],
   "integration": {},
-  "final_review": {}
+  "final_review": {
+    "max_final_repair_rounds": 2,
+    "final_repair_rounds_used": 0,
+    "verification_handoff": {},
+    "route_history": []
+  }
 }
 ```
 
@@ -252,9 +259,25 @@ The audit file is a working artifact. It does not need to be committed.
    - inspect the loser branch for useful ideas,
    - apply agreed reviewer feedback,
    - run tests,
+   - record a canonical verification handoff in its completion summary and
+     message to `user:dev@localhost`, including the integration branch,
+     commit under review, canonical verification commands, observed command
+     results, known caveats/skips/environment assumptions, and implementation
+     or peer-review repair branches that materially affected integration,
    - commit,
    - push `round-<round_id>-integration`.
-9. Create `round-<round_id>-final-review-snapshot` from
+9. Before final review starts, collect the integrator's canonical verification
+   handoff from its completion summary or Hub message and persist it under
+   `state/<round_id>.json.final_review.verification_handoff`. Do not start
+   final review until the handoff includes at least:
+   - `integration_branch`,
+   - `canonical_commands`,
+   - `observed_results`,
+   - `caveats` (use an empty list when there are none).
+   If required handoff data is missing, request integrator handoff correction.
+   This is a verification handoff issue, not an implementation or integration
+   defect, and it must not invalidate the integration branch by itself.
+10. Create `round-<round_id>-final-review-snapshot` from
    `round-<round_id>-integration`, force-push it when origin is configured, and
    verify it is visible with `git ls-remote --heads origin
    round-<round_id>-final-review-snapshot`. Then spawn the final reviewer on
@@ -268,8 +291,48 @@ The audit file is a working artifact. It does not need to be committed.
    - If you fall back from Gemini to Codex, record the failed Gemini output or state and fallback reason in `state/<round_id>.json`.
    - Never use an `impl-*` template for final review. If the final-review agent appears with an `impl-*` template, stop and delete it, then recreate it with the requested `final-reviewer-*` template before continuing.
    - Require the final reviewer to send the final verdict JSON to the Hub user inbox.
-10. Accept only if the final reviewer verdict is `accept`. Otherwise set status `blocked` and report the final blocking issues.
-11. On success, set status `success` and report the integration branch.
+   - Include the canonical verification handoff in the final-review task and
+     require failed final reviews to include exactly one
+     `final_failure_classification` plus `final_failure_evidence`.
+11. Accept only if the final reviewer verdict is `accept`. If the final review
+   fails, route remediation through the final-review repair loop:
+   - The failure classification must be exactly one of
+     `implementation_defect`, `integration_defect`, `verification_contract`,
+     `environment_failure`, or `transient_agent_failure`. If classification
+     evidence is missing or ambiguous, ask the final reviewer for
+     clarification and do not route arbitrary repair.
+   - Each classified remediation cycle after final review consumes one
+     `max_final_repair_rounds` budget unit. This budget is independent from
+     implementation, peer-review, and integration repair budgets; only the
+     selected route may explicitly re-enter those earlier phases.
+   - If `final_repair_rounds_used >= max_final_repair_rounds`, stop automatic
+     repair, set audit status `escalate`, and surface the latest
+     classification, evidence, verification handoff, branch identifiers, and
+     route history.
+   - `implementation_defect`: assign focused repair for the responsible
+     implementation surface or branch, require peer review of the repaired
+     work, then reintegrate and require a refreshed handoff before retrying
+     final review.
+   - `integration_defect`: route to the integrator to repair or replace the
+     integration branch, require a refreshed handoff, then retry final review
+     against the repaired integration output.
+   - `verification_contract`: correct the verification command set,
+     acceptance contract, fixture documentation, or pass/fail interpretation.
+     Keep an otherwise accepted integration branch accepted unless the
+     corrected contract exposes a separate `implementation_defect` or
+     `integration_defect`.
+   - `environment_failure`: retry final review after the failed environment
+     dependency is restored when policy allows; escalate when recovery is not
+     possible. Do not mark submitted branches defective solely because of the
+     environment failure.
+   - `transient_agent_failure`: retry the final reviewer or failed agent
+     action within the final-repair budget; escalate when retries are
+     exhausted. Reclassify only when new evidence supports another category.
+   Append every final-review repair route decision to
+   `state/<round_id>.json.final_review.route_history` with classification,
+   evidence, branch identifiers, handoff reference, budget count, and selected
+   next phase.
+12. On success, set status `success` and report the integration branch.
 
 ## Review Prompt Requirements
 
@@ -327,3 +390,10 @@ The final reviewer must run the project test command. Any failing test is a
 blocking issue. Style nits do not block the final review unless they indicate a
 production or compliance risk. Prefer Gemini for this final independent check
 unless the prompt explicitly asks for Codex or Gemini cannot be started.
+
+Failed final reviews must include `final_failure_classification` and
+`final_failure_evidence` in the verdict JSON. The coordinator must use the
+classification taxonomy and final-review repair loop in the Protocol section;
+do not collapse implementation defects, integration defects, verification
+contract problems, environment failures, and transient agent failures into a
+generic blocked status.

@@ -5,6 +5,20 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["scores", "verdict"],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "review_type": { "const": "final" },
+          "verdict": { "const": "request_changes" }
+        },
+        "required": ["review_type", "verdict"]
+      },
+      "then": {
+        "required": ["final_failure_classification", "final_failure_evidence"]
+      }
+    }
+  ],
   "properties": {
     "review_type": {
       "type": "string",
@@ -29,6 +43,21 @@
       "type": "array",
       "items": { "type": "string" },
       "default": []
+    },
+    "final_failure_classification": {
+      "type": "string",
+      "enum": [
+        "implementation_defect",
+        "integration_defect",
+        "verification_contract",
+        "environment_failure",
+        "transient_agent_failure"
+      ],
+      "description": "Required for failed final reviews so the coordinator can route post-integration remediation."
+    },
+    "final_failure_evidence": {
+      "type": "string",
+      "description": "Evidence supporting the final-review failure classification."
     },
     "nits": {
       "type": "array",
