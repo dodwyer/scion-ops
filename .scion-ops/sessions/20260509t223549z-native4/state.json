@@ -6,7 +6,7 @@
   "change": "update-web-app",
   "base_branch": "round-20260509t185251z-1cfe-spec-integration",
   "status": "running",
-  "phase": "implementation",
+  "phase": "final_review",
   "branches": {
     "steward": "round-20260509t223549z-native4-implementation-steward",
     "implementer": "round-20260509t223549z-native4-impl-codex",
@@ -19,29 +19,54 @@
       "type": "impl-codex",
       "branch": "round-20260509t223549z-native4-impl-codex",
       "scope": "Group A - web app MCP contract, read-only adapter, UI rendering, and fixture tests",
-      "status": "running"
+      "status": "completed",
+      "commit": "21652a103a60256fe5e291ff707c6c01a1e46987"
     },
     "round-20260509t223549z-native4-impl-claude": {
       "type": "impl-claude",
       "branch": "round-20260509t223549z-native4-impl-claude",
       "scope": "Group B - kind/kustomize install, lifecycle tasks, no-spend smoke coverage, and operator docs",
-      "status": "running"
+      "status": "completed",
+      "commit": "7add6382ceabb242f31371a2dd9fe6da961d0e40"
+    },
+    "round-20260509t223549z-native4-final-review": {
+      "type": "final-reviewer-codex",
+      "branch": "round-20260509t223549z-native4-final-review",
+      "review_branch": "round-20260509t223549z-native4-integration",
+      "status": "running",
+      "verdict_file": ".scion-ops/sessions/20260509t223549z-native4/reviews/final-review.json"
     }
   },
   "implementation": {
-    "branch": "",
+    "branch": "round-20260509t223549z-native4-integration",
     "base_branch": "round-20260509t185251z-1cfe-spec-integration",
-    "integration_branch": "round-20260509t223549z-native4-integration"
+    "integration_branch": "round-20260509t223549z-native4-integration",
+    "integration_sha": "aec1f18bd88cf8e5250c0fb138e20ceba38511ea",
+    "merged_branches": [
+      "round-20260509t223549z-native4-impl-codex",
+      "round-20260509t223549z-native4-impl-claude"
+    ]
   },
   "reviews": [],
-  "final_review": {},
+  "final_review": {
+    "branch": "round-20260509t223549z-native4-final-review",
+    "base_sha": "aec1f18bd88cf8e5250c0fb138e20ceba38511ea",
+    "status": "running"
+  },
   "verification": {
-    "status": "pending"
+    "status": "passed",
+    "commands": [
+      "python3 scripts/validate-openspec-change.py --change update-web-app --json",
+      "uv run scripts/test-web-app-hub.py",
+      "kubectl kustomize deploy/kind/control-plane",
+      "uv run scripts/kind-control-plane-smoke.py --help",
+      "task --list",
+      "task verify"
+    ]
   },
   "blockers": [],
   "next_actions": [
-    "Monitor bounded implementer agents for branch movement and summaries",
-    "Integrate the accepted implementation branch",
-    "Run verification and final review"
+    "Wait for final-review verdict",
+    "If accepted, mark session ready"
   ]
 }
