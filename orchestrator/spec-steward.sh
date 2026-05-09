@@ -174,10 +174,11 @@ $GOAL
 collection_recipient: $COLLECTION_RECIPIENT
 steward_agent: $STEWARD_NAME
 expected_branch: $CLARIFIER_NAME
-artifact_boundary: no file changes; clarify scope only
+summary_file: $SESSION_STATE_ROOT/findings/clarifier.md
+artifact_boundary: only $SESSION_STATE_ROOT/findings/clarifier.md; clarify scope only
 expected_summary: goal clarification, assumptions, unresolved questions, and recommended change name
 
-Clarify the requested OpenSpec change. Do not edit files. Send a concise completion summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT."
+Clarify the requested OpenSpec change. Do not edit product or OpenSpec files. Write, commit, and push $SESSION_STATE_ROOT/findings/clarifier.md, then send a concise completion summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT."
 
    scion --profile "$SCION_PROFILE" start "$EXPLORER_NAME" --type spec-repo-explorer --branch "$EXPLORER_NAME" --broker "$BROKER" --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
 change: $CHANGE
@@ -187,10 +188,11 @@ $GOAL
 collection_recipient: $COLLECTION_RECIPIENT
 steward_agent: $STEWARD_NAME
 expected_branch: $EXPLORER_NAME
-artifact_boundary: no file changes; inspect repo only
+summary_file: $SESSION_STATE_ROOT/findings/explorer.md
+artifact_boundary: only $SESSION_STATE_ROOT/findings/explorer.md; inspect repo only
 expected_summary: existing web app, Kubernetes deploy/kind/kustomize state, expected files to spec, and risks
 
-Explore the repository for this OpenSpec change. Do not edit files. Send a concise completion summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT."
+Explore the repository for this OpenSpec change. Do not edit product or OpenSpec files. Write, commit, and push $SESSION_STATE_ROOT/findings/explorer.md, then send a concise completion summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT."
 
 3. If either command fails, update state as blocked and call
    sciontool status task_completed with the blocker. Do not author the spec
@@ -220,9 +222,10 @@ $GOAL
 collection_recipient: $COLLECTION_RECIPIENT
 steward_agent: $STEWARD_NAME
 review_branch: $FINAL_BRANCH
+verdict_file: $SESSION_STATE_ROOT/findings/ops-review.json
 expected_summary: verdict accept/reject/blocked, blocking issues, recommendations, and test gaps
 
-Review the OpenSpec artifacts on $FINAL_BRANCH. Do not review the author branch. Send a concise verdict summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT."
+Review the OpenSpec artifacts on $FINAL_BRANCH. Do not review the author branch. Write, commit, and push $SESSION_STATE_ROOT/findings/ops-review.json on your review branch, then send a concise verdict summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT."
 
 6. After the integration branch validates and the ops review verdict is
    accepted, run this exact inline command on the steward branch before the

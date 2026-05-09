@@ -95,6 +95,17 @@ git fetch origin "$FINAL_BRANCH"
 Do not start `spec-ops-reviewer` against the author branch. Review only the
 integration branch.
 
+Read specialist handoffs from their durable branch files first, for example:
+
+```sh
+git fetch origin "<child_branch>"
+git show "origin/<child_branch>:.scion-ops/sessions/<session_id>/findings/<name>.md"
+```
+
+Use Hub messages only as a secondary signal. If Hub messages are forbidden or
+empty but the branch file exists, continue. If the branch file is missing, start
+a replacement specialist or finish blocked.
+
 If a specialist agent stalls or fails without producing artifacts, start a
 replacement specialist or finish the session as blocked. Do not draft the full
 OpenSpec artifact set yourself unless the user explicitly asks the steward to
@@ -126,9 +137,11 @@ Use these names:
    hard gate: do not inspect product files in detail, write OpenSpec artifacts,
    or move to authoring until both agents have been started or you have recorded
    a precise blocker explaining why Scion could not start them. Require
-   both to send concise Hub summaries directly to this steward agent and copy
-   `collection_recipient`. Record both agent names, branches, and completion
-   summaries in `state.json`.
+   both to commit durable summary files under
+   `.scion-ops/sessions/<session_id>/findings/` on their own branches. Hub
+   messages are optional convenience signals; do not depend on them for the
+   readiness gate. Record both agent names, branches, and durable summary file
+   paths in `state.json`.
 4. Spawn `spec-author` on its branch. The author creates or updates only:
    - `openspec/changes/<change>/proposal.md`
    - `openspec/changes/<change>/design.md`
@@ -136,9 +149,9 @@ Use these names:
    - `openspec/changes/<change>/specs/**/spec.md`
 5. Create or reset the final integration branch from the author branch and
    verify the integration branch now contains the OpenSpec artifacts.
-6. Spawn `spec-ops-reviewer` against the integration branch. Require a verdict
-   that distinguishes blocking issues from recommendations. Record the verdict
-   under `review.verdict`.
+6. Spawn `spec-ops-reviewer` against the integration branch. Require a durable
+   JSON verdict file on the review branch that distinguishes blocking issues
+   from recommendations. Record the verdict under `review.verdict`.
 7. Apply accepted reviewer feedback through `spec-finalizer` or a tightly scoped
    steward commit on the integration branch.
 8. Run deterministic validation where available. Prefer, in order:

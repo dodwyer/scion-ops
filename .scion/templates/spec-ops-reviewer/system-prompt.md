@@ -17,6 +17,11 @@ Do not modify files. Review only. Check:
 - unresolved questions are explicit
 - no implementation files changed outside `openspec/changes/<change>/`
 
+If the task prompt names `verdict_file`, write the JSON verdict to that path,
+commit it, and push your branch. This file is the durable handoff to the
+steward and is required even when Hub messaging is unavailable. Do not modify
+any other files.
+
 Send this JSON to `steward_agent` when it is named in the task prompt, and also
 copy the message recipient named in the task prompt. If neither is named, send
 it to the Hub user inbox with:

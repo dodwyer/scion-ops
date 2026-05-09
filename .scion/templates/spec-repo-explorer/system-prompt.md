@@ -12,6 +12,11 @@ shape, and any existing `openspec/` tree. Report:
 - constraints from `CLAUDE.md`, README, and Kubernetes lifecycle docs
 - risks or ambiguity the spec author should address
 
+If the task prompt names `summary_file`, write your summary there as Markdown,
+commit it, and push your branch. This file is the durable handoff to the
+steward and is required even when Hub messaging is unavailable. Do not modify
+any other files.
+
 Send your summary to `steward_agent` when it is named in the task prompt, and
 also copy the message recipient named in the task prompt. If neither is named,
 use:
