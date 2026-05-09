@@ -1,7 +1,8 @@
 # scion-ops
 
 Kubernetes-hosted Scion operations for running agent rounds through a Scion Hub,
-dedicated Runtime Broker, HTTP MCP server, and Kubernetes agent pods.
+dedicated Runtime Broker, HTTP MCP server, read-only web app, and Kubernetes
+agent pods.
 
 The supported deployment target is Kubernetes through local `kind`. The
 operator-facing contract is:
@@ -56,6 +57,7 @@ task build:base
 task update:hub
 task build:mcp
 task update:mcp
+task update:web
 task build:harness -- codex
 task load:image -- localhost/scion-codex:latest
 task dev:test
@@ -71,6 +73,7 @@ task storage:status
 | namespace | `scion-agents` |
 | Hub URL | `http://192.168.122.103:18090` |
 | MCP URL | `http://192.168.122.103:8765/mcp` |
+| web app URL | `http://192.168.122.103:8787` |
 | workspace host path | `~/workspace` when it contains this checkout, otherwise this checkout's parent |
 | workspace path in pods | `/workspace` |
 
@@ -139,6 +142,20 @@ task kind:mcp:smoke
 
 Operational MCP examples are in [docs/zed-mcp.md](docs/zed-mcp.md).
 
+## Web App
+
+`task up` also exposes the read-only web app at
+`http://192.168.122.103:8787`. It renders Hub, MCP, Kubernetes, round,
+artifact, validation, and final-review state without starting rounds.
+
+Useful commands:
+
+```bash
+task kind:web:status
+task kind:web:smoke
+task kind:web:logs
+```
+
 ## Spec-Driven Rounds
 
 Spec rounds create only OpenSpec artifacts under
@@ -172,7 +189,7 @@ Use `task verify` for static checks and repo-local validators. It does not
 create a cluster.
 
 Use `task test` for the regular no-spend control-plane smoke. It checks kind,
-Hub, broker, MCP, and Kubernetes no-auth agent dispatch.
+Hub, broker, MCP, the web app endpoint, and Kubernetes no-auth agent dispatch.
 
 Use `task release:smoke` only for release confidence or credential changes. It
 uses subscription-backed model credentials and starts a bounded Claude/Codex
@@ -197,7 +214,7 @@ task bootstrap -- /path/to/project
 ## Layout
 
 - `.scion/templates/` - Scion agent templates and prompts
-- `deploy/kind/` - native Kubernetes manifests for kind, Hub, broker, MCP, and runtime RBAC
+- `deploy/kind/` - native Kubernetes manifests for kind, Hub, broker, MCP, web app, and runtime RBAC
 - `docs/kind-control-plane.md` - Kubernetes operations runbook
 - `docs/zed-mcp.md` - Zed and MCP operations
 - `docs/openspec-round-workflow.md` - OpenSpec operations

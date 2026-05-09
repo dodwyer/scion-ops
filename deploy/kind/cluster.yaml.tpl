@@ -11,6 +11,10 @@ nodes:
         hostPort: __MCP_HOST_PORT__
         listenAddress: "__KIND_LISTEN_ADDRESS__"
         protocol: TCP
+      - containerPort: __WEB_NODE_PORT__
+        hostPort: __WEB_HOST_PORT__
+        listenAddress: "__KIND_LISTEN_ADDRESS__"
+        protocol: TCP
     extraMounts:
       - hostPath: "__WORKSPACE_HOST_PATH__"
         containerPath: "__WORKSPACE_NODE_PATH__"

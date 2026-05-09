@@ -1,6 +1,7 @@
 # Kubernetes Operations
 
-scion-ops runs Scion Hub, Runtime Broker, MCP, and agent pods in Kubernetes.
+scion-ops runs Scion Hub, Runtime Broker, MCP, the read-only web app, and agent
+pods in Kubernetes.
 The supported operator path is Kubernetes through local `kind`.
 
 ## Lifecycle
@@ -21,7 +22,7 @@ task down       # destroy kind and cluster-local state
 - verifies the workspace mount
 - loads local images
 - applies `deploy/kind/control-plane`
-- restarts Hub, broker, and MCP deployments
+- restarts Hub, broker, MCP, and web app deployments
 - waits for rollouts
 
 ## Resources
@@ -37,6 +38,7 @@ deploy/kind/
     hub-*.yaml
     broker-*.yaml
     mcp-*.yaml
+    web-*.yaml
     config/
 ```
 
@@ -48,6 +50,7 @@ kubectl --context kind-scion-ops -n scion-agents get pods
 kubectl --context kind-scion-ops -n scion-agents logs deploy/scion-hub
 kubectl --context kind-scion-ops -n scion-agents logs deploy/scion-broker -c broker
 kubectl --context kind-scion-ops -n scion-agents logs deploy/scion-ops-mcp
+kubectl --context kind-scion-ops -n scion-agents logs deploy/scion-ops-web
 ```
 
 ## Defaults
@@ -60,6 +63,7 @@ kubectl --context kind-scion-ops -n scion-agents logs deploy/scion-ops-mcp
 | namespace | `scion-agents` |
 | Hub URL | `http://192.168.122.103:18090` |
 | MCP URL | `http://192.168.122.103:8765/mcp` |
+| web app URL | `http://192.168.122.103:8787` |
 | workspace host path | `~/workspace` when possible |
 | workspace pod path | `/workspace` |
 
@@ -72,16 +76,20 @@ task up
 
 ## Access
 
-Kind exposes Hub and MCP through native port mappings and NodePort Services. Do
-not use `kubectl port-forward` for normal operation.
+Kind exposes Hub, MCP, and the web app through native port mappings and NodePort
+Services. Do not use `kubectl port-forward` for normal operation.
 
 ```bash
 eval "$(task kind:hub:auth-export)"
 task kind:mcp:smoke
+task kind:web:smoke
 ```
 
-The MCP pod reads Hub through the in-cluster `scion-hub` Service and uses the
-`scion-hub-dev-auth` Secret restored by `task bootstrap`.
+Open the read-only operator view at `http://192.168.122.103:8787`.
+
+The MCP and web app pods read Hub through the in-cluster `scion-hub` Service.
+Both use the `scion-hub-dev-auth` Secret restored by `task bootstrap`; the web
+app also calls the in-cluster `scion-ops-mcp` Service for MCP-aligned health.
 
 ## Bootstrap
 
@@ -126,7 +134,7 @@ task release:smoke   # subscription-backed release confidence
 ```
 
 `task test` verifies kind, Hub health, broker registration, MCP tool surface,
-and no-auth Kubernetes agent dispatch.
+the web app endpoint/snapshot, and no-auth Kubernetes agent dispatch.
 
 Use `task release:smoke` only before a release, after credential changes, or
 when diagnosing model-backed dispatch.
@@ -139,6 +147,9 @@ task build:base
 task update:hub
 task build:mcp
 task update:mcp
+task update:web
+task kind:web:status
+task kind:web:logs
 task build:harness -- codex
 task load:image -- localhost/scion-codex:latest
 task dev:test

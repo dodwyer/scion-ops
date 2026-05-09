@@ -6,12 +6,15 @@ resources:
   - broker-pvc.yaml
   - broker-deployment.yaml
   - mcp-rbac.yaml
+  - web-rbac.yaml
   - hub-pvc.yaml
   - hub-service.yaml
   - hub-deployment.yaml
   - mcp-checkouts-pvc.yaml
   - mcp-service.yaml
   - mcp-deployment.yaml
+  - web-service.yaml
+  - web-deployment.yaml
 
 generatorOptions:
   disableNameSuffixHash: true

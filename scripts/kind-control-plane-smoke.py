@@ -37,6 +37,7 @@ DEFAULT_HUB_ENDPOINT = os.environ.get(
     f"http://192.168.122.103:{DEFAULT_HUB_PORT}",
 )
 DEFAULT_MCP_URL = os.environ.get("SCION_OPS_MCP_URL", "http://192.168.122.103:8765/mcp")
+DEFAULT_WEB_URL = os.environ.get("SCION_OPS_WEB_URL", "http://192.168.122.103:8787")
 DEFAULT_GENERIC_CONFIG = ROOT / "deploy/kind/smoke/generic-smoke-agent.yaml"
 DEFAULT_GENERIC_PROMPT = "printf 'scion kind control-plane smoke\\n'; pwd; sleep 30"
 DEFAULT_TEMPLATE_PROMPT = "Smoke test: report the current working directory and stop."
@@ -197,6 +198,19 @@ def http_ready(endpoint: str) -> bool:
         return False
 
 
+def read_json_url(url: str, *, timeout: int = 4) -> dict[str, Any]:
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as response:
+            data = response.read().decode()
+    except (OSError, urllib.error.URLError) as exc:
+        raise SmokeFailure("web_app", f"web app request failed at {url}: {exc}") from exc
+    try:
+        payload = json.loads(data)
+    except json.JSONDecodeError as exc:
+        raise SmokeFailure("web_app", f"web app returned non-JSON at {url}", output=data) from exc
+    return payload
+
+
 def ensure_hub_ready(*, endpoint: str, timeout_seconds: int) -> None:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() <= deadline:
@@ -211,6 +225,32 @@ def ensure_hub_ready(*, endpoint: str, timeout_seconds: int) -> None:
             "Check native kind port exposure and Hub rollout:\n"
             "  task kind:status\n"
             "  task kind:control-plane:status\n"
+            "If this is an old cluster, recreate it with task down and task up."
+        ),
+    )
+
+
+def ensure_web_app(*, endpoint: str, timeout_seconds: int) -> dict[str, Any]:
+    snapshot_url = service_url(endpoint, "/api/snapshot")
+    deadline = time.monotonic() + timeout_seconds
+    last_error: Exception | None = None
+    while time.monotonic() <= deadline:
+        try:
+            payload = read_json_url(snapshot_url, timeout=4)
+            if payload.get("ok") is not False and payload.get("sources"):
+                log(f"kind web app is reachable at {endpoint}")
+                return payload
+            last_error = SmokeFailure("web_app", "web app snapshot was not ready", output=json.dumps(payload, indent=2))
+        except Exception as exc:
+            last_error = exc
+        time.sleep(0.5)
+    raise SmokeFailure(
+        "web_app",
+        f"kind web app was not ready at {endpoint}: {last_error}",
+        hint=(
+            "Check the web app rollout and service:\n"
+            "  task kind:web:status\n"
+            "  task kind:web:logs\n"
             "If this is an old cluster, recreate it with task down and task up."
         ),
     )
@@ -590,6 +630,7 @@ def parser() -> argparse.ArgumentParser:
     parser.add_argument("--namespace", default=os.environ.get("SCION_K8S_NAMESPACE", "scion-agents"))
     parser.add_argument("--hub", default=os.environ.get("HUB_ENDPOINT", DEFAULT_HUB_ENDPOINT))
     parser.add_argument("--mcp-url", default=DEFAULT_MCP_URL)
+    parser.add_argument("--web-url", default=DEFAULT_WEB_URL)
     parser.add_argument("--timeout", type=int, default=int(os.environ.get("SCION_KIND_CP_SMOKE_TIMEOUT", "90")))
     parser.add_argument("--startup-timeout", type=int, default=30)
     parser.add_argument(
@@ -621,6 +662,12 @@ def parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--skip-template-sync", action="store_false", dest="sync_template")
     parser.add_argument("--skip-mcp", action="store_true")
+    parser.add_argument("--skip-web", action="store_true")
+    parser.add_argument(
+        "--web-only",
+        action="store_true",
+        help="only verify the deployed web app endpoint and snapshot; do not bootstrap or dispatch a smoke agent",
+    )
     parser.add_argument(
         "--keep-agent",
         action="store_true",
@@ -639,6 +686,7 @@ async def smoke(args: argparse.Namespace) -> None:
             "SCION_HUB_ENDPOINT": args.hub,
             "SCION_OPS_ROOT": str(ROOT),
             "SCION_OPS_MCP_URL": args.mcp_url,
+            "SCION_OPS_WEB_URL": args.web_url,
             "PYTHONDONTWRITEBYTECODE": "1",
         }
     )
@@ -669,6 +717,18 @@ async def smoke(args: argparse.Namespace) -> None:
 
             status_task = "kind:hub:status" if args.skip_mcp else "kind:control-plane:status"
             run(["task", status_task], env=env, category="kubernetes", timeout=180)
+            if args.web_only:
+                web_snapshot = await asyncio.to_thread(
+                    ensure_web_app,
+                    endpoint=args.web_url,
+                    timeout_seconds=args.startup_timeout,
+                )
+                print("\nkind web app smoke passed")
+                print(f"  web:        {args.web_url}")
+                print(f"  readiness:  {web_snapshot.get('readiness')}")
+                print(f"  kind:       {context}/{args.namespace}")
+                success = True
+                return
             ensure_kind_hub_auth(env, endpoint=args.hub)
             ensure_hub_ready(
                 endpoint=args.hub,
@@ -694,6 +754,13 @@ async def smoke(args: argparse.Namespace) -> None:
                     timeout_seconds=args.startup_timeout,
                 )
                 check_mcp_status(hub_status)
+
+            if not args.skip_web:
+                await asyncio.to_thread(
+                    ensure_web_app,
+                    endpoint=args.web_url,
+                    timeout_seconds=args.startup_timeout,
+                )
 
             log(f"dispatch {agent} through kind Hub broker {args.broker}")
             start_args = [
@@ -736,6 +803,7 @@ async def smoke(args: argparse.Namespace) -> None:
             print(f"  agent:      {agent}")
             print(f"  hub:        {args.hub}")
             print(f"  mcp:        {'skipped' if args.skip_mcp else args.mcp_url}")
+            print(f"  web:        {'skipped' if args.skip_web else args.web_url}")
             print(f"  broker:     {args.broker}")
             print(f"  config:     {args.template or generic_config}")
             print(f"  kind:       {context}/{args.namespace}")
