@@ -46,6 +46,11 @@ K8S_SA_CA = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 STATIC_DIR = Path(__file__).parent / "static"
 
 ROUND_RE = re.compile(r"(round-[a-z0-9]+-[a-z0-9]+)", re.IGNORECASE)
+BRANCH_RE = re.compile(r"(round-[a-z0-9]+-[a-z0-9]+-[a-z][a-z0-9-]*)", re.IGNORECASE)
+
+_FINAL_REVIEW_RE = re.compile(r"final.?review|verdict", re.IGNORECASE)
+_REQUEST_CHANGES_RE = re.compile(r"request.?changes|changes.?requested", re.IGNORECASE)
+_APPROVED_RE = re.compile(r"\bapproved\b", re.IGNORECASE)
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +242,31 @@ def _extract_round_id(item: dict[str, Any]) -> str:
     return m.group(1) if m else ""
 
 
+def _extract_branches_from_text(text: str, round_id: str) -> set[str]:
+    """Return branch-like references in text that start with round_id."""
+    return {
+        m.group(1)
+        for m in BRANCH_RE.finditer(text)
+        if m.group(1).lower().startswith(round_id.lower())
+    }
+
+
+def _find_verdict(
+    messages: list[dict[str, Any]], notifications: list[dict[str, Any]]
+) -> dict[str, str] | None:
+    """Return a final-review verdict dict if one is found in messages/notifications."""
+    for item in messages + notifications:
+        text = json.dumps(item, default=str)
+        if not _FINAL_REVIEW_RE.search(text):
+            continue
+        summary = str(item.get("msg") or item.get("message") or "")
+        if _REQUEST_CHANGES_RE.search(text):
+            return {"decision": "request_changes", "summary": summary}
+        if _APPROVED_RE.search(text):
+            return {"decision": "approved", "summary": summary}
+    return None
+
+
 # ---------------------------------------------------------------------------
 # API handlers
 # ---------------------------------------------------------------------------
@@ -391,7 +421,30 @@ def api_round_detail(round_id: str) -> dict[str, Any]:
         ]
     agents = [_agent_summary(a) for a in raw_agents]
 
-    # Derive outcome, branches, and runner output from raw agent data
+    # Fetch messages and notifications before computing outcome and branches so
+    # final-review verdicts and explicit branch references can be incorporated.
+    msgs_data, msgs_err = _hub_get(
+        "/api/v1/messages",
+        query={"grove": grove_id, "limit": "200"},
+    )
+    messages: list[dict[str, Any]] = []
+    if not msgs_err and isinstance(msgs_data, dict):
+        messages = [
+            m for m in (msgs_data.get("items") or [])
+            if isinstance(m, dict) and _round_text_match(m, round_id)
+        ]
+
+    notifs_data, notifs_err = _hub_get(
+        "/api/v1/notifications", query={"acknowledged": "true"}
+    )
+    notifications: list[dict[str, Any]] = []
+    if not notifs_err and isinstance(notifs_data, list):
+        notifications = [
+            n for n in notifs_data
+            if isinstance(n, dict) and _round_text_match(n, round_id)
+        ]
+
+    # Derive round status from agent phase/activity.
     statuses = [_phase_status(a) for a in raw_agents]
     if not raw_agents:
         round_status = "pending"
@@ -415,16 +468,34 @@ def api_round_detail(round_id: str) -> dict[str, Any]:
         ),
         None,
     )
-    outcome = {
+    outcome: dict[str, Any] = {
         "status": round_status,
         "summary": str(consensus.get("taskSummary") or "") if consensus else "",
     }
 
-    branches = sorted({
-        str(a.get("name") or a.get("slug") or "")
-        for a in raw_agents
-        if str(a.get("name") or a.get("slug") or "")
-    })
+    # Enrich outcome with final-review verdict from Hub messages/notifications.
+    verdict = _find_verdict(messages, notifications)
+    if verdict:
+        outcome["final_review"] = verdict
+        if verdict["decision"] == "request_changes" and round_status == "completed":
+            outcome["status"] = "changes_requested"
+
+    # Extract branch references from message/notification content and agent
+    # taskSummary fields; fall back to agent name-based inference when none are found.
+    branch_set: set[str] = set()
+    for item in messages + notifications:
+        branch_set |= _extract_branches_from_text(json.dumps(item, default=str), round_id)
+    for agent in raw_agents:
+        branch_set |= _extract_branches_from_text(
+            str(agent.get("taskSummary") or ""), round_id
+        )
+    if not branch_set:
+        branch_set = {
+            str(a.get("name") or a.get("slug") or "")
+            for a in raw_agents
+            if str(a.get("name") or a.get("slug") or "")
+        }
+    branches = sorted(branch_set)
 
     non_consensus = [
         a for a in raw_agents
@@ -435,27 +506,6 @@ def api_round_detail(round_id: str) -> dict[str, Any]:
         and a.get("taskSummary")
     ]
     runner_output = str(non_consensus[-1].get("taskSummary") or "") if non_consensus else ""
-
-    msgs_data, msgs_err = _hub_get(
-        "/api/v1/messages",
-        query={"grove": grove_id, "limit": "200"},
-    )
-    messages: list[dict[str, Any]] = []
-    if not msgs_err and isinstance(msgs_data, dict):
-        messages = [
-            m for m in (msgs_data.get("items") or [])
-            if isinstance(m, dict) and _round_text_match(m, round_id)
-        ]
-
-    notifs_data, notifs_err = _hub_get(
-        "/api/v1/notifications", query={"acknowledged": "true"}
-    )
-    notifications: list[dict[str, Any]] = []
-    if not notifs_err and isinstance(notifs_data, list):
-        notifications = [
-            n for n in notifs_data
-            if isinstance(n, dict) and _round_text_match(n, round_id)
-        ]
 
     errors: dict[str, str] = {}
     if agents_err:
