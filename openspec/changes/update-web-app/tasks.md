@@ -1,6 +1,6 @@
 # Tasks
 
-- [ ] 1.1 Review the current scion-ops MCP tool outputs used by the web app and document the browser-facing JSON contract for round, event, artifact, validation, and final-review fields.
+- [x] 1.1 Review the current scion-ops MCP tool outputs used by the web app and document the browser-facing JSON contract for round, event, artifact, validation, and final-review fields.
 - [x] 1.2 Update the web app backend adapter to consume current MCP/Hub structured fields for round status, event cursors, branch artifacts, OpenSpec validation, blockers, warnings, and final-review verdicts.
 - [x] 1.3 Update rounds, round detail, overview, inbox, and runtime views so MCP-aligned fields are visible without collapsing blocked or changes-requested outcomes into generic completed state.
 - [x] 1.4 Add or update fixtures for current MCP result shapes, including `scion_ops_run_spec_round`, `scion_ops_round_artifacts`, `scion_ops_spec_status`, and blocked final-review payloads.
