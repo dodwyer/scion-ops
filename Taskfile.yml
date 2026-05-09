@@ -202,6 +202,11 @@ tasks:
       - docker image prune -f
       - task: storage:status
 
+  web:hub:
+    desc: Run the read-only browser hub for scion-ops runtime state.
+    cmds:
+      - uv run scripts/web_app_hub.py {{.CLI_ARGS}}
+
   destroy:
     cmds:
       - task: down
@@ -365,10 +370,11 @@ tasks:
     cmds:
       - git diff --check
       - task --list
-      - python3 -c "import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in ('mcp_servers/scion_ops.py', 'scripts/kind-control-plane-smoke.py', 'scripts/smoke-mcp-server.py', 'scripts/validate-openspec-change.py', 'scripts/archive-openspec-change.py', 'scripts/test-openspec-change-validator.py', 'scripts/test-openspec-archive.py', 'scripts/test-mcp-openspec-cli.py', 'scripts/test-mcp-progress-lines.py', 'scripts/test-verdict-schema.py')]"
+      - python3 -c "import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in ('mcp_servers/scion_ops.py', 'scripts/kind-control-plane-smoke.py', 'scripts/smoke-mcp-server.py', 'scripts/validate-openspec-change.py', 'scripts/archive-openspec-change.py', 'scripts/test-openspec-change-validator.py', 'scripts/test-openspec-archive.py', 'scripts/test-mcp-openspec-cli.py', 'scripts/test-mcp-progress-lines.py', 'scripts/test-verdict-schema.py', 'scripts/web_app_hub.py', 'scripts/test-web-app-hub.py')]"
       - python3 scripts/test-openspec-change-validator.py
       - python3 scripts/test-openspec-archive.py
       - uv run scripts/test-mcp-openspec-cli.py
       - uv run scripts/test-mcp-progress-lines.py
+      - uv run scripts/test-web-app-hub.py
       - python3 scripts/test-verdict-schema.py
       - bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh scripts/release-smoke-round.sh scripts/scion-runtime-patches.sh scripts/storage-status.sh deploy/kind/control-plane/config/broker-entrypoint.sh orchestrator/lib/github-branches.sh orchestrator/run-round.sh orchestrator/round.sh orchestrator/spec-round.sh orchestrator/spec-implementation-round.sh orchestrator/abort.sh
