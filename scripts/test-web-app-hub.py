@@ -22,12 +22,14 @@ SPEC.loader.exec_module(web_app_hub)
 
 
 class FixtureProvider:
-    def __init__(self, *, hub=None, messages=None, notifications=None, mcp=None, k8s=None) -> None:
+    def __init__(self, *, hub=None, messages=None, notifications=None, mcp=None, k8s=None, round_outcome=None, round_events=None) -> None:
         self._hub = hub if hub is not None else healthy_hub()
         self._messages = messages if messages is not None else healthy_messages()
         self._notifications = notifications if notifications is not None else healthy_notifications()
         self._mcp = mcp if mcp is not None else {"source": "mcp", "ok": True, "status": "healthy"}
         self._k8s = k8s if k8s is not None else healthy_k8s()
+        self._round_outcome = round_outcome if round_outcome is not None else {"status": "completed"}
+        self._round_events = round_events
 
     def hub_status(self):
         return self._hub
@@ -45,9 +47,11 @@ class FixtureProvider:
         return self._k8s
 
     def round_status(self, round_id):
-        return {"ok": True, "round_id": round_id, "agents": self._hub.get("agents", []), "outcome": {"status": "completed"}}
+        return {"ok": True, "round_id": round_id, "agents": self._hub.get("agents", []), "outcome": self._round_outcome}
 
     def round_events(self, round_id, cursor="", include_existing=False):
+        if self._round_events is not None:
+            return self._round_events
         return {
             "ok": True,
             "round_id": round_id,
@@ -208,6 +212,84 @@ def test_kubernetes_normalization_reports_missing_control_plane():
     assert status["status"] == "degraded"
     assert "scion-broker" in status["missing_deployments"]
     assert "scion-ops-mcp" in status["missing_deployments"]
+
+
+def test_structured_branch_fields_take_precedence_over_fallback_text_and_names():
+    hub = healthy_hub()
+    hub["agents"] = [
+        {
+            "name": "round-20260509t063201z-6c02-name-derived",
+            "slug": "round-20260509t063201z-6c02-slug-derived",
+            "template": "codex",
+            "phase": "completed",
+            "activity": "completed",
+            "branch": "structured/authoritative",
+            "taskSummary": "complete: round-20260509t063201z-6c02-fallback",
+            "created": "2026-05-09T06:33:01+00:00",
+            "updated": "2026-05-09T06:37:01+00:00",
+        }
+    ]
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(hub=hub, messages={"ok": True, "items": []}, notifications={"ok": True, "items": []}))
+    row = snapshot["rounds"][0]
+    assert row["branches"] == ["structured/authoritative"]
+    assert row["branch_source"] == "structured"
+    assert "round-20260509t063201z-6c02-fallback" not in row["branches"]
+    assert "round-20260509t063201z-6c02-name-derived" not in row["branches"]
+    assert "round-20260509t063201z-6c02-slug-derived" not in row["branches"]
+
+
+def test_final_review_accept_is_exposed_by_backend_and_frontend_template():
+    notifications = {
+        "ok": True,
+        "items": [
+            {
+                "id": "final-accept",
+                "agentId": "round-20260509t063201z-6c02-final-review",
+                "summary": '{"reviewer":"final-codex","verdict":"accept","branch":"round-20260509t063201z-6c02-final"}',
+                "createdAt": "2026-05-09T06:41:01+00:00",
+            }
+        ],
+    }
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(notifications=notifications))
+    row = snapshot["rounds"][0]
+    assert row["final_review"]["normalized_verdict"] == "accept"
+    assert row["visible_status"] == "accepted"
+    assert "Final Review" in web_app_hub.INDEX_HTML
+    assert "visible_status" in web_app_hub.INDEX_HTML
+    assert "review.display" in web_app_hub.INDEX_HTML
+
+
+def test_final_review_changes_requested_is_not_collapsed_to_completed():
+    notifications = {
+        "ok": True,
+        "items": [
+            {
+                "id": "final-request-changes",
+                "agentId": "round-20260509t063201z-6c02-final-review",
+                "summary": '{"reviewer":"final-gemini","verdict":"changes_requested","summary":"blocking issue found"}',
+                "createdAt": "2026-05-09T06:41:01+00:00",
+            }
+        ],
+    }
+    outcome = {
+        "status": "blocked",
+        "source": "final_review_message",
+        "final_review": {
+            "source": "final_review_message",
+            "created": "2026-05-09T06:41:01+00:00",
+            "verdict": "changes_requested",
+            "normalized_verdict": "request_changes",
+            "notes": "blocking issue found",
+        },
+    }
+    provider = FixtureProvider(notifications=notifications, round_outcome=outcome)
+    snapshot = web_app_hub.build_snapshot(provider)
+    row = snapshot["rounds"][0]
+    detail = web_app_hub.build_round_detail(provider, "20260509t063201z-6c02")
+    assert row["status"] == "blocked"
+    assert row["visible_status"] == "changes requested"
+    assert row["visible_status"] != "completed"
+    assert detail["final_review"]["display"] == "changes requested"
 
 
 if __name__ == "__main__":
