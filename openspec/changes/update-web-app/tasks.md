@@ -8,6 +8,6 @@
 - [x] 2.2 Include the web app in kind lifecycle tasks for image build/load as needed, control-plane apply, restart/status/logs, and narrow update workflows.
 - [x] 2.3 Extend no-spend control-plane smoke or add a focused smoke check that verifies the deployed web app endpoint and readiness without starting model-backed rounds.
 - [x] 2.4 Update operator documentation for the web app URL, kind install behavior, and troubleshooting commands.
-- [ ] 3.1 Run OpenSpec validation for this change.
+- [x] 3.1 Run OpenSpec validation for this change.
 - [ ] 3.2 Run repo static checks and web app fixture tests after implementation.
 - [ ] 3.3 Render or apply the kind kustomization to verify the web app Deployment and Service are included.
