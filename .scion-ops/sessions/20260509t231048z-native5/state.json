@@ -6,7 +6,7 @@
   "change": "update-web-app",
   "base_branch": "round-20260509t185251z-1cfe-spec-integration",
   "status": "running",
-  "phase": "integration_pushed",
+  "phase": "final_review_running",
   "branches": {
     "steward": "round-20260509t231048z-native5-implementation-steward",
     "implementer": "round-20260509t231048z-native5-impl-codex",
@@ -44,7 +44,13 @@
     "integration_head": "82a8b1c"
   },
   "reviews": [],
-  "final_review": {},
+  "final_review": {
+    "branch": "round-20260509t231048z-native5-final-review",
+    "review_branch": "round-20260509t231048z-native5-integration",
+    "status": "running",
+    "started": "2026-05-09T23:30:00Z",
+    "verdict_file": ".scion-ops/sessions/20260509t231048z-native5/reviews/final-review.json"
+  },
   "verification": {
     "status": "passed",
     "commands": [
