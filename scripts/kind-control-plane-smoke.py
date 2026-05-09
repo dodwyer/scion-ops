@@ -37,6 +37,7 @@ DEFAULT_HUB_ENDPOINT = os.environ.get(
     f"http://192.168.122.103:{DEFAULT_HUB_PORT}",
 )
 DEFAULT_MCP_URL = os.environ.get("SCION_OPS_MCP_URL", "http://192.168.122.103:8765/mcp")
+DEFAULT_WEB_APP_URL = os.environ.get("SCION_OPS_KIND_WEB_URL", "http://192.168.122.103:8787")
 DEFAULT_GENERIC_CONFIG = ROOT / "deploy/kind/smoke/generic-smoke-agent.yaml"
 DEFAULT_GENERIC_PROMPT = "printf 'scion kind control-plane smoke\\n'; pwd; sleep 30"
 DEFAULT_TEMPLATE_PROMPT = "Smoke test: report the current working directory and stop."
@@ -436,6 +437,34 @@ async def ensure_mcp(
     )
 
 
+def ensure_web_app(*, url: str, timeout_seconds: int) -> None:
+    overview_url = url.rstrip("/") + "/api/overview"
+    deadline = time.monotonic() + timeout_seconds
+    last_error: Exception | None = None
+    while time.monotonic() <= deadline:
+        try:
+            req = urllib.request.Request(overview_url, headers={"Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                body = resp.read()
+            payload = json.loads(body)
+            if isinstance(payload, dict):
+                log(f"kind web app is reachable at {url}")
+                return
+        except Exception as exc:
+            last_error = exc
+        time.sleep(0.5)
+    raise SmokeFailure(
+        "web_app_unavailable",
+        f"kind web app was not reachable at {url}: {last_error}",
+        hint=(
+            "Check native kind port exposure and web app rollout:\n"
+            "  task kind:status\n"
+            "  task kind:web-app:status\n"
+            "If this is an old cluster, recreate it with task down and task up."
+        ),
+    )
+
+
 def check_mcp_status(payload: dict[str, Any]) -> None:
     if payload.get("ok") is not False:
         return
@@ -590,6 +619,7 @@ def parser() -> argparse.ArgumentParser:
     parser.add_argument("--namespace", default=os.environ.get("SCION_K8S_NAMESPACE", "scion-agents"))
     parser.add_argument("--hub", default=os.environ.get("HUB_ENDPOINT", DEFAULT_HUB_ENDPOINT))
     parser.add_argument("--mcp-url", default=DEFAULT_MCP_URL)
+    parser.add_argument("--web-app-url", default=DEFAULT_WEB_APP_URL)
     parser.add_argument("--timeout", type=int, default=int(os.environ.get("SCION_KIND_CP_SMOKE_TIMEOUT", "90")))
     parser.add_argument("--startup-timeout", type=int, default=30)
     parser.add_argument(
@@ -621,6 +651,12 @@ def parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--skip-template-sync", action="store_false", dest="sync_template")
     parser.add_argument("--skip-mcp", action="store_true")
+    parser.add_argument("--skip-web-app", action="store_true")
+    parser.add_argument(
+        "--web-app-only",
+        action="store_true",
+        help="only verify the web app endpoint; skip Hub, broker, MCP, and agent dispatch",
+    )
     parser.add_argument(
         "--keep-agent",
         action="store_true",
@@ -659,88 +695,98 @@ async def smoke(args: argparse.Namespace) -> None:
 
     with tempfile.TemporaryDirectory(prefix="scion-kind-cp-smoke-"):
         try:
-            if not args.skip_setup:
-                run(["task", "kind:up"], env=env, category="kubernetes", timeout=300)
-                if args.skip_mcp:
-                    run(["task", "kind:hub:apply"], env=env, category="kubernetes", timeout=180)
-                else:
-                    run(["task", "kind:workspace:status"], env=env, category="kubernetes", timeout=90)
-                    run(["task", "kind:control-plane:apply"], env=env, category="kubernetes", timeout=180)
+            if args.web_app_only:
+                ensure_web_app(url=args.web_app_url, timeout_seconds=args.startup_timeout)
+                print("\nkind web app smoke passed")
+                print(f"  web-app:    {args.web_app_url}")
+                success = True
+            else:
+                if not args.skip_setup:
+                    run(["task", "kind:up"], env=env, category="kubernetes", timeout=300)
+                    if args.skip_mcp:
+                        run(["task", "kind:hub:apply"], env=env, category="kubernetes", timeout=180)
+                    else:
+                        run(["task", "kind:workspace:status"], env=env, category="kubernetes", timeout=90)
+                        run(["task", "kind:control-plane:apply"], env=env, category="kubernetes", timeout=180)
 
-            status_task = "kind:hub:status" if args.skip_mcp else "kind:control-plane:status"
-            run(["task", status_task], env=env, category="kubernetes", timeout=180)
-            ensure_kind_hub_auth(env, endpoint=args.hub)
-            ensure_hub_ready(
-                endpoint=args.hub,
-                timeout_seconds=args.startup_timeout,
-            )
-
-            if not args.skip_bootstrap:
-                bootstrap_grove(
-                    env=env,
-                    scion_bin=scion_bin,
+                status_task = "kind:hub:status" if args.skip_mcp else "kind:control-plane:status"
+                run(["task", status_task], env=env, category="kubernetes", timeout=180)
+                ensure_kind_hub_auth(env, endpoint=args.hub)
+                ensure_hub_ready(
                     endpoint=args.hub,
-                    template=args.template or None,
-                    broker=args.broker,
-                    sync_harness=args.sync_harness_config,
-                    sync_template=args.sync_template,
-                )
-
-            verify_broker(env=env, scion_bin=scion_bin, endpoint=args.hub, broker=args.broker)
-
-            if not args.skip_mcp:
-                hub_status = await ensure_mcp(
-                    url=args.mcp_url,
                     timeout_seconds=args.startup_timeout,
                 )
-                check_mcp_status(hub_status)
 
-            log(f"dispatch {agent} through kind Hub broker {args.broker}")
-            start_args = [
-                scion_bin,
-                "--profile",
-                args.profile,
-                "start",
-                agent,
-                "--broker",
-                args.broker,
-                "--no-auth",
-                "--hub",
-                args.hub,
-                "--non-interactive",
-                "--yes",
-            ]
-            if args.template:
-                start_args += ["--type", args.template, "--no-upload"]
-            elif generic_config:
-                start_args += ["--config", str(generic_config)]
-            start_args.append(prompt)
-            run(
-                start_args,
-                env=env,
-                category="broker_dispatch",
-                hint="Check Hub provider routing and the kind broker:\n  task kind:broker:status",
-                timeout=120,
-            )
-            agent_started = True
+                if not args.skip_bootstrap:
+                    bootstrap_grove(
+                        env=env,
+                        scion_bin=scion_bin,
+                        endpoint=args.hub,
+                        template=args.template or None,
+                        broker=args.broker,
+                        sync_harness=args.sync_harness_config,
+                        sync_template=args.sync_template,
+                    )
 
-            pods = wait_for_kind_pod(
-                env=env,
-                context=context,
-                namespace=args.namespace,
-                agent=agent,
-                timeout_seconds=args.timeout,
-            )
+                verify_broker(env=env, scion_bin=scion_bin, endpoint=args.hub, broker=args.broker)
 
-            print("\nkind control-plane smoke passed")
-            print(f"  agent:      {agent}")
-            print(f"  hub:        {args.hub}")
-            print(f"  mcp:        {'skipped' if args.skip_mcp else args.mcp_url}")
-            print(f"  broker:     {args.broker}")
-            print(f"  config:     {args.template or generic_config}")
-            print(f"  kind:       {context}/{args.namespace}")
-            print(f"  pod_count:  {len(pods)}")
-            success = True
+                if not args.skip_mcp:
+                    hub_status = await ensure_mcp(
+                        url=args.mcp_url,
+                        timeout_seconds=args.startup_timeout,
+                    )
+                    check_mcp_status(hub_status)
+
+                if not args.skip_web_app:
+                    ensure_web_app(url=args.web_app_url, timeout_seconds=args.startup_timeout)
+
+                log(f"dispatch {agent} through kind Hub broker {args.broker}")
+                start_args = [
+                    scion_bin,
+                    "--profile",
+                    args.profile,
+                    "start",
+                    agent,
+                    "--broker",
+                    args.broker,
+                    "--no-auth",
+                    "--hub",
+                    args.hub,
+                    "--non-interactive",
+                    "--yes",
+                ]
+                if args.template:
+                    start_args += ["--type", args.template, "--no-upload"]
+                elif generic_config:
+                    start_args += ["--config", str(generic_config)]
+                start_args.append(prompt)
+                run(
+                    start_args,
+                    env=env,
+                    category="broker_dispatch",
+                    hint="Check Hub provider routing and the kind broker:\n  task kind:broker:status",
+                    timeout=120,
+                )
+                agent_started = True
+
+                pods = wait_for_kind_pod(
+                    env=env,
+                    context=context,
+                    namespace=args.namespace,
+                    agent=agent,
+                    timeout_seconds=args.timeout,
+                )
+
+                print("\nkind control-plane smoke passed")
+                print(f"  agent:      {agent}")
+                print(f"  hub:        {args.hub}")
+                print(f"  mcp:        {'skipped' if args.skip_mcp else args.mcp_url}")
+                print(f"  web-app:    {'skipped' if args.skip_web_app else args.web_app_url}")
+                print(f"  broker:     {args.broker}")
+                print(f"  config:     {args.template or generic_config}")
+                print(f"  kind:       {context}/{args.namespace}")
+                print(f"  pod_count:  {len(pods)}")
+                success = True
         finally:
             if agent_started and success and not args.keep_agent:
                 log(f"delete smoke agent {agent}")
