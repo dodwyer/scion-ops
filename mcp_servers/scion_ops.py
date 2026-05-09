@@ -1725,6 +1725,27 @@ def _validate_spec_change_result(root: Path, change: str) -> tuple[dict[str, Any
     return _run_python_openspec_validation(root, change)
 
 
+def _validate_spec_change_for_start(
+    root: Path,
+    change: str,
+    base_branch: str = "",
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if base_branch:
+        branch = _clean_name(base_branch, "base_branch")
+        result = _validate_remote_spec_change_result(root, change, branch)
+        validation = result.get("validation") if isinstance(result.get("validation"), dict) else {}
+        validation_ref = f"origin/{branch}"
+        if validation:
+            validation = {**validation, "validation_ref": validation_ref}
+        return {**result, "project_root": str(root), "validation_ref": validation_ref}, validation
+
+    result, validation = _validate_spec_change_result(root, change)
+    validation_ref = "local_worktree"
+    if validation:
+        validation = {**validation, "validation_ref": validation_ref}
+    return {**result, "validation_ref": validation_ref}, validation
+
+
 def _archive_spec_change_result(root: Path, change: str, confirm: bool) -> tuple[dict[str, Any], dict[str, Any]]:
     args = [
         "python3",
@@ -3175,13 +3196,15 @@ def _start_impl_round(
 ) -> dict[str, Any]:
     target_root = _project_root(project_root)
     change = _clean_name(change, "change")
-    validation_result, validation = _validate_spec_change_result(target_root, change)
+    effective_base_branch = _clean_name(base_branch, "base_branch") if base_branch else _default_base_branch(str(target_root))
+    validation_ref_branch = effective_base_branch if base_branch else ""
+    validation_result, validation = _validate_spec_change_for_start(target_root, change, validation_ref_branch)
     if not validation.get("ok"):
         return {
             **validation_result,
-            "source": "openspec_validator",
             "project_root": str(target_root),
             "change": change,
+            "base_branch": effective_base_branch,
             "validation": validation,
             "next": {
                 "draft_spec_tool": "scion_ops_start_spec_round",
@@ -3195,10 +3218,7 @@ def _start_impl_round(
     }
     if round_id:
         env["ROUND_ID"] = _clean_name(round_id, "round_id")
-    if base_branch:
-        env["BASE_BRANCH"] = _clean_name(base_branch, "base_branch")
-    else:
-        env["BASE_BRANCH"] = _default_base_branch(str(target_root))
+    env["BASE_BRANCH"] = effective_base_branch
     if final_reviewer:
         final_reviewer = final_reviewer.strip().lower()
         if final_reviewer not in {"gemini", "codex"}:
@@ -3223,7 +3243,7 @@ def _start_impl_round(
             "abort_tool": "scion_ops_abort_round",
         },
     )
-    return {**response, "change": change, "validation": validation}
+    return {**response, "change": change, "base_branch": effective_base_branch, "validation": validation}
 
 
 @mcp.tool()
@@ -3285,13 +3305,15 @@ def scion_ops_start_implementation_steward(
     """Start a Scion-native implementation steward session from an approved OpenSpec change."""
     target_root = _project_root(project_root)
     change = _clean_name(change, "change")
-    validation_result, validation = _validate_spec_change_result(target_root, change)
+    effective_base_branch = _clean_name(base_branch, "base_branch") if base_branch else _default_steward_base_branch(str(target_root))
+    validation_ref_branch = effective_base_branch if base_branch else ""
+    validation_result, validation = _validate_spec_change_for_start(target_root, change, validation_ref_branch)
     if not validation.get("ok"):
         return {
             **validation_result,
-            "source": "openspec_validator",
             "project_root": str(target_root),
             "change": change,
+            "base_branch": effective_base_branch,
             "validation": validation,
             "next": {
                 "draft_spec_steward_tool": "scion_ops_start_spec_steward",
@@ -3302,10 +3324,7 @@ def scion_ops_start_implementation_steward(
     env: dict[str, str] = _target_round_env(target_root)
     if session_id:
         env["SCION_OPS_SESSION_ID"] = _clean_name(session_id, "session_id")
-    if base_branch:
-        env["BASE_BRANCH"] = _clean_name(base_branch, "base_branch")
-    else:
-        env["BASE_BRANCH"] = _default_steward_base_branch(str(target_root))
+    env["BASE_BRANCH"] = effective_base_branch
 
     args = ["task", "spec:implement:steward", "--", "--change", change]
     if goal.strip():
@@ -3326,7 +3345,7 @@ def scion_ops_start_implementation_steward(
             "abort_tool": "scion_ops_abort_round",
         },
     )
-    return {**response, "change": change, "validation": validation}
+    return {**response, "change": change, "base_branch": effective_base_branch, "validation": validation}
 
 
 @mcp.tool()
