@@ -41,7 +41,7 @@ agent_path_for() {
 }
 
 AGENT_PROJECT_ROOT="${SCION_OPS_AGENT_PROJECT_ROOT:-.}"
-AGENT_SCION_OPS_ROOT="${SCION_OPS_AGENT_SCION_OPS_ROOT:-$(agent_path_for "$SCION_OPS_ROOT")}"
+AGENT_SCION_OPS_ROOT="${SCION_OPS_AGENT_SCION_OPS_ROOT:-$AGENT_PROJECT_ROOT}"
 
 SESSION_ID="${SCION_OPS_SESSION_ID:-${ROUND_ID:-$(date -u +%Y%m%dt%H%M%Sz)-$(printf '%04x' "$RANDOM")}}"
 SESSION_ID="$(printf '%s' "$SESSION_ID" | tr '[:upper:]' '[:lower:]')"
