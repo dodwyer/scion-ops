@@ -19,13 +19,20 @@
       "type": "impl-codex",
       "branch": "round-20260509t212708z-native2-impl-codex",
       "scope": "Group A: MCP-aligned web app contract and UI",
-      "status": "running"
+      "status": "completed_empty_branch",
+      "blocker": "Agent container completed with branch still at base commit ee06aa2837f4831536f4ca038b74c76f2f15a2a5; direct message retry failed through Hub runtime broker."
     },
     "round-20260509t212708z-native2-impl-claude": {
       "type": "impl-claude",
       "branch": "round-20260509t212708z-native2-impl-claude",
       "scope": "Group B: kind/kustomize install, lifecycle, docs, smoke",
       "status": "running"
+    },
+    "round-20260509t212708z-native2-impl-codex-a1": {
+      "type": "impl-codex",
+      "branch": "round-20260509t212708z-native2-impl-codex-a1",
+      "scope": "Replacement Group A1: narrow MCP structured field adapter and fixture tests",
+      "status": "starting"
     }
   },
   "implementation": {
@@ -40,6 +47,7 @@
   },
   "blockers": [],
   "next_actions": [
+    "Start narrower replacement for empty Codex Group A branch",
     "Monitor implementer branches for pushed changes",
     "Integrate the accepted implementation branch",
     "Run verification and final review"
