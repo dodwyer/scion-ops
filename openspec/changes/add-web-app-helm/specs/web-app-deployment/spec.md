@@ -62,12 +62,31 @@ The system SHALL run the web app hub as a Kubernetes Deployment in the `scion-ag
 - THEN it runs under the `scion-ops-web` ServiceAccount
 - AND it does not share identity credentials with the scion-ops-mcp ServiceAccount.
 
+#### Scenario: Web app has read-only Kubernetes RBAC
+
+- GIVEN `deploy/kind/control-plane/web-rbac.yaml` defines `ServiceAccount/scion-ops-web`, `Role/scion-ops-web`, and `RoleBinding/scion-ops-web`
+- AND the Role grants `get`, `list`, and `watch` on `deployments` in the `apps` API group
+- AND the Role grants `get`, `list`, and `watch` on core `pods`, `services`, and `persistentvolumeclaims`
+- WHEN the web app pod runs under `ServiceAccount/scion-ops-web`
+- THEN it can read deployment, pod, service, and PVC state in the `scion-agents` namespace
+- AND it is not granted create, update, patch, or delete permissions by the web app Role.
+
+#### Scenario: Web app RoleBinding binds only the web ServiceAccount
+
+- GIVEN `RoleBinding/scion-ops-web` exists in the `scion-agents` namespace
+- WHEN the RoleBinding is inspected
+- THEN its subject is `ServiceAccount/scion-ops-web`
+- AND its roleRef points to `Role/scion-ops-web`
+- AND it does not bind the scion-ops-mcp ServiceAccount.
+
 #### Scenario: Web app receives Hub auth token
 
 - GIVEN the `scion-hub-dev-auth` Secret exists in the `scion-agents` namespace
-- AND the web app Deployment injects the token via `valueFrom.secretKeyRef`
+- AND the web app Deployment mounts the Secret read-only at `/run/secrets/scion-hub-dev-auth`
+- AND the web app Deployment sets `SCION_DEV_TOKEN_FILE=/run/secrets/scion-hub-dev-auth/dev-token`
 - WHEN the web app pod starts
-- THEN the Hub auth token is available to the process as an environment variable
+- THEN the Hub auth token is available to the process via the token file
+- AND the Deployment does not inject `SCION_DEV_TOKEN` via `secretKeyRef`
 - AND the web app can authenticate against the Hub API.
 
 ### Requirement: Web App NodePort Service
