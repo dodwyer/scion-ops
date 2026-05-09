@@ -1,0 +1,46 @@
+{
+  "review_type": "final",
+  "scores": {
+    "correctness": 2,
+    "completeness": 3,
+    "style": 4
+  },
+  "verdict": "request_changes",
+  "blocking_issues": [
+    "deploy/kind/control-plane/web-app-rbac.yaml grants the web app ServiceAccount list/get on deployments, services, and pods only, but scripts/web_app_hub.py now runs `kubectl get deploy,pod,svc,endpoints,pvc -o json`. In-cluster, the web app ServiceAccount cannot list endpoints or persistentvolumeclaims, so Kubernetes readiness inspection fails and the overview/runtime sources cannot satisfy the approved web-app deployment health requirements."
+  ],
+  "final_failure_classification": "implementation_defect",
+  "final_failure_evidence": "The rendered kustomize manifest includes the scion-ops-web-app Role with resources [services, pods] plus deployments, while RuntimeProvider.kubernetes_status queries endpoints and pvc as part of the web app readiness model.",
+  "nits": [
+    "The web app deployment does not mirror the MCP startup exports for SCION_GROVE_ID/SCION_OPS_GROVE_ID or git safe.directory, even though the design calls for the same mounted-repo grove convention. This is secondary to the RBAC failure because the Hub config has fallback grove discovery."
+  ],
+  "spec": {
+    "change": "update-web-app",
+    "conformance": 2,
+    "spec_completeness": 4,
+    "task_coverage": 4,
+    "operational_verification": 2,
+    "checked_artifacts": [
+      "openspec/changes/update-web-app/proposal.md",
+      "openspec/changes/update-web-app/design.md",
+      "openspec/changes/update-web-app/tasks.md",
+      "openspec/changes/update-web-app/specs/web-app-hub/spec.md",
+      "scripts/web_app_hub.py",
+      "scripts/test-web-app-hub.py",
+      "scripts/kind-control-plane-smoke.py",
+      "deploy/kind/control-plane/kustomization.yaml",
+      "deploy/kind/control-plane/web-app-deployment.yaml",
+      "deploy/kind/control-plane/web-app-rbac.yaml",
+      "deploy/kind/control-plane/web-app-service.yaml",
+      "Taskfile.yml",
+      "docs/kind-control-plane.md"
+    ],
+    "unresolved_questions": [],
+    "gaps": [
+      "OpenSpec validation was attempted with `uv run openspec validate update-web-app --strict`, but the `openspec` executable is not installed in this workspace.",
+      "`uv run scripts/test-web-app-hub.py` passed.",
+      "`kubectl kustomize deploy/kind/control-plane` rendered the web app Deployment and Service, but the rendered web app Role lacks endpoints and persistentvolumeclaims permissions required by the implementation."
+    ]
+  },
+  "summary": "Request changes. The web app adapter and UI fixtures cover the new MCP fields, and the kustomize resources render, but the deployed web app cannot perform its own Kubernetes readiness query with the RBAC it is given. This blocks the approved requirement that overview/runtime identify web app deployment, service, pod, and endpoint health from Kubernetes."
+}
