@@ -35,6 +35,12 @@
       "scope": "narrow repair for web app Kubernetes/control-plane readiness semantics",
       "started": "2026-05-09T23:25:00Z",
       "head": "bd98cd0719af515e4d8dd2e3459435a54b2007c0"
+    },
+    "round-20260509t231048z-native5-impl-rbac-repair": {
+      "branch": "round-20260509t231048z-native5-impl-rbac-repair",
+      "status": "running",
+      "scope": "final-review repair for web app Kubernetes RBAC and small deployment env nit",
+      "started": "2026-05-09T23:32:00Z"
     }
   },
   "implementation": {
