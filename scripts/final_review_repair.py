@@ -90,6 +90,7 @@ def route_final_review_failure(
     *,
     evidence: str,
     handoff: dict[str, Any],
+    route_history: list[Any] = [],
     final_repair_rounds_used: int,
     policy: FinalReviewRepairPolicy | None = None,
 ) -> dict[str, Any]:
@@ -127,6 +128,7 @@ def route_final_review_failure(
             "budget_consumed": False,
             "handoff": handoff,
             "evidence": evidence,
+            "route_history": route_history,
         }
 
     route = dict(_ROUTES[failure_classification])

@@ -64,12 +64,24 @@ def main() -> int:
         "transient_agent_failure",
         evidence="agent transport failure",
         handoff=handoff,
+        route_history=[
+            {
+                "classification": "transient_agent_failure",
+                "route": "retry_final_review_agent",
+            }
+        ],
         final_repair_rounds_used=2,
         policy=policy.FinalReviewRepairPolicy(max_final_repair_rounds=2),
     )
     assert route["status"] == "escalate", route
     assert route["budget_consumed"] is False, route
     assert route["max_final_repair_rounds"] == 2, route
+    assert route["route_history"] == [
+        {
+            "classification": "transient_agent_failure",
+            "route": "retry_final_review_agent",
+        }
+    ], route
 
     earlier_budgets = {
         "implementation_repair_rounds_used": 3,
