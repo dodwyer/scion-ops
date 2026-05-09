@@ -45,6 +45,22 @@ The system SHALL provide a web view of active and recent Scion agent rounds usin
 - AND shows the final outcome or review status when available
 - AND retains branch references when they are present in the backing state.
 
+#### Scenario: Branch references use structured backing state
+
+- GIVEN Hub, MCP, or normalized round state exposes branch references as structured fields for agents, reviews, outcomes, or integration results
+- WHEN the app renders a rounds or round detail view
+- THEN those structured branch fields are treated as the authoritative branch source
+- AND message text, notification text, task summaries, agent names, or slugs are used only as fallback sources when no structured branch field is present
+- AND the app does not label an agent name or slug as a branch when a structured branch value is available.
+
+#### Scenario: Final review verdict is visible
+
+- GIVEN Hub messages, notifications, or normalized outcome state include a final review verdict such as accept, approved, request_changes, changes_requested, revise, or blocked
+- WHEN the app renders a rounds or round detail view
+- THEN the visible status includes that final review verdict or an equivalent operator-readable outcome
+- AND a changes-requested or blocked final review is not displayed as a generic completed state
+- AND the round detail view shows the final-review source summary when available.
+
 ### Requirement: Round Detail Timeline
 
 The system SHALL provide a round detail view that combines messages, notifications, agent status, runner output, and final outcome for a selected round.
@@ -56,7 +72,8 @@ The system SHALL provide a round detail view that combines messages, notificatio
 - THEN the app shows a chronological timeline of available messages and notifications
 - AND shows participating agent names and statuses
 - AND shows recent runner output when available
-- AND shows final review or terminal status when available.
+- AND shows final review or terminal status when available
+- AND shows branch references from structured backing fields before any fallback-derived branch references.
 
 #### Scenario: Timeline refreshes
 
