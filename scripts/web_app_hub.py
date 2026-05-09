@@ -40,6 +40,21 @@ import mcp_servers.scion_ops as scion_ops
 STALE_AFTER_SECONDS = 90
 ROUND_RE = re.compile(r"(?:round-)?(?P<id>\d{8}t\d{6}z-[a-z0-9]+)", re.IGNORECASE)
 CONTROL_PLANE_NAMES = {"scion-hub", "scion-broker", "scion-ops-mcp"}
+BRANCH_FIELD_NAMES = {
+    "branch",
+    "targetbranch",
+    "target_branch",
+    "headbranch",
+    "head_branch",
+    "sourcebranch",
+    "source_branch",
+    "prreadybranch",
+    "pr_ready_branch",
+    "integrationbranch",
+    "integration_branch",
+    "finalbranch",
+    "final_branch",
+}
 
 
 def utc_now() -> str:
@@ -66,6 +81,144 @@ def short_text(value: Any, limit: int = 180) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - 1].rstrip() + "..."
+
+
+def parse_json_object(value: Any) -> dict[str, Any]:
+    text = str(value or "").strip()
+    if not text:
+        return {}
+    candidates = [text]
+    start = text.find("{")
+    end = text.rfind("}")
+    if start >= 0 and end > start:
+        candidates.append(text[start : end + 1])
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    return {}
+
+
+def normalize_branch(value: Any) -> str:
+    text = str(value or "").strip()
+    if text.startswith("refs/heads/"):
+        text = text.removeprefix("refs/heads/")
+    if not text or len(text) > 140 or any(char.isspace() for char in text):
+        return ""
+    return text
+
+
+def add_unique(values: list[str], value: Any) -> None:
+    normalized = normalize_branch(value)
+    if normalized and normalized not in values:
+        values.append(normalized)
+
+
+def structured_branch_refs(item: Any) -> list[str]:
+    branches: list[str] = []
+
+    def visit(value: Any, key: str = "") -> None:
+        key_normalized = key.replace("-", "_").lower()
+        if isinstance(value, dict):
+            for child_key, child_value in value.items():
+                visit(child_value, str(child_key))
+            return
+        if isinstance(value, list):
+            for child in value:
+                visit(child, key)
+            return
+        if key_normalized.replace("_", "") in BRANCH_FIELD_NAMES or key_normalized in BRANCH_FIELD_NAMES:
+            add_unique(branches, value)
+
+    visit(item)
+    return branches
+
+
+def fallback_branch_refs(*values: Any) -> list[str]:
+    branches: list[str] = []
+    for value in values:
+        for branch in re.findall(r"round-[A-Za-z0-9._:/@+-]+", str(value or "")):
+            add_unique(branches, branch)
+    return branches
+
+
+def normalize_final_verdict(value: Any) -> str:
+    verdict = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if verdict in {"accept", "accepted", "approved", "success", "pass", "passed"}:
+        return "accept"
+    if verdict in {"reject", "rejected", "request_changes", "changes_requested", "revise", "blocked", "fail", "failed"}:
+        return "request_changes" if verdict != "blocked" else "blocked"
+    return verdict
+
+
+def final_review_label(verdict: str) -> str:
+    normalized = normalize_final_verdict(verdict)
+    if normalized == "accept":
+        return "accepted"
+    if normalized == "request_changes":
+        return "changes requested"
+    if normalized == "blocked":
+        return "blocked"
+    return normalized.replace("_", " ") if normalized else ""
+
+
+def final_review_from_item(item: dict[str, Any], *, source: str) -> dict[str, Any]:
+    payload = parse_json_object(item.get("msg") or item.get("message") or item.get("summary"))
+    data = payload or item
+    verdict = data.get("verdict") or data.get("finalReviewVerdict") or data.get("final_review_verdict")
+    if not verdict:
+        summary = str(item.get("summary") or item.get("msg") or item.get("message") or "")
+        match = re.search(r"\b(accept(?:ed)?|approved|request_changes|changes_requested|revise|blocked)\b", summary, re.IGNORECASE)
+        if ("final" in summary.lower() or "review" in summary.lower() or "outcome" in summary.lower()) and match:
+            verdict = match.group(1)
+    normalized = normalize_final_verdict(verdict)
+    if normalized not in {"accept", "request_changes", "blocked"}:
+        return {}
+    summary = short_text(
+        data.get("summary")
+        or data.get("notes")
+        or item.get("summary")
+        or item.get("msg")
+        or item.get("message"),
+        260,
+    )
+    return {
+        "source": source,
+        "time": event_time(item),
+        "verdict": str(verdict or ""),
+        "normalized_verdict": normalized,
+        "status": "accepted" if normalized == "accept" else "blocked",
+        "display": final_review_label(normalized),
+        "summary": summary,
+        "branch": next(iter(structured_branch_refs(data)), ""),
+        "blocking_issues": data.get("blocking_issues") if isinstance(data.get("blocking_issues"), list) else [],
+    }
+
+
+def final_review_from_outcome(outcome: Any) -> dict[str, Any]:
+    if not isinstance(outcome, dict):
+        return {}
+    final_review = outcome.get("final_review") if isinstance(outcome.get("final_review"), dict) else {}
+    data = final_review or outcome
+    verdict = data.get("verdict") or data.get("normalized_verdict") or data.get("status")
+    normalized = normalize_final_verdict(verdict)
+    if normalized not in {"accept", "request_changes", "blocked"}:
+        return {}
+    summary = short_text(data.get("summary") or data.get("notes") or data.get("test_results") or outcome.get("source"), 260)
+    return {
+        "source": data.get("source") or outcome.get("source") or "outcome",
+        "time": data.get("created") or data.get("time") or "",
+        "verdict": str(data.get("verdict") or verdict or ""),
+        "normalized_verdict": normalized,
+        "status": "accepted" if normalized == "accept" else "blocked",
+        "display": final_review_label(normalized),
+        "summary": summary,
+        "branch": next(iter(structured_branch_refs(data)), ""),
+        "blocking_issues": data.get("blocking_issues") if isinstance(data.get("blocking_issues"), list) else [],
+    }
 
 
 def ok_source(name: str, status: str, **extra: Any) -> dict[str, Any]:
@@ -342,11 +495,16 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
                 "messages": [],
                 "notifications": [],
                 "branches": [],
+                "branch_source": "",
                 "latest_update": "",
                 "latest_summary": "",
                 "status": "unknown",
+                "visible_status": "unknown",
                 "phase": "unknown",
                 "outcome": "",
+                "final_review": {},
+                "_structured_branches": [],
+                "_fallback_branches": [],
             },
         )
 
@@ -356,11 +514,10 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
             continue
         row = ensure(round_id)
         row["agents"].append(agent)
-        for value in (agent.get("branch"), agent.get("targetBranch"), agent.get("taskSummary")):
-            text = str(value or "")
-            for branch in re.findall(r"round-[A-Za-z0-9._:/@+-]+", text):
-                if branch not in row["branches"]:
-                    row["branches"].append(branch)
+        for branch in structured_branch_refs(agent):
+            add_unique(row["_structured_branches"], branch)
+        for branch in fallback_branch_refs(agent.get("taskSummary")):
+            add_unique(row["_fallback_branches"], branch)
         updated = str(agent.get("updated") or agent.get("created") or "")
         if updated > row["latest_update"]:
             row["latest_update"] = updated
@@ -381,6 +538,16 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
                 continue
             row = ensure(round_id)
             row[collection_name].append(item)
+            payload = parse_json_object(item.get("msg") or item.get("message") or item.get("summary"))
+            for branch in structured_branch_refs(item):
+                add_unique(row["_structured_branches"], branch)
+            for branch in structured_branch_refs(payload):
+                add_unique(row["_structured_branches"], branch)
+            for branch in fallback_branch_refs(item.get("msg"), item.get("message"), item.get("summary")):
+                add_unique(row["_fallback_branches"], branch)
+            review = final_review_from_item(item, source=collection_name[:-1])
+            if review and str(review.get("time") or "") >= str(row.get("final_review", {}).get("time") or ""):
+                row["final_review"] = review
             timestamp = event_time(item)
             if timestamp > row["latest_update"]:
                 row["latest_update"] = timestamp
@@ -396,14 +563,30 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
             row["status"] = "completed"
         elif not row["agents"] and (row["messages"] or row["notifications"]):
             row["status"] = "observed"
+        if row["final_review"]:
+            if row["final_review"].get("status") == "blocked":
+                row["status"] = "blocked"
+            elif row["status"] in {"unknown", "observed"}:
+                row["status"] = "completed"
+            row["visible_status"] = str(row["final_review"].get("display") or row["status"])
+        else:
+            row["visible_status"] = row["status"]
         phases = [str(agent.get("phase") or "") for agent in row["agents"] if agent.get("phase")]
         row["phase"] = Counter(phases).most_common(1)[0][0] if phases else row["phase"]
         summaries = [str(agent.get("taskSummary") or "") for agent in row["agents"] if agent.get("taskSummary")]
         terminal = next((summary for summary in summaries if "complete:" in summary.lower() or "blocked" in summary.lower()), "")
-        row["outcome"] = short_text(terminal)
+        row["outcome"] = row["final_review"].get("summary") or short_text(terminal)
+        if row["_structured_branches"]:
+            row["branches"] = row["_structured_branches"]
+            row["branch_source"] = "structured"
+        else:
+            row["branches"] = row["_fallback_branches"]
+            row["branch_source"] = "fallback" if row["branches"] else ""
         row["agent_count"] = len(row["agents"])
         row["message_count"] = len(row["messages"])
         row["notification_count"] = len(row["notifications"])
+        del row["_structured_branches"]
+        del row["_fallback_branches"]
     return sorted(grouped.values(), key=lambda item: item.get("latest_update") or "", reverse=True)
 
 
@@ -489,9 +672,35 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
     status = provider.round_status(round_id)
     events = provider.round_events(round_id, include_existing=True)
     timeline: list[dict[str, Any]] = []
+    structured_branches: list[str] = []
+    fallback_branches: list[str] = []
+    final_reviews: list[dict[str, Any]] = []
+    detail_agents = status.get("agents", []) if isinstance(status.get("agents"), list) else []
+    for agent in detail_agents:
+        for branch in structured_branch_refs(agent):
+            add_unique(structured_branches, branch)
+        for branch in fallback_branch_refs(agent.get("taskSummary")):
+            add_unique(fallback_branches, branch)
+    outcome = status.get("outcome") or events.get("outcome") or {}
+    for branch in structured_branch_refs(outcome):
+        add_unique(structured_branches, branch)
+    outcome_review = final_review_from_outcome(outcome)
+    if outcome_review:
+        final_reviews.append(outcome_review)
     if events.get("ok"):
         for event in events.get("events", []):
             item = event.get("message") or event.get("notification") or event.get("agent") or {}
+            payload = parse_json_object(item.get("msg") or item.get("message") or item.get("summary"))
+            for branch in structured_branch_refs(item):
+                add_unique(structured_branches, branch)
+            for branch in structured_branch_refs(payload):
+                add_unique(structured_branches, branch)
+            for branch in fallback_branch_refs(item.get("msg"), item.get("message"), item.get("summary"), item.get("taskSummary")):
+                add_unique(fallback_branches, branch)
+            if event.get("message") or event.get("notification"):
+                review = final_review_from_item(item, source=str(event.get("type") or "event"))
+                if review:
+                    final_reviews.append(review)
             timeline.append({
                 "type": event.get("type") or "event",
                 "time": event_time(item),
@@ -499,6 +708,8 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
                 "raw": item,
             })
     transcript = status.get("consensus_transcript") if isinstance(status.get("consensus_transcript"), dict) else {}
+    final_reviews.sort(key=lambda item: item.get("time") or "")
+    branches = structured_branches if structured_branches else fallback_branches
     return {
         "ok": bool(status.get("ok")) or bool(events.get("ok")),
         "round_id": round_id,
@@ -507,7 +718,10 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
         "timeline": sorted(timeline, key=lambda item: item.get("time") or ""),
         "runner_output": transcript.get("output", "") if transcript.get("ok") else "",
         "runner_output_error": "" if transcript.get("ok") or not transcript else transcript.get("error") or transcript.get("output", ""),
-        "outcome": status.get("outcome") or events.get("outcome") or {},
+        "outcome": outcome,
+        "final_review": final_reviews[-1] if final_reviews else {},
+        "branches": branches,
+        "branch_source": "structured" if structured_branches else ("fallback" if branches else ""),
     }
 
 
@@ -532,9 +746,9 @@ INDEX_HTML = r"""<!doctype html>
     .card, .table-wrap, .detail { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; }
     .status { display:inline-flex; align-items:center; gap:6px; font-weight:650; text-transform:capitalize; }
     .dot { width:9px; height:9px; border-radius:50%; background:var(--muted); display:inline-block; }
-    .ready .dot, .healthy .dot, .completed .dot { background:var(--good); }
+    .ready .dot, .healthy .dot, .completed .dot, .accepted .dot { background:var(--good); }
     .degraded .dot, .waiting .dot, .stale .dot, .observed .dot { background:var(--warn); }
-    .unavailable .dot, .blocked .dot, .error .dot { background:var(--bad); }
+    .unavailable .dot, .blocked .dot, .error .dot, .changes-requested .dot { background:var(--bad); }
     .running .dot { background:var(--info); }
     .muted { color:var(--muted); }
     table { width:100%; border-collapse:collapse; }
@@ -572,7 +786,11 @@ INDEX_HTML = r"""<!doctype html>
   <script>
     const state = { view: "overview", snapshot: null, selectedRound: "", cursors: {} };
     const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
-    const status = value => `<span class="status ${esc(value)}"><span class="dot"></span>${esc(value || "unknown")}</span>`;
+    const status = value => {
+      const label = String(value || "unknown");
+      const cls = label.toLowerCase().replace(/[\s_]+/g, "-");
+      return `<span class="status ${esc(cls)}"><span class="dot"></span>${esc(label)}</span>`;
+    };
     const fmt = value => value ? new Date(value).toLocaleString() : "unknown";
     async function getJson(url) {
       const response = await fetch(url, { cache: "no-store" });
@@ -605,8 +823,8 @@ INDEX_HTML = r"""<!doctype html>
     function renderRounds() {
       const rows = state.snapshot.rounds;
       document.getElementById("rounds").innerHTML = rows.length ? `
-        <div class="table-wrap"><table><thead><tr><th>Round</th><th>Status</th><th>Phase</th><th>Agents</th><th>Latest update</th><th>Outcome</th></tr></thead><tbody>
-        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.status)}</td><td>${esc(row.phase)}</td><td>${row.agent_count}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.outcome || "")}</td></tr>`).join("")}
+        <div class="table-wrap"><table><thead><tr><th>Round</th><th>Status</th><th>Phase</th><th>Agents</th><th>Latest update</th><th>Outcome</th><th>Branches</th></tr></thead><tbody>
+        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}</td><td>${esc(row.phase)}</td><td>${row.agent_count}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.outcome || "")}</td><td>${(row.branches || []).map(branch => `<div class="mono">${esc(branch)}</div>`).join("")}${row.branch_source ? `<div class="muted">${esc(row.branch_source)}</div>` : ""}</td></tr>`).join("")}
         </tbody></table></div>` : `<div class="card"><strong>No rounds found</strong><div class="muted">Hub returned no round-identifiable agents, messages, or notifications.</div></div>`;
       document.querySelectorAll("[data-round]").forEach(row => row.onclick = () => openRound(row.dataset.round));
     }
@@ -616,11 +834,12 @@ INDEX_HTML = r"""<!doctype html>
       document.getElementById("round-detail").innerHTML = `<div class="card">Loading ${esc(roundId)}...</div>`;
       const detail = await getJson(`/api/rounds/${encodeURIComponent(roundId)}`);
       const agents = detail.status.agents || [];
+      const review = detail.final_review || {};
       document.getElementById("round-detail").innerHTML = `
         <div class="bar"><button id="back-rounds">Back to rounds</button><button id="refresh-round">Refresh timeline</button></div>
         <div class="split">
           <div class="detail"><h2 class="mono">${esc(roundId)}</h2><h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div></div>`).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
-          <div class="detail"><h3>Agents</h3>${agents.length ? agents.map(agent => `<div class="card"><strong>${esc(agent.name || agent.slug)}</strong><div>${status(agent.phase || "unknown")}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`).join("") : `<div class="muted">No agents found.</div>`}<h3>Runner Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No runner output available.")}</div>`}</div>
+          <div class="detail"><h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? agents.map(agent => `<div class="card"><strong>${esc(agent.name || agent.slug)}</strong><div>${status(agent.phase || "unknown")}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`).join("") : `<div class="muted">No agents found.</div>`}<h3>Runner Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No runner output available.")}</div>`}</div>
         </div>`;
       document.getElementById("back-rounds").onclick = () => setView("rounds");
       document.getElementById("refresh-round").onclick = () => openRound(roundId);
