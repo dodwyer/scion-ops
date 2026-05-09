@@ -50,6 +50,13 @@
       "review_branch": "round-20260509t223549z-native4-integration",
       "status": "running",
       "verdict_file": ".scion-ops/sessions/20260509t223549z-native4/reviews/final-review-r2.json"
+    },
+    "round-20260509t223549z-native4-impl-web-rbac-repair": {
+      "type": "impl-codex",
+      "branch": "round-20260509t223549z-native4-impl-web-rbac-repair",
+      "scope": "Final-review r2 repair for web app RBAC and overview health exposure",
+      "status": "running",
+      "base_branch": "round-20260509t223549z-native4-integration"
     }
   },
   "implementation": {
