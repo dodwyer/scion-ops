@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 
@@ -261,6 +262,73 @@ def test_targeted_branch_field_takes_precedence_over_text_fallback():
     assert "round-20260509t063201z-cccc-impl-from-text" not in row["branches"]
 
 
+def test_structured_branch_from_message_payload_takes_precedence_over_text_in_message_body():
+    """Structured branch in message JSON payload suppresses text-parsed branches from message body."""
+    agents = [
+        {
+            "name": "round-20260509t063201z-jjjj-consensus",
+            "phase": "completed",
+            "activity": "completed",
+            "taskSummary": "dispatching",
+            "updated": "2026-05-09T06:38:00+00:00",
+        },
+    ]
+    messages = [
+        {
+            "id": "msg-review-1",
+            "sender": "round-20260509t063201z-jjjj-final-review",
+            # JSON payload has structured branch; text also mentions a different branch in notes
+            "msg": json.dumps({
+                "branch": "main",
+                "notes": "see round-20260509t063201z-jjjj-impl-text-only for context",
+            }),
+            "createdAt": "2026-05-09T06:39:00+00:00",
+        },
+    ]
+    rounds = web_app_hub.build_rounds(agents, messages, [])
+    assert len(rounds) == 1
+    row = rounds[0]
+    # Structured branch from JSON payload is used
+    assert "main" in row["branches"]
+    # Text-parsed branch from message body is suppressed because structured branch is present
+    assert "round-20260509t063201z-jjjj-impl-text-only" not in row["branches"]
+
+
+def test_structured_branch_from_outcome_payload_takes_precedence_over_agent_text_fallback():
+    """Structured branch in outcome/integration payload suppresses text-parsed branches from agent taskSummary."""
+    agents = [
+        {
+            "name": "round-20260509t063201z-kkkk-impl-codex",
+            "phase": "completed",
+            "activity": "completed",
+            # taskSummary text would yield a branch via text parsing if no structured branch exists
+            "taskSummary": "complete: round-20260509t063201z-kkkk-impl-codex",
+            "updated": "2026-05-09T06:38:00+00:00",
+        },
+    ]
+    messages = [
+        {
+            "id": "msg-outcome-1",
+            "roundId": "20260509t063201z-kkkk",
+            # Outcome payload with structured branch pointing to the actual revision branch
+            "msg": json.dumps({
+                "outcome": {
+                    "branch": "round-20260509t063201z-kkkk-impl-codex-r2",
+                    "status": "completed",
+                }
+            }),
+            "createdAt": "2026-05-09T06:39:00+00:00",
+        },
+    ]
+    rounds = web_app_hub.build_rounds(agents, messages, [])
+    assert len(rounds) == 1
+    row = rounds[0]
+    # Structured branch from outcome payload is used
+    assert "round-20260509t063201z-kkkk-impl-codex-r2" in row["branches"]
+    # Text-parsed branch from agent taskSummary is suppressed because structured branch exists
+    assert "round-20260509t063201z-kkkk-impl-codex" not in row["branches"]
+
+
 def test_final_review_verdict_accepted_exposed_by_backend():
     """Backend exposes 'accepted' verdict for final-review agents and sets status to 'accepted'."""
     agents = [
@@ -316,16 +384,97 @@ def test_final_review_verdict_changes_requested_not_collapsed_to_completed():
     assert row["status"] != "completed"
 
 
+def test_final_review_verdict_approved_normalizes_to_accepted():
+    """Backend normalizes 'approved' verdict to 'accepted' status (not 'request_changes')."""
+    agents = [
+        {
+            "name": "round-20260509t063201z-ffff-consensus",
+            "template": "consensus-runner",
+            "phase": "completed",
+            "activity": "completed",
+            "taskSummary": "complete: round-20260509t063201z-ffff",
+            "updated": "2026-05-09T06:38:00+00:00",
+        },
+        {
+            "name": "round-20260509t063201z-ffff-final-review",
+            "phase": "completed",
+            "activity": "completed",
+            "taskSummary": "final verdict: approved — implementation accepted",
+            "updated": "2026-05-09T06:39:00+00:00",
+        },
+    ]
+    rounds = web_app_hub.build_rounds(agents, [], [])
+    assert len(rounds) == 1
+    row = rounds[0]
+    assert row["final_verdict"] == "accepted"
+    assert row["status"] == "accepted"
+
+
+def test_final_review_verdict_blocked_renders_as_blocked_not_request_changes():
+    """Backend exposes 'blocked' verdict as 'blocked' status, not 'request_changes'."""
+    agents = [
+        {
+            "name": "round-20260509t063201z-gggg-consensus",
+            "template": "consensus-runner",
+            "phase": "completed",
+            "activity": "completed",
+            "taskSummary": "complete: round-20260509t063201z-gggg",
+            "updated": "2026-05-09T06:38:00+00:00",
+        },
+        {
+            "name": "round-20260509t063201z-gggg-final-review",
+            "phase": "completed",
+            "activity": "completed",
+            "taskSummary": "final verdict: blocked — critical issues found",
+            "updated": "2026-05-09T06:39:00+00:00",
+        },
+    ]
+    rounds = web_app_hub.build_rounds(agents, [], [])
+    assert len(rounds) == 1
+    row = rounds[0]
+    assert row["final_verdict"] == "blocked"
+    assert row["status"] == "blocked"
+    assert row["status"] != "request_changes"
+
+
 def test_frontend_html_renders_verdict_fields():
-    """Frontend HTML includes CSS and JS hooks for rendering final review verdicts."""
+    """Frontend HTML CSS and JS render verdict values produced by representative backend data."""
+    # Build representative rounds for each relevant verdict outcome
+    def make_agents(tag: str, verdict_text: str) -> list[dict]:
+        return [
+            {
+                "name": f"round-20260509t063201z-{tag}-consensus",
+                "template": "consensus-runner",
+                "phase": "completed",
+                "activity": "completed",
+                "taskSummary": f"complete: round-20260509t063201z-{tag}",
+                "updated": "2026-05-09T06:38:00+00:00",
+            },
+            {
+                "name": f"round-20260509t063201z-{tag}-final-review",
+                "phase": "completed",
+                "activity": "completed",
+                "taskSummary": f"final verdict: {verdict_text}",
+                "updated": "2026-05-09T06:39:00+00:00",
+            },
+        ]
+
+    rounds_accepted = web_app_hub.build_rounds(make_agents("vvvv", "accepted — all checks passed"), [], [])
+    rounds_changes = web_app_hub.build_rounds(make_agents("wwww", "request_changes — tests failing"), [], [])
+    rounds_blocked = web_app_hub.build_rounds(make_agents("xxxx", "blocked — spec violations"), [], [])
+
+    # Backend produces correct verdict values
+    assert rounds_accepted[0]["final_verdict"] == "accepted"
+    assert rounds_changes[0]["final_verdict"] == "request_changes"
+    assert rounds_blocked[0]["final_verdict"] == "blocked"
+
+    # Frontend HTML has CSS classes to render each verdict value
     html = web_app_hub.INDEX_HTML
-    # CSS must style request_changes distinctly (not as completed/good)
-    assert "request_changes" in html
-    # CSS must style accepted
-    assert "accepted" in html
+    for verdict in (rounds_accepted[0]["final_verdict"], rounds_changes[0]["final_verdict"], rounds_blocked[0]["final_verdict"]):
+        assert f".{verdict} .dot" in html, f"CSS class for verdict '{verdict}' missing from INDEX_HTML"
     # JS must reference final_verdict field from round data
     assert "final_verdict" in html
-    # JS must reference final_review from detail outcome
+    # JS must reference final_review from round detail outcome
     assert "final_review" in html
 
 

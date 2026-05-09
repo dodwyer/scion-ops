@@ -142,10 +142,12 @@ def _extract_final_verdict(agents: list[dict[str, Any]], messages: list[dict[str
 
     def normalize_verdict(value: Any) -> str:
         v = str(value or "").strip().lower()
-        if v in {"accept", "accepted", "success", "pass", "passed"}:
+        if v in {"accept", "accepted", "approved", "success", "pass", "passed"}:
             return "accept"
-        if v in {"reject", "rejected", "request_changes", "changes_requested", "revise", "blocked", "fail", "failed"}:
+        if v in {"reject", "rejected", "request_changes", "changes_requested", "revise", "fail", "failed"}:
             return "request_changes"
+        if v in {"blocked", "block"}:
+            return "blocked"
         return v
 
     final_agents = [a for a in agents if is_final_agent(a)]
@@ -180,10 +182,11 @@ def _extract_final_verdict(agents: list[dict[str, Any]], messages: list[dict[str
         if not is_final:
             continue
         nv = normalize_verdict(payload.get("verdict"))
+        _status_map = {"accept": "accepted", "request_changes": "request_changes", "blocked": "blocked"}
         return {
             "verdict": str(payload.get("verdict") or ""),
             "normalized": nv,
-            "status": "accepted" if nv == "accept" else "request_changes",
+            "status": _status_map.get(nv, nv),
             "notes": str(payload.get("notes") or "")[:300],
         }
 
@@ -192,14 +195,52 @@ def _extract_final_verdict(agents: list[dict[str, Any]], messages: list[dict[str
         m = re.search(r"final verdict:\s*([A-Za-z_ -]+)", summary, re.IGNORECASE)
         if m:
             nv = normalize_verdict(m.group(1))
+            _status_map = {"accept": "accepted", "request_changes": "request_changes", "blocked": "blocked"}
             return {
                 "verdict": m.group(1).strip(),
                 "normalized": nv,
-                "status": "accepted" if nv == "accept" else "request_changes",
+                "status": _status_map.get(nv, nv),
                 "notes": "",
             }
 
     return {}
+
+
+def _extract_branches_structured(item: dict[str, Any]) -> list[str]:
+    """Extract structured branch fields from a message, notification, or review/outcome payload."""
+    branches: list[str] = []
+    for key in ("branch", "targetBranch", "target_branch", "branchName"):
+        v = item.get(key)
+        if v and str(v).strip():
+            b = str(v).strip()
+            if b not in branches:
+                branches.append(b)
+    for field in ("msg", "message", "payload"):
+        text = str(item.get(field) or "")
+        if not text:
+            continue
+        try:
+            parsed = json.loads(text)
+            if not isinstance(parsed, dict):
+                continue
+            for key in ("branch", "targetBranch", "target_branch", "branchName"):
+                v = parsed.get(key)
+                if v and str(v).strip():
+                    b = str(v).strip()
+                    if b not in branches:
+                        branches.append(b)
+            for sub_key in ("outcome", "integration", "final_review"):
+                sub = parsed.get(sub_key)
+                if isinstance(sub, dict):
+                    for key in ("branch", "targetBranch", "target_branch", "branchName"):
+                        v = sub.get(key)
+                        if v and str(v).strip():
+                            b = str(v).strip()
+                            if b not in branches:
+                                branches.append(b)
+        except (ValueError, TypeError):
+            pass
+    return branches
 
 
 def extract_round_id(*values: Any) -> str:
@@ -419,21 +460,18 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
             },
         )
 
+    has_structured: set[str] = set()
+
     for agent in agents:
         round_id = extract_round_id(agent.get("name"), agent.get("slug"), agent.get("taskSummary"))
         if not round_id:
             continue
         row = ensure(round_id)
         row["agents"].append(agent)
-        # Structured fields take precedence; text parsing is fallback only
         structured = [str(v).strip() for v in (agent.get("branch"), agent.get("targetBranch")) if v and str(v).strip()]
         if structured:
+            has_structured.add(round_id)
             for branch in structured:
-                if branch not in row["branches"]:
-                    row["branches"].append(branch)
-        else:
-            text = str(agent.get("taskSummary") or "")
-            for branch in re.findall(r"round-[A-Za-z0-9._:/@+-]+", text):
                 if branch not in row["branches"]:
                     row["branches"].append(branch)
         updated = str(agent.get("updated") or agent.get("created") or "")
@@ -456,10 +494,50 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
                 continue
             row = ensure(round_id)
             row[collection_name].append(item)
+            structured = _extract_branches_structured(item)
+            if structured:
+                has_structured.add(round_id)
+                for branch in structured:
+                    if branch not in row["branches"]:
+                        row["branches"].append(branch)
             timestamp = event_time(item)
             if timestamp > row["latest_update"]:
                 row["latest_update"] = timestamp
                 row["latest_summary"] = short_text(item.get("msg") or item.get("message") or item.get("summary"))
+
+    # Text fallback: only for rounds with no structured branch fields from any source
+    for agent in agents:
+        round_id = extract_round_id(agent.get("name"), agent.get("slug"), agent.get("taskSummary"))
+        if not round_id or round_id in has_structured:
+            continue
+        row = grouped.get(round_id)
+        if row is None:
+            continue
+        text = str(agent.get("taskSummary") or "")
+        for branch in re.findall(r"round-[A-Za-z0-9._:/@+-]+", text):
+            if branch not in row["branches"]:
+                row["branches"].append(branch)
+
+    for collection in (messages, notifications):
+        for item in collection:
+            round_id = extract_round_id(
+                item.get("roundId"),
+                item.get("agentId"),
+                item.get("sender"),
+                item.get("senderId"),
+                item.get("msg"),
+                item.get("message"),
+                item.get("summary"),
+            )
+            if not round_id or round_id in has_structured:
+                continue
+            row = grouped.get(round_id)
+            if row is None:
+                continue
+            text = str(item.get("msg") or item.get("message") or item.get("summary") or "")
+            for branch in re.findall(r"round-[A-Za-z0-9._:/@+-]+", text):
+                if branch not in row["branches"]:
+                    row["branches"].append(branch)
 
     for row in grouped.values():
         statuses = [agent_status(agent) for agent in row["agents"]]
@@ -470,9 +548,10 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
             row["status"] = "running" if "running" in statuses else "waiting"
         elif statuses and all(status == "completed" for status in statuses):
             # Use final review verdict to avoid collapsing to generic "completed"
-            if verdict_info.get("status") == "request_changes":
-                row["status"] = "request_changes"
-            elif verdict_info.get("status") == "accepted":
+            vs = verdict_info.get("status")
+            if vs in {"request_changes", "blocked"}:
+                row["status"] = vs
+            elif vs == "accepted":
                 row["status"] = "accepted"
             else:
                 row["status"] = "completed"
