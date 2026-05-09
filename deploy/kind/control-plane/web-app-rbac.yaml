@@ -20,7 +20,7 @@ rules:
     resources: ["deployments"]
     verbs: ["get", "list"]
   - apiGroups: [""]
-    resources: ["pods", "services", "persistentvolumeclaims"]
+    resources: ["pods", "services", "persistentvolumeclaims", "endpoints"]
     verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
