@@ -1149,7 +1149,9 @@ def _normalize_final_verdict(value: Any) -> str:
     verdict = str(value or "").strip().lower()
     if verdict in {"accept", "accepted", "success", "pass", "passed"}:
         return "accept"
-    if verdict in {"reject", "rejected", "request_changes", "changes_requested", "revise", "blocked", "fail", "failed"}:
+    if verdict == "blocked":
+        return "blocked"
+    if verdict in {"reject", "rejected", "request_changes", "changes_requested", "revise", "fail", "failed"}:
         return "request_changes"
     return verdict
 

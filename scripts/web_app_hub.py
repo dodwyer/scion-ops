@@ -724,6 +724,8 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
     transcript = status.get("consensus_transcript") if isinstance(status.get("consensus_transcript"), dict) else {}
     final_reviews.sort(key=lambda item: item.get("time") or "")
     branches = structured_branches if structured_branches else fallback_branches
+    final_review = final_reviews[-1] if final_reviews else {}
+    visible_status = str(final_review.get("display") or status.get("status") or "unknown")
     return {
         "ok": bool(status.get("ok")) or bool(events.get("ok")),
         "round_id": round_id,
@@ -733,7 +735,8 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
         "runner_output": transcript.get("output", "") if transcript.get("ok") else "",
         "runner_output_error": "" if transcript.get("ok") or not transcript else transcript.get("error") or transcript.get("output", ""),
         "outcome": outcome,
-        "final_review": final_reviews[-1] if final_reviews else {},
+        "final_review": final_review,
+        "visible_status": visible_status,
         "branches": branches,
         "branch_source": "structured" if structured_branches else ("fallback" if branches else ""),
     }
@@ -852,7 +855,7 @@ INDEX_HTML = r"""<!doctype html>
       document.getElementById("round-detail").innerHTML = `
         <div class="bar"><button id="back-rounds">Back to rounds</button><button id="refresh-round">Refresh timeline</button></div>
         <div class="split">
-          <div class="detail"><h2 class="mono">${esc(roundId)}</h2><h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div></div>`).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
+          <div class="detail"><h2 class="mono">${esc(roundId)}</h2><div>${status(detail.visible_status || detail.status.status || "unknown")}</div><h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div></div>`).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
           <div class="detail"><h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? agents.map(agent => `<div class="card"><strong>${esc(agent.name || agent.slug)}</strong><div>${status(agent.phase || "unknown")}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`).join("") : `<div class="muted">No agents found.</div>`}<h3>Runner Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No runner output available.")}</div>`}</div>
         </div>`;
       document.getElementById("back-rounds").onclick = () => setView("rounds");
