@@ -25,7 +25,7 @@
       "id": "round-20260509t162103z-32b9-spec-explorer",
       "summary": "Explorer completed (containerStatus: Succeeded). Branch had no new commits; findings expected via message channel."
     },
-    "author": {"status": "pending", "id": null, "summary": null},
+    "author": {"status": "running", "id": "round-20260509t162103z-32b9-spec-author", "summary": null},
     "review": {"status": "pending", "id": null, "summary": null}
   },
   "validation": {
