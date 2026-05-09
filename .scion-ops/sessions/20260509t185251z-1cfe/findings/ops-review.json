@@ -1,0 +1,30 @@
+{
+  "review_type": "spec",
+  "scores": {
+    "correctness": 5,
+    "completeness": 5,
+    "style": 5
+  },
+  "verdict": "accept",
+  "blocking_issues": [],
+  "nits": [],
+  "spec": {
+    "change": "update-web-app",
+    "conformance": 5,
+    "spec_completeness": 5,
+    "task_coverage": 5,
+    "operational_verification": 5,
+    "checked_artifacts": [
+      "openspec/changes/update-web-app/proposal.md",
+      "openspec/changes/update-web-app/design.md",
+      "openspec/changes/update-web-app/tasks.md",
+      "openspec/changes/update-web-app/specs/web-app-hub/spec.md"
+    ],
+    "unresolved_questions": [],
+    "gaps": [
+      "Implementation should prove the no-port-forward web app URL against the actual kind host port mapping, not just the Kubernetes Service object.",
+      "Implementation should include fixture coverage for blocked final-review outcomes and structured MCP fields taking precedence over prose fallbacks."
+    ]
+  },
+  "summary": "Accepted. The update-web-app OpenSpec artifacts align with the stated goal: they require the web app to consume current scion-ops MCP structured fields, preserve final-review and validation semantics, and become part of the kind/kustomize control-plane install with lifecycle tasks and no-spend smoke coverage. No blocking issues were found in the spec artifacts."
+}
