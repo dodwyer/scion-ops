@@ -37,6 +37,7 @@ DEFAULT_HUB_ENDPOINT = os.environ.get(
     f"http://192.168.122.103:{DEFAULT_HUB_PORT}",
 )
 DEFAULT_MCP_URL = os.environ.get("SCION_OPS_MCP_URL", "http://192.168.122.103:8765/mcp")
+DEFAULT_WEB_APP_URL = os.environ.get("SCION_OPS_WEB_URL", "http://192.168.122.103:8787")
 DEFAULT_GENERIC_CONFIG = ROOT / "deploy/kind/smoke/generic-smoke-agent.yaml"
 DEFAULT_GENERIC_PROMPT = "printf 'scion kind control-plane smoke\\n'; pwd; sleep 30"
 DEFAULT_TEMPLATE_PROMPT = "Smoke test: report the current working directory and stop."
@@ -447,6 +448,51 @@ def check_mcp_status(payload: dict[str, Any]) -> None:
     )
 
 
+def verify_web_app(url: str, *, timeout_seconds: int = 30) -> None:
+    snapshot_url = url.rstrip("/") + "/api/snapshot"
+    deadline = time.monotonic() + timeout_seconds
+    last_error: Exception | None = None
+    while time.monotonic() <= deadline:
+        try:
+            req = urllib.request.Request(snapshot_url, method="GET")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.status < 200 or resp.status >= 300:
+                    raise SmokeFailure(
+                        "web_app",
+                        f"web app returned HTTP {resp.status} from {snapshot_url}",
+                        hint="Check the web app rollout and logs:\n  task kind:web-app:status\n  task kind:web-app:logs",
+                    )
+                body = resp.read().decode(errors="replace")
+            try:
+                data = json.loads(body)
+            except json.JSONDecodeError as exc:
+                raise SmokeFailure(
+                    "web_app",
+                    f"web app /api/snapshot returned non-JSON from {snapshot_url}",
+                    hint="Check the web app logs:\n  task kind:web-app:logs",
+                    output=body[:500],
+                ) from exc
+            log(f"kind web app is reachable at {url}")
+            if data.get("ok") is False:
+                log(f"web app snapshot ok=false (non-fatal): {data.get('error', '')}")
+            return
+        except SmokeFailure:
+            raise
+        except (OSError, urllib.error.URLError) as exc:
+            last_error = exc
+            time.sleep(0.5)
+    raise SmokeFailure(
+        "web_app",
+        f"kind web app was not ready at {url}: {last_error}",
+        hint=(
+            "Check native kind port exposure and web app rollout:\n"
+            "  task kind:status\n"
+            "  task kind:web-app:status\n"
+            "If this is an old cluster, recreate it with task down and task up."
+        ),
+    )
+
+
 def pod_data(env: dict[str, str], context: str, namespace: str, agent: str) -> dict[str, Any]:
     result = run(
         [
@@ -621,6 +667,8 @@ def parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--skip-template-sync", action="store_false", dest="sync_template")
     parser.add_argument("--skip-mcp", action="store_true")
+    parser.add_argument("--web-app-url", default=DEFAULT_WEB_APP_URL)
+    parser.add_argument("--skip-web-app", action="store_true")
     parser.add_argument(
         "--keep-agent",
         action="store_true",
@@ -695,6 +743,9 @@ async def smoke(args: argparse.Namespace) -> None:
                 )
                 check_mcp_status(hub_status)
 
+            if not args.skip_web_app:
+                verify_web_app(args.web_app_url, timeout_seconds=args.startup_timeout)
+
             log(f"dispatch {agent} through kind Hub broker {args.broker}")
             start_args = [
                 scion_bin,
@@ -736,6 +787,7 @@ async def smoke(args: argparse.Namespace) -> None:
             print(f"  agent:      {agent}")
             print(f"  hub:        {args.hub}")
             print(f"  mcp:        {'skipped' if args.skip_mcp else args.mcp_url}")
+            print(f"  web_app:    {'skipped' if args.skip_web_app else args.web_app_url}")
             print(f"  broker:     {args.broker}")
             print(f"  config:     {args.template or generic_config}")
             print(f"  kind:       {context}/{args.namespace}")
