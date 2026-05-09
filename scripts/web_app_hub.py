@@ -39,7 +39,9 @@ import mcp_servers.scion_ops as scion_ops
 
 STALE_AFTER_SECONDS = 90
 ROUND_RE = re.compile(r"(?:round-)?(?P<id>\d{8}t\d{6}z-[a-z0-9]+)", re.IGNORECASE)
-CONTROL_PLANE_NAMES = {"scion-hub", "scion-broker", "scion-ops-mcp"}
+CONTROL_PLANE_NAMES = {"scion-hub", "scion-broker", "scion-ops-mcp", "scion-ops-web-app"}
+CONTROL_PLANE_DEPLOYMENTS = CONTROL_PLANE_NAMES
+CONTROL_PLANE_SERVICES = CONTROL_PLANE_NAMES
 BRANCH_FIELD_NAMES = {
     "branch",
     "targetbranch",
@@ -372,7 +374,7 @@ class RuntimeProvider:
             "-n",
             namespace,
             "get",
-            "deploy,pod,svc,pvc",
+            "deploy,pod,svc,endpoints,pvc",
             "-o",
             "json",
         ]
@@ -396,6 +398,7 @@ def normalize_kubernetes(payload: dict[str, Any], *, namespace: str) -> dict[str
     deployments: list[dict[str, Any]] = []
     pods: list[dict[str, Any]] = []
     services: list[dict[str, Any]] = []
+    endpoints: list[dict[str, Any]] = []
     pvcs: list[dict[str, Any]] = []
     for item in items:
         kind = item.get("kind")
@@ -427,12 +430,21 @@ def normalize_kubernetes(payload: dict[str, Any], *, namespace: str) -> dict[str
             pods.append({"name": name, "phase": phase, "ready": ready})
         elif kind == "Service":
             services.append({"name": name, "type": item.get("spec", {}).get("type") or ""})
+        elif kind == "Endpoints":
+            subsets = item.get("subsets") if isinstance(item.get("subsets"), list) else []
+            address_count = sum(len(subset.get("addresses") or []) for subset in subsets if isinstance(subset, dict))
+            endpoints.append({"name": name, "address_count": address_count, "ready": address_count > 0})
         elif kind == "PersistentVolumeClaim":
             pvcs.append({"name": name, "phase": item.get("status", {}).get("phase") or ""})
-    missing = sorted(CONTROL_PLANE_NAMES - {item["name"] for item in deployments})
+    deployment_names = {item["name"] for item in deployments}
+    service_names = {item["name"] for item in services}
+    endpoint_names = {item["name"] for item in endpoints if item["ready"]}
+    missing = sorted(CONTROL_PLANE_DEPLOYMENTS - deployment_names)
+    missing_services = sorted(CONTROL_PLANE_SERVICES - service_names)
+    missing_endpoints = sorted(CONTROL_PLANE_SERVICES - endpoint_names)
     bad_deployments = [item for item in deployments if not item["ready"]]
     bad_pods = [item for item in pods if not item["ready"] and item["phase"] not in {"Succeeded", "Completed"}]
-    status = "healthy" if not missing and not bad_deployments and not bad_pods else "degraded"
+    status = "healthy" if not missing and not missing_services and not missing_endpoints and not bad_deployments and not bad_pods else "degraded"
     return ok_source(
         "kubernetes",
         status,
@@ -440,9 +452,42 @@ def normalize_kubernetes(payload: dict[str, Any], *, namespace: str) -> dict[str
         deployments=deployments,
         pods=pods,
         services=services,
+        endpoints=endpoints,
         pvcs=pvcs,
         missing_deployments=missing,
+        missing_services=missing_services,
+        missing_endpoints=missing_endpoints,
         degraded_pods=bad_pods,
+    )
+
+
+def web_app_status_from_kubernetes(kubernetes: dict[str, Any]) -> dict[str, Any]:
+    if not kubernetes.get("ok"):
+        return error_source(
+            "web_app",
+            str(kubernetes.get("error_kind") or "runtime"),
+            str(kubernetes.get("error") or "Kubernetes status unavailable"),
+        )
+    deployment = next((item for item in kubernetes.get("deployments", []) if item.get("name") == "scion-ops-web-app"), None)
+    service = next((item for item in kubernetes.get("services", []) if item.get("name") == "scion-ops-web-app"), None)
+    endpoint = next((item for item in kubernetes.get("endpoints", []) if item.get("name") == "scion-ops-web-app"), None)
+    missing: list[str] = []
+    if deployment is None:
+        missing.append("deployment")
+    elif not deployment.get("ready"):
+        missing.append("deployment_ready")
+    if service is None:
+        missing.append("service")
+    if endpoint is None or not endpoint.get("ready"):
+        missing.append("endpoint")
+    status = "healthy" if not missing else "degraded"
+    return ok_source(
+        "web_app",
+        status,
+        deployment=deployment or {},
+        service=service or {},
+        endpoint=endpoint or {},
+        missing=missing,
     )
 
 
@@ -635,7 +680,7 @@ def build_inbox(messages: list[dict[str, Any]], notifications: list[dict[str, An
 
 
 def readiness_status(sources: dict[str, dict[str, Any]]) -> str:
-    required = ["hub", "broker", "mcp", "kubernetes"]
+    required = ["hub", "broker", "mcp", "web_app", "kubernetes"]
     states = [sources.get(name, {}).get("status", "unavailable") for name in required]
     if all(state == "healthy" for state in states):
         return "ready"
@@ -651,6 +696,7 @@ def build_snapshot(provider: RuntimeProvider | Any) -> dict[str, Any]:
     notifications = normalize_notifications(provider.hub_notifications())
     mcp = provider.mcp_status()
     kubernetes = provider.kubernetes_status()
+    web_app = web_app_status_from_kubernetes(kubernetes)
     brokers = hub.get("brokers", []) if hub.get("ok") else []
     broker = ok_source("broker", "healthy" if brokers else "degraded", brokers=brokers, count=len(brokers))
     agents = hub.get("agents", []) if hub.get("ok") else []
@@ -659,7 +705,15 @@ def build_snapshot(provider: RuntimeProvider | Any) -> dict[str, Any]:
     rounds = build_rounds(agents, message_items, notification_items, provider=provider)
     latest = max([item.get("latest_update") or "" for item in rounds], default="")
     stale = source_stale(latest, parse_time(generated_at))
-    sources = {"hub": hub, "broker": broker, "mcp": mcp, "kubernetes": kubernetes, "messages": messages, "notifications": notifications}
+    sources = {
+        "hub": hub,
+        "broker": broker,
+        "mcp": mcp,
+        "web_app": web_app,
+        "kubernetes": kubernetes,
+        "messages": messages,
+        "notifications": notifications,
+    }
     status = readiness_status(sources)
     if stale and status == "ready":
         status = "degraded"
@@ -835,7 +889,7 @@ INDEX_HTML = r"""<!doctype html>
           <div class="card"><strong>${fmt(s.overview.latest_update)}</strong><div class="muted">Latest update</div></div>
         </div>
         <h2>Checks</h2>
-        <div class="grid">${["hub","broker","mcp","kubernetes"].map(name => `<div class="card"><div>${status(sources[name]?.status)}</div><strong>${esc(name)}</strong><div class="muted">${esc(sources[name]?.error || `${sources[name]?.count ?? ""} ${name === "broker" ? "brokers" : ""}`)}</div></div>`).join("")}</div>`;
+        <div class="grid">${["hub","broker","mcp","web_app","kubernetes"].map(name => `<div class="card"><div>${status(sources[name]?.status)}</div><strong>${esc(name)}</strong><div class="muted">${esc(sources[name]?.error || `${sources[name]?.count ?? ""} ${name === "broker" ? "brokers" : ""}`)}</div></div>`).join("")}</div>`;
     }
     function renderRounds() {
       const rows = state.snapshot.rounds;

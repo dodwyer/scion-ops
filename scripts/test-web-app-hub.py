@@ -133,8 +133,21 @@ def healthy_k8s():
             {"name": "scion-hub", "desired": 1, "available": 1, "ready": True},
             {"name": "scion-broker", "desired": 1, "available": 1, "ready": True},
             {"name": "scion-ops-mcp", "desired": 1, "available": 1, "ready": True},
+            {"name": "scion-ops-web-app", "desired": 1, "available": 1, "ready": True},
         ],
         "pods": [],
+        "services": [
+            {"name": "scion-hub", "type": "ClusterIP"},
+            {"name": "scion-broker", "type": "ClusterIP"},
+            {"name": "scion-ops-mcp", "type": "ClusterIP"},
+            {"name": "scion-ops-web-app", "type": "ClusterIP"},
+        ],
+        "endpoints": [
+            {"name": "scion-hub", "address_count": 1, "ready": True},
+            {"name": "scion-broker", "address_count": 1, "ready": True},
+            {"name": "scion-ops-mcp", "address_count": 1, "ready": True},
+            {"name": "scion-ops-web-app", "address_count": 1, "ready": True},
+        ],
     }
 
 
@@ -212,6 +225,53 @@ def test_kubernetes_normalization_reports_missing_control_plane():
     assert status["status"] == "degraded"
     assert "scion-broker" in status["missing_deployments"]
     assert "scion-ops-mcp" in status["missing_deployments"]
+    assert "scion-ops-web-app" in status["missing_deployments"]
+    assert "scion-ops-web-app" in status["missing_services"]
+    assert "scion-ops-web-app" in status["missing_endpoints"]
+
+
+def test_web_app_component_participates_in_readiness():
+    k8s = healthy_k8s()
+    k8s["deployments"] = [item for item in k8s["deployments"] if item["name"] != "scion-ops-web-app"]
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(k8s=k8s))
+    assert snapshot["readiness"] == "degraded"
+    assert snapshot["sources"]["web_app"]["status"] == "degraded"
+    assert "deployment" in snapshot["sources"]["web_app"]["missing"]
+
+
+def test_kubernetes_normalization_requires_web_app_service_and_endpoint():
+    payload = {
+        "items": [
+            {
+                "kind": "Deployment",
+                "metadata": {"name": name, "labels": {"app.kubernetes.io/part-of": "scion-control-plane"}},
+                "spec": {"replicas": 1},
+                "status": {"replicas": 1, "availableReplicas": 1},
+            }
+            for name in sorted(web_app_hub.CONTROL_PLANE_NAMES)
+        ]
+        + [
+            {
+                "kind": "Service",
+                "metadata": {"name": name, "labels": {"app.kubernetes.io/part-of": "scion-control-plane"}},
+                "spec": {"type": "ClusterIP"},
+            }
+            for name in sorted(web_app_hub.CONTROL_PLANE_NAMES - {"scion-ops-web-app"})
+        ]
+        + [
+            {
+                "kind": "Endpoints",
+                "metadata": {"name": name, "labels": {"app.kubernetes.io/part-of": "scion-control-plane"}},
+                "subsets": [{"addresses": [{"ip": "10.0.0.1"}]}],
+            }
+            for name in sorted(web_app_hub.CONTROL_PLANE_NAMES - {"scion-ops-web-app"})
+        ]
+    }
+    status = web_app_hub.normalize_kubernetes(payload, namespace="scion-agents")
+    assert status["status"] == "degraded"
+    assert status["missing_deployments"] == []
+    assert status["missing_services"] == ["scion-ops-web-app"]
+    assert status["missing_endpoints"] == ["scion-ops-web-app"]
 
 
 def test_structured_branch_fields_take_precedence_over_fallback_text_and_names():
