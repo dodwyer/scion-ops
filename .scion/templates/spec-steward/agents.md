@@ -23,11 +23,11 @@ Update `state.json` after every phase transition, child completion, validation
 run, blocker, and final decision. The state file is the source of truth for
 automation that watches or resumes the session.
 
-Use `python3 "$SCION_OPS_ROOT_FOR_VALIDATION/scripts/steward-state.py"` for the
-initial, ready, and blocked state writes. Set `SCION_OPS_ROOT_FOR_VALIDATION`
-from the `scion_ops_root` task prompt field. The helper writes the required
-schema; you may add extra facts afterward, but do not remove helper-written
-fields.
+Use the deterministic inline state commands rendered in the task prompt for the
+initial and final ready state writes. The product checkout path may not be
+mounted inside Hub-cloned agent workspaces, so do not depend on a helper script
+outside the current repository being present. You may add extra facts afterward,
+but do not remove fields written by the inline commands.
 
 The required shape is:
 

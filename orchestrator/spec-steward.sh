@@ -124,9 +124,44 @@ $GOAL
 required_first_actions:
 1. Before detailed repository inspection or any OpenSpec authoring, create
    $SESSION_STATE_ROOT/state.json on the steward branch by running this exact
-   helper command, then commit and push that state to $STEWARD_BRANCH:
+   inline command, then commit and push that state to $STEWARD_BRANCH:
 
-   python3 "$AGENT_SCION_OPS_ROOT/scripts/steward-state.py" spec-init --project-root "\$PWD" --session-id "$SESSION_ID" --change "$CHANGE" --base-branch "$BASE_BRANCH"
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+session_id = "$SESSION_ID"
+state_root = Path("$SESSION_STATE_ROOT")
+state = {
+    "version": 1,
+    "session_id": session_id,
+    "round_id": session_id,
+    "kind": "spec",
+    "change": "$CHANGE",
+    "base_branch": "$BASE_BRANCH",
+    "status": "running",
+    "phase": "clarifying",
+    "branches": {
+        "steward": "$STEWARD_BRANCH",
+        "clarifier": "$CLARIFIER_NAME",
+        "explorer": "$EXPLORER_NAME",
+        "author": "$AUTHOR_NAME",
+        "review": "$OPS_REVIEW_NAME",
+        "integration": "$FINAL_BRANCH",
+    },
+    "agents": {},
+    "review": {},
+    "validation": {"status": "pending"},
+    "blockers": [],
+    "next_actions": [
+        "Start spec-goal-clarifier and spec-repo-explorer agents",
+        "Create OpenSpec artifacts on the author branch",
+        "Validate and review the integration branch",
+    ],
+}
+state_root.mkdir(parents=True, exist_ok=True)
+(state_root / "state.json").write_text(json.dumps(state, indent=2) + "\n")
+PY
 
 2. Start both required discovery agents with these exact commands from the
    current Scion checkout:
@@ -184,6 +219,80 @@ review_branch: $FINAL_BRANCH
 expected_summary: verdict accept/reject/blocked, blocking issues, recommendations, and test gaps
 
 Review the OpenSpec artifacts on $FINAL_BRANCH. Do not review the author branch. Send a concise verdict summary to $COLLECTION_RECIPIENT."
+
+6. After the integration branch validates and the ops review verdict is
+   accepted, run this exact inline command on the steward branch before the
+   readiness validator. You may replace the review summary string with the
+   actual accepted review summary:
+
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+session_id = "$SESSION_ID"
+state_root = Path("$SESSION_STATE_ROOT")
+state = {
+    "version": 1,
+    "session_id": session_id,
+    "round_id": session_id,
+    "kind": "spec",
+    "change": "$CHANGE",
+    "base_branch": "$BASE_BRANCH",
+    "status": "ready",
+    "phase": "complete",
+    "branches": {
+        "steward": "$STEWARD_BRANCH",
+        "clarifier": "$CLARIFIER_NAME",
+        "explorer": "$EXPLORER_NAME",
+        "author": "$AUTHOR_NAME",
+        "review": "$OPS_REVIEW_NAME",
+        "integration": "$FINAL_BRANCH",
+    },
+    "agents": {
+        "clarifier": {
+            "name": "$CLARIFIER_NAME",
+            "branch": "$CLARIFIER_NAME",
+            "template": "spec-goal-clarifier",
+            "status": "completed",
+        },
+        "explorer": {
+            "name": "$EXPLORER_NAME",
+            "branch": "$EXPLORER_NAME",
+            "template": "spec-repo-explorer",
+            "status": "completed",
+        },
+        "author": {
+            "name": "$AUTHOR_NAME",
+            "branch": "$AUTHOR_NAME",
+            "template": "spec-author",
+            "status": "completed",
+        },
+        "ops_review": {
+            "name": "$OPS_REVIEW_NAME",
+            "branch": "$OPS_REVIEW_NAME",
+            "template": "spec-ops-reviewer",
+            "status": "completed",
+        },
+    },
+    "review": {
+        "verdict": "accept",
+        "agent": "$OPS_REVIEW_NAME",
+        "summary": "accepted by spec-ops-reviewer",
+    },
+    "validation": {
+        "status": "passed",
+        "command": "python3 scripts/validate-openspec-change.py --project-root . --change $CHANGE",
+        "integration_branch": "$FINAL_BRANCH",
+        "review_agent": "$OPS_REVIEW_NAME",
+    },
+    "blockers": [],
+    "next_actions": [
+        "Use $FINAL_BRANCH for OpenSpec review or implementation planning",
+    ],
+}
+state_root.mkdir(parents=True, exist_ok=True)
+(state_root / "state.json").write_text(json.dumps(state, indent=2) + "\n")
+PY
 
 Start the OpenSpec steward playbook. Coordinate specialist agents, keep durable
 state under $SESSION_STATE_ROOT, validate the resulting OpenSpec artifacts, and
