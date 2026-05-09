@@ -1147,7 +1147,7 @@ def _final_review_agents(agents: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _normalize_final_verdict(value: Any) -> str:
     verdict = str(value or "").strip().lower()
-    if verdict in {"accept", "accepted", "success", "pass", "passed"}:
+    if verdict in {"accept", "accepted", "approved", "success", "pass", "passed"}:
         return "accept"
     if verdict == "blocked":
         return "blocked"

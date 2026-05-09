@@ -12,3 +12,4 @@
 - [x] 1.7.1 Add tests proving structured branch fields take precedence over fallback text or agent-name-derived branch references.
 - [x] 1.7.2 Add tests proving final-review verdicts are exposed by the backend and visibly rendered by the frontend for accepted and changes-requested outcomes.
 - [x] 1.8 Verify the app through the repo's standard static checks and no-spend control-plane checks.
+- [x] 1.9 Normalize approved final-review verdicts to accepted MCP outcome state.
