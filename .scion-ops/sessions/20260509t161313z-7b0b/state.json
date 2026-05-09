@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "session_id": "20260509t161313z-7b0b",
+  "kind": "spec",
+  "change": "update-web-app",
+  "base_branch": "main",
+  "status": "completed",
+  "phase": "done",
+  "branches": {
+    "steward": "round-20260509t161313z-7b0b-spec-steward",
+    "integration": "round-20260509t161313z-7b0b-spec-integration"
+  },
+  "agents": {},
+  "validation": {
+    "ok": true,
+    "errors": [],
+    "required_files": ["proposal.md", "design.md", "tasks.md"],
+    "spec_files": ["openspec/changes/update-web-app/specs/web-app-deployment/spec.md"]
+  },
+  "blockers": [],
+  "next_actions": []
+}
