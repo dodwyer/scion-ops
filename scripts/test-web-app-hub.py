@@ -135,7 +135,12 @@ def healthy_k8s():
 
 
 def test_healthy_snapshot_is_ready():
-    snapshot = web_app_hub.build_snapshot(FixtureProvider())
+    original = web_app_hub.utc_now
+    try:
+        web_app_hub.utc_now = lambda: "2026-05-09T06:39:30+00:00"
+        snapshot = web_app_hub.build_snapshot(FixtureProvider())
+    finally:
+        web_app_hub.utc_now = original
     assert snapshot["readiness"] == "ready"
     assert snapshot["overview"]["active_round_count"] == 1
     assert snapshot["rounds"][0]["round_id"] == "20260509t063201z-6c02"
