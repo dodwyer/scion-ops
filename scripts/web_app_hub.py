@@ -40,6 +40,32 @@ import mcp_servers.scion_ops as scion_ops
 STALE_AFTER_SECONDS = 90
 ROUND_RE = re.compile(r"(?:round-)?(?P<id>\d{8}t\d{6}z-[a-z0-9]+)", re.IGNORECASE)
 CONTROL_PLANE_NAMES = {"scion-hub", "scion-broker", "scion-ops-mcp"}
+BROWSER_JSON_CONTRACT = {
+    "snapshot": {
+        "readiness": "ready|degraded|unavailable",
+        "sources": ["hub", "broker", "mcp", "kubernetes", "messages", "notifications"],
+        "rounds": "array of read-only round summaries",
+        "inbox": "messages and notifications grouped by round_id",
+    },
+    "round": {
+        "round_id": "MCP/Hub round id without the round- prefix",
+        "status": "derived from structured Hub/MCP state before fallback text",
+        "visible_status": "operator-facing status, preserving final-review blocked/change states",
+        "branches": "structured artifact/branch fields, with fallback text only when needed",
+        "mcp": {
+            "expected_branch": "scion_ops_run_spec_round expected_branch",
+            "pr_ready_branch": "scion_ops_run_spec_round pr_ready_branch",
+            "remote_branch_sha": "remote branch evidence from MCP/artifacts",
+            "branch_changed": "boolean or null when unknown",
+            "validation_status": "passed|failed|pending|skipped or empty",
+            "protocol": "spec-round milestone object",
+            "blockers": "structured blocker strings",
+            "warnings": "structured warning strings",
+            "terminal": "structured terminal status when present",
+        },
+        "final_review": "structured final-review verdict, normalized verdict, display label, source, and blockers",
+    },
+}
 BRANCH_FIELD_NAMES = {
     "branch",
     "targetbranch",
@@ -54,6 +80,26 @@ BRANCH_FIELD_NAMES = {
     "integration_branch",
     "finalbranch",
     "final_branch",
+}
+MCP_PROGRESS_KEYS = {
+    "expected_branch",
+    "pr_ready_branch",
+    "remote_branch_sha",
+    "base_branch_sha",
+    "branch_changed",
+    "validation_status",
+    "validation",
+    "protocol",
+    "blockers",
+    "warnings",
+    "terminal",
+    "status",
+    "health",
+    "summary",
+    "progress_lines",
+    "change",
+    "project_root",
+    "base_branch",
 }
 
 
@@ -117,6 +163,20 @@ def add_unique(values: list[str], value: Any) -> None:
         values.append(normalized)
 
 
+def as_string_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value if str(item or "").strip()]
+    if str(value or "").strip():
+        return [str(value)]
+    return []
+
+
+def merge_unique_strings(values: list[str], additions: Any) -> None:
+    for item in as_string_list(additions):
+        if item not in values:
+            values.append(item)
+
+
 def structured_branch_refs(item: Any) -> list[str]:
     branches: list[str] = []
 
@@ -135,6 +195,128 @@ def structured_branch_refs(item: Any) -> list[str]:
 
     visit(item)
     return branches
+
+
+def structured_mcp_progress(item: Any, *, source: str) -> dict[str, Any]:
+    if not isinstance(item, dict):
+        return {}
+    payload = parse_json_object(item.get("msg") or item.get("message") or item.get("summary"))
+    candidates = [item]
+    if payload:
+        candidates.insert(0, payload)
+    best: dict[str, Any] = {}
+    for data in candidates:
+        if not isinstance(data, dict):
+            continue
+        has_progress = any(key in data for key in MCP_PROGRESS_KEYS) or data.get("source") in {
+            "spec_round_runner",
+            "local_git",
+            "openspec_validator",
+        }
+        if not has_progress:
+            continue
+        progress = {
+            "source": source,
+            "time": event_time(item) if item is not data else str(data.get("created") or data.get("time") or ""),
+            "expected_branch": normalize_branch(data.get("expected_branch")),
+            "pr_ready_branch": normalize_branch(data.get("pr_ready_branch")),
+            "remote_branch_sha": str(data.get("remote_branch_sha") or ""),
+            "base_branch_sha": str(data.get("base_branch_sha") or ""),
+            "branch_changed": data.get("branch_changed") if isinstance(data.get("branch_changed"), bool) else None,
+            "validation_status": str(data.get("validation_status") or ""),
+            "validation": data.get("validation") if isinstance(data.get("validation"), dict) else {},
+            "protocol": data.get("protocol") if isinstance(data.get("protocol"), dict) else {},
+            "blockers": as_string_list(data.get("blockers")),
+            "warnings": as_string_list(data.get("warnings")),
+            "terminal": data.get("terminal") if isinstance(data.get("terminal"), dict) else {},
+            "status": str(data.get("status") or ""),
+            "health": str(data.get("health") or ""),
+            "summary": short_text(data.get("summary") or "", 260),
+            "progress_lines": as_string_list(data.get("progress_lines")),
+            "change": str(data.get("change") or ""),
+            "project_root": str(data.get("project_root") or ""),
+            "base_branch": normalize_branch(data.get("base_branch")),
+        }
+        artifacts = data.get("artifacts") if isinstance(data.get("artifacts"), dict) else {}
+        remote_branches = artifacts.get("remote_branches") if isinstance(artifacts.get("remote_branches"), list) else data.get("remote_branches")
+        if isinstance(remote_branches, list):
+            progress["remote_branches"] = [item for item in remote_branches if isinstance(item, dict)]
+        if artifacts:
+            progress["artifacts"] = artifacts
+        best = progress
+        break
+    return best
+
+
+def merge_mcp_progress(target: dict[str, Any], progress: dict[str, Any]) -> None:
+    if not progress:
+        return
+    defaults = {
+        "sources": [],
+        "expected_branch": "",
+        "pr_ready_branch": "",
+        "remote_branch_sha": "",
+        "base_branch_sha": "",
+        "branch_changed": None,
+        "validation_status": "",
+        "validation": {},
+        "protocol": {},
+        "blockers": [],
+        "warnings": [],
+        "terminal": {},
+        "status": "",
+        "health": "",
+        "summary": "",
+        "progress_lines": [],
+        "change": "",
+        "project_root": "",
+        "base_branch": "",
+        "remote_branches": [],
+        "artifacts": {},
+    }
+    existing = target.get("mcp")
+    if not isinstance(existing, dict):
+        existing = {}
+    if "sources" not in existing:
+        existing = {**defaults, **existing}
+        target["mcp"] = existing
+    source = str(progress.get("source") or "")
+    if source and source not in existing["sources"]:
+        existing["sources"].append(source)
+    for key in ("expected_branch", "pr_ready_branch", "remote_branch_sha", "base_branch_sha", "validation_status", "status", "health", "summary", "change", "project_root", "base_branch"):
+        if progress.get(key):
+            existing[key] = progress[key]
+    if progress.get("branch_changed") is not None:
+        existing["branch_changed"] = progress["branch_changed"]
+    for key in ("validation", "protocol", "terminal", "artifacts"):
+        if progress.get(key):
+            existing[key] = progress[key]
+    merge_unique_strings(existing["blockers"], progress.get("blockers"))
+    merge_unique_strings(existing["warnings"], progress.get("warnings"))
+    merge_unique_strings(existing["progress_lines"], progress.get("progress_lines"))
+    remote_branches = progress.get("remote_branches")
+    if isinstance(remote_branches, list):
+        seen = {(item.get("branch"), item.get("sha")) for item in existing["remote_branches"] if isinstance(item, dict)}
+        for item in remote_branches:
+            if not isinstance(item, dict):
+                continue
+            identity = (item.get("branch"), item.get("sha"))
+            if identity not in seen:
+                existing["remote_branches"].append(item)
+                seen.add(identity)
+
+
+def mcp_status_is_blocking(mcp: dict[str, Any]) -> bool:
+    text = " ".join(
+        [
+            str(mcp.get("status") or ""),
+            str(mcp.get("health") or ""),
+            str(mcp.get("validation_status") or ""),
+        ]
+    ).lower()
+    if mcp.get("blockers"):
+        return True
+    return any(token in text for token in ("blocked", "failed", "timed_out", "degraded"))
 
 
 def fallback_branch_refs(*values: Any) -> list[str]:
@@ -351,6 +533,15 @@ class RuntimeProvider:
     def round_events(self, round_id: str, cursor: str = "", include_existing: bool = False) -> dict[str, Any]:
         return scion_ops.scion_ops_round_events(round_id=round_id, cursor=cursor, include_existing=include_existing)
 
+    def round_artifacts(self, round_id: str) -> dict[str, Any]:
+        return scion_ops.scion_ops_round_artifacts(round_id=round_id)
+
+    def spec_status(self, project_root: str, change: str = "") -> dict[str, Any]:
+        return scion_ops.scion_ops_spec_status(project_root=project_root, change=change)
+
+    def validate_spec_change(self, project_root: str, change: str) -> dict[str, Any]:
+        return scion_ops.scion_ops_validate_spec_change(project_root=project_root, change=change)
+
     def mcp_status(self) -> dict[str, Any]:
         url = os.environ.get("SCION_OPS_MCP_URL", "http://192.168.122.103:8765/mcp")
         try:
@@ -503,6 +694,7 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
                 "phase": "unknown",
                 "outcome": "",
                 "final_review": {},
+                "mcp": {},
                 "_structured_branches": [],
                 "_fallback_branches": [],
             },
@@ -543,6 +735,7 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
                 add_unique(row["_structured_branches"], branch)
             for branch in structured_branch_refs(payload):
                 add_unique(row["_structured_branches"], branch)
+            merge_mcp_progress(row, structured_mcp_progress(item, source=collection_name[:-1]))
             for branch in fallback_branch_refs(item.get("msg"), item.get("message"), item.get("summary")):
                 add_unique(row["_fallback_branches"], branch)
             review = final_review_from_item(item, source=collection_name[:-1])
@@ -557,13 +750,29 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
         for round_id, row in grouped.items():
             try:
                 status_data = provider.round_status(round_id)
+                merge_mcp_progress(row, structured_mcp_progress(status_data, source="round_status"))
                 outcome = status_data.get("outcome") or {}
+                merge_mcp_progress(row, structured_mcp_progress(outcome, source="round_status.outcome"))
                 outcome_review = final_review_from_outcome(outcome)
                 if outcome_review:
                     existing_time = str(row.get("final_review", {}).get("time") or "")
                     outcome_time = str(outcome_review.get("time") or "")
                     if not row["final_review"] or outcome_time >= existing_time:
                         row["final_review"] = outcome_review
+            except Exception:
+                pass
+            try:
+                artifacts = provider.round_artifacts(round_id)
+                if isinstance(artifacts, dict):
+                    merge_mcp_progress(row, {
+                        "source": "round_artifacts",
+                        "artifacts": artifacts,
+                        "remote_branches": artifacts.get("remote_branches", []),
+                    })
+                    for branch in structured_branch_refs(artifacts):
+                        add_unique(row["_structured_branches"], branch)
+                    for branch in artifacts.get("branches", []) if isinstance(artifacts.get("branches"), list) else []:
+                        add_unique(row["_structured_branches"], branch)
             except Exception:
                 pass
 
@@ -577,6 +786,11 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
             row["status"] = "completed"
         elif not row["agents"] and (row["messages"] or row["notifications"]):
             row["status"] = "observed"
+        mcp = row.get("mcp") if isinstance(row.get("mcp"), dict) else {}
+        if mcp_status_is_blocking(mcp):
+            row["status"] = "blocked"
+        elif row["status"] in {"unknown", "observed"} and mcp.get("status") in {"completed", "running", "waiting", "starting", "observed"}:
+            row["status"] = str(mcp["status"])
         if row["final_review"]:
             if row["final_review"].get("status") == "blocked":
                 row["status"] = "blocked"
@@ -589,7 +803,12 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
         row["phase"] = Counter(phases).most_common(1)[0][0] if phases else row["phase"]
         summaries = [str(agent.get("taskSummary") or "") for agent in row["agents"] if agent.get("taskSummary")]
         terminal = next((summary for summary in summaries if "complete:" in summary.lower() or "blocked" in summary.lower()), "")
-        row["outcome"] = row["final_review"].get("summary") or short_text(terminal)
+        row["outcome"] = (
+            row["final_review"].get("summary")
+            or (row.get("mcp") or {}).get("summary")
+            or short_text("; ".join((row.get("mcp") or {}).get("blockers", [])), 260)
+            or short_text(terminal)
+        )
         if row["_structured_branches"]:
             row["branches"] = row["_structured_branches"]
             row["branch_source"] = "structured"
@@ -689,6 +908,8 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
     structured_branches: list[str] = []
     fallback_branches: list[str] = []
     final_reviews: list[dict[str, Any]] = []
+    mcp_holder: dict[str, Any] = {"mcp": {}}
+    merge_mcp_progress(mcp_holder, structured_mcp_progress(status, source="round_status"))
     detail_agents = status.get("agents", []) if isinstance(status.get("agents"), list) else []
     for agent in detail_agents:
         for branch in structured_branch_refs(agent):
@@ -696,12 +917,14 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
         for branch in fallback_branch_refs(agent.get("taskSummary")):
             add_unique(fallback_branches, branch)
     outcome = status.get("outcome") or events.get("outcome") or {}
+    merge_mcp_progress(mcp_holder, structured_mcp_progress(outcome, source="round_status.outcome"))
     for branch in structured_branch_refs(outcome):
         add_unique(structured_branches, branch)
     outcome_review = final_review_from_outcome(outcome)
     if outcome_review:
         final_reviews.append(outcome_review)
     if events.get("ok"):
+        merge_mcp_progress(mcp_holder, structured_mcp_progress(events, source="round_events"))
         for event in events.get("events", []):
             item = event.get("message") or event.get("notification") or event.get("agent") or {}
             payload = parse_json_object(item.get("msg") or item.get("message") or item.get("summary"))
@@ -709,6 +932,7 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
                 add_unique(structured_branches, branch)
             for branch in structured_branch_refs(payload):
                 add_unique(structured_branches, branch)
+            merge_mcp_progress(mcp_holder, structured_mcp_progress(item, source=str(event.get("type") or "event")))
             for branch in fallback_branch_refs(item.get("msg"), item.get("message"), item.get("summary"), item.get("taskSummary")):
                 add_unique(fallback_branches, branch)
             if event.get("message") or event.get("notification"):
@@ -721,11 +945,42 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
                 "summary": short_text(item.get("msg") or item.get("message") or item.get("summary") or item.get("taskSummary") or item.get("activity"), 360),
                 "raw": item,
             })
+    artifacts: dict[str, Any] = {}
+    try:
+        artifacts = provider.round_artifacts(round_id)
+    except Exception:
+        artifacts = {}
+    if isinstance(artifacts, dict) and artifacts:
+        merge_mcp_progress(mcp_holder, {
+            "source": "round_artifacts",
+            "artifacts": artifacts,
+            "remote_branches": artifacts.get("remote_branches", []),
+        })
+        for branch in structured_branch_refs(artifacts):
+            add_unique(structured_branches, branch)
+        for branch in artifacts.get("branches", []) if isinstance(artifacts.get("branches"), list) else []:
+            add_unique(structured_branches, branch)
+    mcp = mcp_holder["mcp"]
+    spec_status: dict[str, Any] = {}
+    if mcp.get("project_root") and mcp.get("change") and hasattr(provider, "spec_status"):
+        try:
+            spec_status = provider.spec_status(mcp["project_root"], mcp["change"])
+        except Exception:
+            spec_status = {}
+        if isinstance(spec_status, dict) and spec_status:
+            validation = spec_status.get("validation") if isinstance(spec_status.get("validation"), dict) else {}
+            if validation:
+                mcp["validation"] = validation
+                mcp["validation_status"] = "passed" if validation.get("ok") else "failed"
     transcript = status.get("consensus_transcript") if isinstance(status.get("consensus_transcript"), dict) else {}
     final_reviews.sort(key=lambda item: item.get("time") or "")
     branches = structured_branches if structured_branches else fallback_branches
     final_review = final_reviews[-1] if final_reviews else {}
     visible_status = str(final_review.get("display") or status.get("status") or "unknown")
+    if mcp_status_is_blocking(mcp):
+        visible_status = "blocked"
+    elif mcp.get("status") and visible_status == "unknown":
+        visible_status = str(mcp["status"])
     return {
         "ok": bool(status.get("ok")) or bool(events.get("ok")),
         "round_id": round_id,
@@ -739,6 +994,10 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
         "visible_status": visible_status,
         "branches": branches,
         "branch_source": "structured" if structured_branches else ("fallback" if branches else ""),
+        "mcp": mcp,
+        "artifacts": artifacts if isinstance(artifacts, dict) else {},
+        "spec_status": spec_status if isinstance(spec_status, dict) else {},
+        "cursor": events.get("cursor") or "",
     }
 
 
@@ -808,6 +1067,18 @@ INDEX_HTML = r"""<!doctype html>
       const cls = label.toLowerCase().replace(/[\s_]+/g, "-");
       return `<span class="status ${esc(cls)}"><span class="dot"></span>${esc(label)}</span>`;
     };
+    const field = (label, value) => value !== undefined && value !== null && String(value) !== "" ? `<div><strong>${esc(label)}</strong><div class="mono">${esc(value)}</div></div>` : "";
+    const listBlock = (label, values, kind = "") => values?.length ? `<h3>${esc(label)}</h3>${values.map(value => `<div class="${kind || "muted"}">${esc(value)}</div>`).join("")}` : "";
+    const mcpBlock = mcp => !mcp ? "" : `
+      <h3>MCP State</h3>
+      ${field("Expected branch", mcp.expected_branch)}
+      ${field("PR-ready branch", mcp.pr_ready_branch)}
+      ${field("Remote branch SHA", mcp.remote_branch_sha)}
+      ${field("Validation", mcp.validation_status)}
+      ${mcp.branch_changed !== null && mcp.branch_changed !== undefined ? field("Branch changed", mcp.branch_changed) : ""}
+      ${listBlock("Blockers", mcp.blockers, "error-box")}
+      ${listBlock("Warnings", mcp.warnings)}
+      ${mcp.protocol && Object.keys(mcp.protocol).length ? `<pre class="mono">${esc(JSON.stringify(mcp.protocol, null, 2))}</pre>` : ""}`;
     const fmt = value => value ? new Date(value).toLocaleString() : "unknown";
     async function getJson(url) {
       const response = await fetch(url, { cache: "no-store" });
@@ -840,8 +1111,8 @@ INDEX_HTML = r"""<!doctype html>
     function renderRounds() {
       const rows = state.snapshot.rounds;
       document.getElementById("rounds").innerHTML = rows.length ? `
-        <div class="table-wrap"><table><thead><tr><th>Round</th><th>Status</th><th>Phase</th><th>Agents</th><th>Latest update</th><th>Outcome</th><th>Branches</th></tr></thead><tbody>
-        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}</td><td>${esc(row.phase)}</td><td>${row.agent_count}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.outcome || "")}</td><td>${(row.branches || []).map(branch => `<div class="mono">${esc(branch)}</div>`).join("")}${row.branch_source ? `<div class="muted">${esc(row.branch_source)}</div>` : ""}</td></tr>`).join("")}
+        <div class="table-wrap"><table><thead><tr><th>Round</th><th>Status</th><th>Phase</th><th>Agents</th><th>Latest update</th><th>Outcome</th><th>Branches</th><th>MCP</th></tr></thead><tbody>
+        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}</td><td>${esc(row.phase)}</td><td>${row.agent_count}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.outcome || "")}${row.mcp?.blockers?.length ? `<div class="error-box">${esc(row.mcp.blockers.join("; "))}</div>` : ""}</td><td>${(row.branches || []).map(branch => `<div class="mono">${esc(branch)}</div>`).join("")}${row.branch_source ? `<div class="muted">${esc(row.branch_source)}</div>` : ""}</td><td>${field("Expected", row.mcp?.expected_branch)}${field("PR-ready", row.mcp?.pr_ready_branch)}${field("Validation", row.mcp?.validation_status)}${field("Remote SHA", row.mcp?.remote_branch_sha)}</td></tr>`).join("")}
         </tbody></table></div>` : `<div class="card"><strong>No rounds found</strong><div class="muted">Hub returned no round-identifiable agents, messages, or notifications.</div></div>`;
       document.querySelectorAll("[data-round]").forEach(row => row.onclick = () => openRound(row.dataset.round));
     }
@@ -856,7 +1127,7 @@ INDEX_HTML = r"""<!doctype html>
         <div class="bar"><button id="back-rounds">Back to rounds</button><button id="refresh-round">Refresh timeline</button></div>
         <div class="split">
           <div class="detail"><h2 class="mono">${esc(roundId)}</h2><div>${status(detail.visible_status || detail.status.status || "unknown")}</div><h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div></div>`).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
-          <div class="detail"><h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? agents.map(agent => `<div class="card"><strong>${esc(agent.name || agent.slug)}</strong><div>${status(agent.phase || "unknown")}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`).join("") : `<div class="muted">No agents found.</div>`}<h3>Runner Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No runner output available.")}</div>`}</div>
+          <div class="detail"><h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}${mcpBlock(detail.mcp)}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? agents.map(agent => `<div class="card"><strong>${esc(agent.name || agent.slug)}</strong><div>${status(agent.phase || "unknown")}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`).join("") : `<div class="muted">No agents found.</div>`}<h3>Runner Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No runner output available.")}</div>`}</div>
         </div>`;
       document.getElementById("back-rounds").onclick = () => setView("rounds");
       document.getElementById("refresh-round").onclick = () => openRound(roundId);
@@ -911,6 +1182,8 @@ class HubRequestHandler(BaseHTTPRequestHandler):
                 self.respond_html(INDEX_HTML)
             elif path == "/api/snapshot":
                 self.respond_json(build_snapshot(self.provider))
+            elif path == "/api/contract":
+                self.respond_json({"ok": True, "contract": BROWSER_JSON_CONTRACT})
             elif path == "/api/overview":
                 self.respond_json(build_snapshot(self.provider)["overview"])
             elif path == "/api/rounds":

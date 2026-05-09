@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 
@@ -22,7 +23,19 @@ SPEC.loader.exec_module(web_app_hub)
 
 
 class FixtureProvider:
-    def __init__(self, *, hub=None, messages=None, notifications=None, mcp=None, k8s=None, round_outcome=None, round_events=None) -> None:
+    def __init__(
+        self,
+        *,
+        hub=None,
+        messages=None,
+        notifications=None,
+        mcp=None,
+        k8s=None,
+        round_outcome=None,
+        round_events=None,
+        round_artifacts=None,
+        spec_status=None,
+    ) -> None:
         self._hub = hub if hub is not None else healthy_hub()
         self._messages = messages if messages is not None else healthy_messages()
         self._notifications = notifications if notifications is not None else healthy_notifications()
@@ -30,6 +43,8 @@ class FixtureProvider:
         self._k8s = k8s if k8s is not None else healthy_k8s()
         self._round_outcome = round_outcome if round_outcome is not None else {"status": "completed"}
         self._round_events = round_events
+        self._round_artifacts = round_artifacts if round_artifacts is not None else {}
+        self._spec_status = spec_status if spec_status is not None else {}
 
     def hub_status(self):
         return self._hub
@@ -60,6 +75,12 @@ class FixtureProvider:
                 {"type": "message", "message": {"createdAt": "2026-05-09T06:35:00+00:00", "msg": f"round {round_id} update"}}
             ],
         }
+
+    def round_artifacts(self, round_id):
+        return self._round_artifacts
+
+    def spec_status(self, project_root, change=""):
+        return self._spec_status
 
 
 def healthy_hub():
@@ -138,6 +159,18 @@ def healthy_k8s():
     }
 
 
+def healthy_round_artifacts():
+    return {
+        "source": "local_git",
+        "branches": ["round-20260509t063201z-6c02-impl-codex"],
+        "remote_branches": [
+            {"branch": "round-20260509t063201z-6c02-impl-codex", "sha": "abc123"},
+        ],
+        "workspaces": [],
+        "prompts": [],
+    }
+
+
 def test_healthy_snapshot_is_ready():
     original = web_app_hub.utc_now
     try:
@@ -149,6 +182,7 @@ def test_healthy_snapshot_is_ready():
     assert snapshot["overview"]["active_round_count"] == 1
     assert snapshot["rounds"][0]["round_id"] == "20260509t063201z-6c02"
     assert snapshot["inbox"][0]["round_id"] == "20260509t063201z-6c02"
+    assert "mcp" in web_app_hub.BROWSER_JSON_CONTRACT["round"]
 
 
 def test_empty_snapshot_distinguishes_no_rounds_from_source_failure():
@@ -340,6 +374,93 @@ def test_outcome_only_final_review_visible_in_rounds_list():
     row = snapshot["rounds"][0]
     assert row["final_review"]["normalized_verdict"] == "accept", "outcome-only final_review must be visible in rounds list"
     assert row["visible_status"] == "accepted"
+
+
+def test_spec_round_progress_fields_are_preserved_from_structured_payloads():
+    progress = {
+        "ok": False,
+        "source": "spec_round_runner",
+        "status": "blocked",
+        "health": "blocked",
+        "summary": "round 20260509t063201z-6c02 blocked agents=3 active=0 complete=3 unhealthy=0 validation=failed",
+        "project_root": "/workspace/example",
+        "change": "update-web-app",
+        "base_branch": "main",
+        "expected_branch": "round-20260509t063201z-6c02-spec-integration",
+        "pr_ready_branch": "",
+        "remote_branch_sha": "def456",
+        "base_branch_sha": "abc123",
+        "branch_changed": True,
+        "validation_status": "failed",
+        "validation": {"ok": False, "errors": [{"message": "missing scenario"}]},
+        "protocol": {"integration_branch_valid": False, "ops_review_complete": True, "finalizer_complete": False, "complete": False},
+        "blockers": ["OpenSpec validation failed on the remote branch"],
+        "warnings": ["integration branch validates; waiting for spec finalizer"],
+        "progress_lines": ["blocker OpenSpec validation failed on the remote branch"],
+    }
+    messages = {
+        "ok": True,
+        "items": [
+            {
+                "id": "spec-progress",
+                "sender": "round-20260509t063201z-6c02-consensus",
+                "msg": json.dumps(progress),
+                "createdAt": "2026-05-09T06:42:01+00:00",
+            }
+        ],
+    }
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(messages=messages, notifications={"ok": True, "items": []}))
+    row = snapshot["rounds"][0]
+    assert row["status"] == "blocked"
+    assert row["mcp"]["expected_branch"] == "round-20260509t063201z-6c02-spec-integration"
+    assert row["mcp"]["remote_branch_sha"] == "def456"
+    assert row["mcp"]["branch_changed"] is True
+    assert row["mcp"]["validation_status"] == "failed"
+    assert row["mcp"]["blockers"] == ["OpenSpec validation failed on the remote branch"]
+    assert "expected_branch" in web_app_hub.INDEX_HTML
+    assert "MCP State" in web_app_hub.INDEX_HTML
+
+
+def test_round_artifacts_remote_branches_are_exposed_in_row_and_detail():
+    artifacts = {
+        "source": "local_git",
+        "branches": ["round-20260509t063201z-6c02-impl-codex"],
+        "remote_branches": [
+            {"branch": "round-20260509t063201z-6c02-impl-codex", "sha": "abc123"},
+            {"branch": "round-20260509t063201z-6c02-spec-integration", "sha": "def456"},
+        ],
+        "workspaces": ["/tmp/workspace"],
+    }
+    provider = FixtureProvider(round_artifacts=artifacts)
+    snapshot = web_app_hub.build_snapshot(provider)
+    detail = web_app_hub.build_round_detail(provider, "20260509t063201z-6c02")
+    row = snapshot["rounds"][0]
+    assert "round-20260509t063201z-6c02-spec-integration" in row["branches"]
+    assert row["mcp"]["remote_branches"][1]["sha"] == "def456"
+    assert detail["artifacts"]["workspaces"] == ["/tmp/workspace"]
+    assert detail["mcp"]["remote_branches"][0]["branch"] == "round-20260509t063201z-6c02-impl-codex"
+
+
+def test_round_detail_loads_openspec_status_when_progress_identifies_change():
+    outcome = {
+        "source": "spec_round_runner",
+        "status": "running",
+        "project_root": "/workspace/example",
+        "change": "update-web-app",
+        "expected_branch": "round-20260509t063201z-6c02-spec-integration",
+        "validation_status": "pending",
+    }
+    spec_status = {
+        "ok": False,
+        "source": "local_git",
+        "change": "update-web-app",
+        "validation": {"ok": False, "errors": [{"message": "tasks incomplete"}]},
+    }
+    provider = FixtureProvider(round_outcome=outcome, spec_status=spec_status)
+    detail = web_app_hub.build_round_detail(provider, "20260509t063201z-6c02")
+    assert detail["mcp"]["validation_status"] == "failed"
+    assert detail["mcp"]["validation"]["errors"][0]["message"] == "tasks incomplete"
+    assert detail["spec_status"]["change"] == "update-web-app"
 
 
 if __name__ == "__main__":
