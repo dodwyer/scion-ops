@@ -483,7 +483,7 @@ def normalize_notifications(payload: dict[str, Any]) -> dict[str, Any]:
     return ok_source("notifications", "healthy", items=[item for item in payload.get("items", []) if isinstance(item, dict)])
 
 
-def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], notifications: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], notifications: list[dict[str, Any]], *, provider: Any = None) -> list[dict[str, Any]]:
     grouped: dict[str, dict[str, Any]] = {}
 
     def ensure(round_id: str) -> dict[str, Any]:
@@ -552,6 +552,20 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
             if timestamp > row["latest_update"]:
                 row["latest_update"] = timestamp
                 row["latest_summary"] = short_text(item.get("msg") or item.get("message") or item.get("summary"))
+
+    if provider is not None:
+        for round_id, row in grouped.items():
+            try:
+                status_data = provider.round_status(round_id)
+                outcome = status_data.get("outcome") or {}
+                outcome_review = final_review_from_outcome(outcome)
+                if outcome_review:
+                    existing_time = str(row.get("final_review", {}).get("time") or "")
+                    outcome_time = str(outcome_review.get("time") or "")
+                    if not row["final_review"] or outcome_time >= existing_time:
+                        row["final_review"] = outcome_review
+            except Exception:
+                pass
 
     for row in grouped.values():
         statuses = [agent_status(agent) for agent in row["agents"]]
@@ -642,7 +656,7 @@ def build_snapshot(provider: RuntimeProvider | Any) -> dict[str, Any]:
     agents = hub.get("agents", []) if hub.get("ok") else []
     message_items = messages.get("items", []) if messages.get("ok") else []
     notification_items = notifications.get("items", []) if notifications.get("ok") else []
-    rounds = build_rounds(agents, message_items, notification_items)
+    rounds = build_rounds(agents, message_items, notification_items, provider=provider)
     latest = max([item.get("latest_update") or "" for item in rounds], default="")
     stale = source_stale(latest, parse_time(generated_at))
     sources = {"hub": hub, "broker": broker, "mcp": mcp, "kubernetes": kubernetes, "messages": messages, "notifications": notifications}
