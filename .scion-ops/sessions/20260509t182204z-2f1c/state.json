@@ -1,0 +1,1 @@
+{"session_id":"20260509t182204z-2f1c","change":"update-web-app","base_branch":"main","status":"blocked","blocker":"Required helper command failed: python3 /workspace/github/livewyer-ops/scion-ops/scripts/steward-state.py spec-init could not open file because the script path does not exist."}
