@@ -18,7 +18,8 @@
     "clarifier": {
       "status": "completed",
       "id": "round-20260509t162103z-32b9-spec-clarifier",
-      "summary": "Change name: update-web-app. Scope: Kubernetes/kind deployment alignment for existing read-only web app hub. Deliverables: Deployment, Service/NodePort, RBAC/SA, env vars for in-cluster MCP/Hub access, kind port mapping/status output, readiness/smoke verification. Constraint: preserve read-only invariant. Author against current repo state (no build-web-app-hub archive prerequisite). Use MODIFIED/ADDED deltas under web-app-hub capability. Motivation: MCP service aligned to Scion steward flows; web UI must be deployable via standard kind/kustomize install aligned with MCP/steward changes."
+      "summary": "Change name: update-web-app. Scope: Kubernetes/kind deployment alignment for existing read-only web app hub. Deliverables: Deployment, Service/NodePort, RBAC/SA, env vars for in-cluster MCP/Hub access, kind port mapping/status output, readiness/smoke verification. Constraint: preserve read-only invariant. Author against current repo state (no build-web-app-hub archive prerequisite). Use MODIFIED/ADDED deltas under web-app-hub capability. Motivation: MCP service aligned to Scion steward flows; web UI must be deployable via standard kind/kustomize install aligned with MCP/steward changes.",
+      "note": "Agent reached LIMITS_EXCEEDED (max_duration 6m) at 2026-05-09T16:28:06Z. Non-blocking: full clarification was already received via orchestration message before limit was hit."
     },
     "explorer": {
       "status": "completed",
