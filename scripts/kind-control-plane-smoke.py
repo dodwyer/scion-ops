@@ -37,6 +37,7 @@ DEFAULT_HUB_ENDPOINT = os.environ.get(
     f"http://192.168.122.103:{DEFAULT_HUB_PORT}",
 )
 DEFAULT_MCP_URL = os.environ.get("SCION_OPS_MCP_URL", "http://192.168.122.103:8765/mcp")
+DEFAULT_WEB_APP_URL = os.environ.get("SCION_OPS_WEB_APP_URL", "http://192.168.122.103:8808")
 DEFAULT_GENERIC_CONFIG = ROOT / "deploy/kind/smoke/generic-smoke-agent.yaml"
 DEFAULT_GENERIC_PROMPT = "printf 'scion kind control-plane smoke\\n'; pwd; sleep 30"
 DEFAULT_TEMPLATE_PROMPT = "Smoke test: report the current working directory and stop."
@@ -447,6 +448,46 @@ def check_mcp_status(payload: dict[str, Any]) -> None:
     )
 
 
+def ensure_web_app(*, url: str, timeout_seconds: int) -> None:
+    overview_url = url.rstrip("/") + "/api/overview"
+    deadline = time.monotonic() + timeout_seconds
+    last_error: Exception | None = None
+    while time.monotonic() <= deadline:
+        try:
+            with urllib.request.urlopen(overview_url, timeout=2) as response:
+                if 200 <= response.status < 300:
+                    body = response.read(4096).decode(errors="replace")
+                    try:
+                        data = json.loads(body)
+                    except json.JSONDecodeError:
+                        data = {}
+                    log(f"kind web app is reachable at {url}")
+                    if data.get("ok") is False:
+                        raise SmokeFailure(
+                            "web_app",
+                            f"web app overview returned error: {data.get('error') or data}",
+                            hint="Check web app logs:\n  task kind:web-app:logs",
+                            output=json.dumps(data, indent=2),
+                        )
+                    return
+        except SmokeFailure:
+            raise
+        except Exception as exc:
+            last_error = exc
+        time.sleep(0.5)
+    raise SmokeFailure(
+        "web_app",
+        f"kind web app was not reachable at {url} within {timeout_seconds}s: {last_error}",
+        hint=(
+            "Check native kind port exposure and web app rollout:\n"
+            "  task kind:status\n"
+            "  task kind:web-app:status\n"
+            "  task kind:web-app:logs\n"
+            "If this is an old cluster, recreate it with task down and task up."
+        ),
+    )
+
+
 def pod_data(env: dict[str, str], context: str, namespace: str, agent: str) -> dict[str, Any]:
     result = run(
         [
@@ -590,6 +631,7 @@ def parser() -> argparse.ArgumentParser:
     parser.add_argument("--namespace", default=os.environ.get("SCION_K8S_NAMESPACE", "scion-agents"))
     parser.add_argument("--hub", default=os.environ.get("HUB_ENDPOINT", DEFAULT_HUB_ENDPOINT))
     parser.add_argument("--mcp-url", default=DEFAULT_MCP_URL)
+    parser.add_argument("--web-app-url", default=DEFAULT_WEB_APP_URL)
     parser.add_argument("--timeout", type=int, default=int(os.environ.get("SCION_KIND_CP_SMOKE_TIMEOUT", "90")))
     parser.add_argument("--startup-timeout", type=int, default=30)
     parser.add_argument(
@@ -621,6 +663,7 @@ def parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--skip-template-sync", action="store_false", dest="sync_template")
     parser.add_argument("--skip-mcp", action="store_true")
+    parser.add_argument("--skip-web-app", action="store_true")
     parser.add_argument(
         "--keep-agent",
         action="store_true",
@@ -695,6 +738,12 @@ async def smoke(args: argparse.Namespace) -> None:
                 )
                 check_mcp_status(hub_status)
 
+            if not args.skip_web_app:
+                ensure_web_app(
+                    url=args.web_app_url,
+                    timeout_seconds=args.startup_timeout,
+                )
+
             log(f"dispatch {agent} through kind Hub broker {args.broker}")
             start_args = [
                 scion_bin,
@@ -736,6 +785,7 @@ async def smoke(args: argparse.Namespace) -> None:
             print(f"  agent:      {agent}")
             print(f"  hub:        {args.hub}")
             print(f"  mcp:        {'skipped' if args.skip_mcp else args.mcp_url}")
+            print(f"  web_app:    {'skipped' if args.skip_web_app else args.web_app_url}")
             print(f"  broker:     {args.broker}")
             print(f"  config:     {args.template or generic_config}")
             print(f"  kind:       {context}/{args.namespace}")
