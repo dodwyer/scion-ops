@@ -5,7 +5,7 @@
   "change": "update-web-app",
   "base_branch": "main",
   "status": "running",
-  "phase": "clarifying",
+  "phase": "authoring",
   "branches": {
     "steward": "round-20260509t162103z-32b9-spec-steward",
     "clarifier": "round-20260509t162103z-32b9-spec-clarifier",
@@ -15,8 +15,16 @@
     "integration": "round-20260509t162103z-32b9-spec-integration"
   },
   "agents": {
-    "clarifier": {"status": "running", "id": "round-20260509t162103z-32b9-spec-clarifier", "summary": null},
-    "explorer": {"status": "running", "id": "round-20260509t162103z-32b9-spec-explorer", "summary": null},
+    "clarifier": {
+      "status": "completed",
+      "id": "round-20260509t162103z-32b9-spec-clarifier",
+      "summary": "Change name: update-web-app. Scope: Kubernetes/kind deployment alignment for existing read-only web app hub. Deliverables: Deployment, Service/NodePort, RBAC/SA, env vars for in-cluster MCP/Hub access, kind port mapping/status output, readiness/smoke verification. Constraint: preserve read-only invariant. Author against current repo state (no build-web-app-hub archive prerequisite). Use MODIFIED/ADDED deltas under web-app-hub capability. Motivation: MCP service aligned to Scion steward flows; web UI must be deployable via standard kind/kustomize install aligned with MCP/steward changes."
+    },
+    "explorer": {
+      "status": "completed",
+      "id": "round-20260509t162103z-32b9-spec-explorer",
+      "summary": "Explorer completed (containerStatus: Succeeded). Branch had no new commits; findings expected via message channel."
+    },
     "author": {"status": "pending", "id": null, "summary": null},
     "review": {"status": "pending", "id": null, "summary": null}
   },
@@ -26,10 +34,8 @@
   },
   "blockers": [],
   "next_actions": [
-    "start spec-goal-clarifier agent",
-    "start spec-repo-explorer agent",
-    "await both discovery summaries",
     "start spec-author agent",
+    "await author completion on round-20260509t162103z-32b9-spec-author",
     "merge author branch to integration branch",
     "start spec-ops-reviewer agent",
     "validate integration branch",
