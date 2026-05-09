@@ -112,7 +112,10 @@ Use these names:
 1. Initialize session state.
 2. Determine `change`. If no change is provided, derive a short kebab-case name
    from the goal and record the derivation in `brief.md`.
-3. Spawn `spec-goal-clarifier` and `spec-repo-explorer` in parallel. Require
+3. Spawn `spec-goal-clarifier` and `spec-repo-explorer` in parallel. This is a
+   hard gate: do not inspect product files in detail, write OpenSpec artifacts,
+   or move to authoring until both agents have been started or you have recorded
+   a precise blocker explaining why Scion could not start them. Require
    both to send concise Hub summaries to `collection_recipient`. Record both
    agent names, branches, and completion summaries in `state.json`.
 4. Spawn `spec-author` on its branch. The author creates or updates only:

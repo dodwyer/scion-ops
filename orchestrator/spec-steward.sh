@@ -86,6 +86,10 @@ fi
 
 STEWARD_NAME="round-${SESSION_ID}-spec-steward"
 STEWARD_BRANCH="$STEWARD_NAME"
+CLARIFIER_NAME="round-${SESSION_ID}-spec-clarifier"
+EXPLORER_NAME="round-${SESSION_ID}-spec-explorer"
+AUTHOR_NAME="round-${SESSION_ID}-spec-author"
+OPS_REVIEW_NAME="round-${SESSION_ID}-spec-ops-review"
 FINAL_BRANCH="round-${SESSION_ID}-spec-integration"
 SESSION_STATE_ROOT=".scion-ops/sessions/${SESSION_ID}"
 
@@ -116,6 +120,61 @@ final_branch: $FINAL_BRANCH
 
 original_goal:
 $GOAL
+
+required_first_actions:
+1. Before detailed repository inspection or any OpenSpec authoring, create
+   $SESSION_STATE_ROOT/state.json on the steward branch with status "running",
+   phase "clarifying", branches for steward/clarifier/explorer/author/review/
+   integration, validation.status "pending", blockers [], and next_actions.
+   Commit and push that state to $STEWARD_BRANCH.
+2. Start both required discovery agents with these exact commands from the
+   current Scion checkout:
+
+   scion --profile "$SCION_PROFILE" start "$CLARIFIER_NAME" --type spec-goal-clarifier --branch "$CLARIFIER_NAME" --broker "$BROKER" --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
+change: $CHANGE
+base_branch: $BASE_BRANCH
+collection_recipient: $COLLECTION_RECIPIENT
+expected_branch: $CLARIFIER_NAME
+artifact_boundary: no file changes; clarify scope only
+expected_summary: goal clarification, assumptions, unresolved questions, and recommended change name
+
+Clarify the requested OpenSpec change. Do not edit files. Send a concise completion summary to $COLLECTION_RECIPIENT."
+
+   scion --profile "$SCION_PROFILE" start "$EXPLORER_NAME" --type spec-repo-explorer --branch "$EXPLORER_NAME" --broker "$BROKER" --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
+change: $CHANGE
+base_branch: $BASE_BRANCH
+collection_recipient: $COLLECTION_RECIPIENT
+expected_branch: $EXPLORER_NAME
+artifact_boundary: no file changes; inspect repo only
+expected_summary: existing web app, Kubernetes deploy/kind/kustomize state, expected files to spec, and risks
+
+Explore the repository for this OpenSpec change. Do not edit files. Send a concise completion summary to $COLLECTION_RECIPIENT."
+
+3. If either command fails, update state as blocked and call
+   sciontool status task_completed with the blocker. Do not author the spec
+   yourself.
+4. Only after both discovery summaries are available, start the author with:
+
+   scion --profile "$SCION_PROFILE" start "$AUTHOR_NAME" --type spec-author --branch "$AUTHOR_NAME" --broker "$BROKER" --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
+change: $CHANGE
+base_branch: $BASE_BRANCH
+collection_recipient: $COLLECTION_RECIPIENT
+expected_branch: $AUTHOR_NAME
+artifact_boundary: openspec/changes/$CHANGE only
+expected_summary: files changed, requirements added/modified, validation notes
+
+Write only OpenSpec artifacts for $CHANGE. Use the clarifier and explorer summaries. Send a concise completion summary to $COLLECTION_RECIPIENT."
+
+5. Review only the integration branch with:
+
+   scion --profile "$SCION_PROFILE" start "$OPS_REVIEW_NAME" --type spec-ops-reviewer --branch "$OPS_REVIEW_NAME" --broker "$BROKER" --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
+change: $CHANGE
+base_branch: $BASE_BRANCH
+collection_recipient: $COLLECTION_RECIPIENT
+review_branch: $FINAL_BRANCH
+expected_summary: verdict accept/reject/blocked, blocking issues, recommendations, and test gaps
+
+Review the OpenSpec artifacts on $FINAL_BRANCH. Do not review the author branch. Send a concise verdict summary to $COLLECTION_RECIPIENT."
 
 Start the OpenSpec steward playbook. Coordinate specialist agents, keep durable
 state under $SESSION_STATE_ROOT, validate the resulting OpenSpec artifacts, and
