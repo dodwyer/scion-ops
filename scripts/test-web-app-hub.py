@@ -148,7 +148,18 @@ def healthy_k8s():
             {"name": "scion-ops-mcp", "desired": 1, "available": 1, "ready": True},
             {"name": "scion-ops-web-app", "desired": 1, "available": 1, "ready": True},
         ],
-        "pods": [],
+        "services": [
+            {"name": "scion-hub", "type": "ClusterIP"},
+            {"name": "scion-broker", "type": "ClusterIP"},
+            {"name": "scion-ops-mcp", "type": "ClusterIP"},
+            {"name": "scion-ops-web-app", "type": "NodePort"},
+        ],
+        "pods": [
+            {"name": "scion-ops-web-app-7c9d8f", "phase": "Running", "ready": True, "labels": {"app.kubernetes.io/name": "scion-ops-web-app"}},
+        ],
+        "endpoints": [
+            {"name": "scion-ops-web-app", "ready_addresses": 1, "not_ready_addresses": 0, "ready": True},
+        ],
     }
 
 
@@ -160,6 +171,8 @@ def test_healthy_snapshot_is_ready():
     finally:
         web_app_hub.utc_now = original
     assert snapshot["readiness"] == "ready"
+    assert snapshot["sources"]["web_app"]["status"] == "healthy"
+    assert snapshot["overview"]["dependencies"]["web_app"]["status"] == "healthy"
     assert snapshot["overview"]["active_round_count"] == 1
     assert snapshot["rounds"][0]["round_id"] == "20260509t063201z-6c02"
     assert snapshot["inbox"][0]["round_id"] == "20260509t063201z-6c02"
@@ -227,6 +240,66 @@ def test_kubernetes_normalization_reports_missing_control_plane():
     assert "scion-broker" in status["missing_deployments"]
     assert "scion-ops-mcp" in status["missing_deployments"]
     assert "scion-ops-web-app" in status["missing_deployments"]
+
+
+def k8s_payload_with_web_app(*, service=True, endpoint=True, ready_endpoint=True, pod=True, ready_pod=True):
+    items = [
+        {"kind": "Deployment", "metadata": {"name": name, "labels": {"app.kubernetes.io/part-of": "scion-control-plane"}}, "spec": {"replicas": 1}, "status": {"availableReplicas": 1}}
+        for name in ("scion-hub", "scion-broker", "scion-ops-mcp", "scion-ops-web-app")
+    ]
+    if service:
+        items.append({
+            "kind": "Service",
+            "metadata": {
+                "name": "scion-ops-web-app",
+                "labels": {"app.kubernetes.io/name": "scion-ops-web-app", "app.kubernetes.io/part-of": "scion-control-plane"},
+            },
+            "spec": {"type": "NodePort"},
+        })
+    if endpoint:
+        subset = {"addresses" if ready_endpoint else "notReadyAddresses": [{"ip": "10.244.0.12"}]}
+        items.append({
+            "kind": "Endpoints",
+            "metadata": {"name": "scion-ops-web-app", "labels": {"app.kubernetes.io/part-of": "scion-control-plane"}},
+            "subsets": [subset],
+        })
+    if pod:
+        items.append({
+            "kind": "Pod",
+            "metadata": {
+                "name": "scion-ops-web-app-7c9d8f",
+                "labels": {"app.kubernetes.io/name": "scion-ops-web-app", "app.kubernetes.io/part-of": "scion-control-plane"},
+            },
+            "status": {"phase": "Running", "conditions": [{"type": "Ready", "status": "True" if ready_pod else "False"}]},
+        })
+    return {"items": items}
+
+
+def test_missing_web_app_service_and_endpoint_degrade_separate_dependency():
+    k8s = web_app_hub.normalize_kubernetes(k8s_payload_with_web_app(service=False, endpoint=False), namespace="scion-agents")
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(k8s=k8s))
+    assert snapshot["sources"]["kubernetes"]["status"] == "healthy"
+    assert snapshot["sources"]["web_app"]["status"] == "degraded"
+    assert snapshot["readiness"] == "degraded"
+    assert "scion-ops-web-app Service is missing" in snapshot["sources"]["web_app"]["issues"]
+    assert "scion-ops-web-app endpoint is missing" in snapshot["sources"]["web_app"]["issues"]
+
+
+def test_unready_web_app_pod_and_endpoint_degrade_readiness():
+    k8s = web_app_hub.normalize_kubernetes(k8s_payload_with_web_app(ready_endpoint=False, ready_pod=False), namespace="scion-agents")
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(k8s=k8s))
+    assert snapshot["sources"]["web_app"]["status"] == "degraded"
+    assert snapshot["readiness"] == "degraded"
+    assert "scion-ops-web-app pod is unavailable" in snapshot["sources"]["web_app"]["issues"]
+    assert "scion-ops-web-app endpoint has no ready addresses" in snapshot["sources"]["web_app"]["issues"]
+
+
+def test_overview_and_runtime_expose_web_app_as_separate_health_source():
+    snapshot = web_app_hub.build_snapshot(FixtureProvider())
+    runtime = {"sources": snapshot["sources"]}
+    assert "web_app" in snapshot["overview"]["dependencies"]
+    assert "web_app" in runtime["sources"]
+    assert runtime["sources"]["web_app"]["deployment"]["name"] == "scion-ops-web-app"
 
 
 def test_structured_branch_fields_take_precedence_over_fallback_text_and_names():

@@ -11,3 +11,8 @@
 - [x] 3.1 Run OpenSpec validation for this change.
 - [x] 3.2 Run repo static checks and web app fixture tests after implementation.
 - [x] 3.3 Render or apply the kind kustomization to verify the web app Deployment and Service are included.
+
+Final-review repair:
+
+- [x] Expose web app health as a separate overview/runtime dependency derived from the Kubernetes Deployment, Service, pod, and Endpoints state.
+- [x] Add focused fixtures for missing web app Service/endpoint and degraded pod/endpoint readiness.
