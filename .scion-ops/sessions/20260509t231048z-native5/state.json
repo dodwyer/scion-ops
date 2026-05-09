@@ -6,7 +6,7 @@
   "change": "update-web-app",
   "base_branch": "round-20260509t185251z-1cfe-spec-integration",
   "status": "running",
-  "phase": "starting",
+  "phase": "implementers_running",
   "branches": {
     "steward": "round-20260509t231048z-native5-implementation-steward",
     "implementer": "round-20260509t231048z-native5-impl-codex",
@@ -14,7 +14,20 @@
     "final_review": "round-20260509t231048z-native5-final-review",
     "integration": "round-20260509t231048z-native5-integration"
   },
-  "agents": {},
+  "agents": {
+    "round-20260509t231048z-native5-impl-codex": {
+      "branch": "round-20260509t231048z-native5-impl-codex",
+      "status": "running",
+      "scope": "MCP-aligned read-only web app backend, UI contract, and fixture tests",
+      "started": "2026-05-09T23:10:48Z"
+    },
+    "round-20260509t231048z-native5-impl-claude": {
+      "branch": "round-20260509t231048z-native5-impl-claude",
+      "status": "running",
+      "scope": "kind/kustomize install, lifecycle tasks, no-spend smoke, and docs",
+      "started": "2026-05-09T23:10:48Z"
+    }
+  },
   "implementation": {
     "branch": "",
     "base_branch": "round-20260509t185251z-1cfe-spec-integration",
