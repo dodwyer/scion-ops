@@ -26,6 +26,12 @@
       "status": "running",
       "scope": "kind/kustomize install, lifecycle tasks, no-spend smoke, and docs",
       "started": "2026-05-09T23:10:48Z"
+    },
+    "round-20260509t231048z-native5-impl-web-readiness-repair": {
+      "branch": "round-20260509t231048z-native5-impl-web-readiness-repair",
+      "status": "running",
+      "scope": "narrow repair for web app Kubernetes/control-plane readiness semantics",
+      "started": "2026-05-09T23:25:00Z"
     }
   },
   "implementation": {
