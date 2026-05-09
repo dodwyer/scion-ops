@@ -26,6 +26,8 @@ The implementation should reuse existing operational sources:
 
 The app must not persist a competing copy of round state. Any local cache should be short-lived and clearly treated as a transport or rendering optimization.
 
+Structured Hub, MCP, or normalized round fields are authoritative over text-derived values. In particular, branch references exposed as fields on agents, review payloads, outcome payloads, integration results, or normalized MCP round snapshots must be used before parsing message bodies, task summaries, agent names, or slugs. Text parsing is only a fallback for older payloads that do not expose structured branch fields.
+
 ## Backend Shape
 
 A small server-side adapter may be added during implementation to present browser-friendly JSON endpoints. That adapter should:
@@ -33,6 +35,7 @@ A small server-side adapter may be added during implementation to present browse
 - Resolve the active project/grove using the same configuration precedence as existing scion-ops tools.
 - Normalize Hub, MCP, and Kubernetes failures into actionable categories such as `hub_auth`, `hub_state`, `broker_dispatch`, `runtime`, and `local_git_state` when those categories are available.
 - Return timestamps, status strings, and identifiers without requiring the frontend to parse terminal text.
+- Return final-review verdicts and branch references as explicit JSON fields so the frontend does not need to infer them from prose.
 - Support polling or cursor-based incremental updates for round timelines.
 
 ## Frontend Behavior
@@ -41,6 +44,8 @@ The interface should prioritize scanning:
 
 - Status indicators should be consistent across overview, rounds, and runtime views.
 - Round rows should distinguish running, waiting, blocked, completed, and unknown states.
+- Final-review verdicts such as accept, approved, request_changes, changes_requested, revise, or blocked should be visible in round rows or detail status when present, and should not be hidden behind a generic completed label.
+- Round detail should identify branch references from structured backing fields before displaying any fallback-derived references.
 - Time-sensitive data should show last refresh time and stale-state warnings.
 - Empty states should identify whether there are no rounds, no messages, or a failed data source.
 - Error states should preserve partial data where possible so one failed check does not blank the whole app.
@@ -58,6 +63,8 @@ Implementation should include focused verification that:
 
 - Required views render with representative healthy, empty, and degraded data.
 - Backend adapter responses preserve source identifiers and error categories.
+- Branch-reference tests cover structured branch fields and prove they take precedence over text, task summary, agent name, and slug fallbacks.
+- Final-review tests cover backend outcome mapping and frontend-visible rendering for both accepted and changes-requested verdicts.
 - Round timeline updates can be refreshed without page reload.
 - Kubernetes/Hub unavailable states are visible to the operator.
 - The app does not invoke round-starting or state-changing commands during normal read-only use.
