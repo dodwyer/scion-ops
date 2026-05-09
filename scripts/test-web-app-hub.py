@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 
@@ -22,7 +23,7 @@ SPEC.loader.exec_module(web_app_hub)
 
 
 class FixtureProvider:
-    def __init__(self, *, hub=None, messages=None, notifications=None, mcp=None, k8s=None, round_outcome=None, round_events=None) -> None:
+    def __init__(self, *, hub=None, messages=None, notifications=None, mcp=None, k8s=None, round_outcome=None, round_events=None, artifacts=None, spec_status=None, validation=None) -> None:
         self._hub = hub if hub is not None else healthy_hub()
         self._messages = messages if messages is not None else healthy_messages()
         self._notifications = notifications if notifications is not None else healthy_notifications()
@@ -30,6 +31,9 @@ class FixtureProvider:
         self._k8s = k8s if k8s is not None else healthy_k8s()
         self._round_outcome = round_outcome if round_outcome is not None else {"status": "completed"}
         self._round_events = round_events
+        self._artifacts = artifacts if artifacts is not None else {}
+        self._spec_status = spec_status if spec_status is not None else {}
+        self._validation = validation if validation is not None else {}
 
     def hub_status(self):
         return self._hub
@@ -60,6 +64,15 @@ class FixtureProvider:
                 {"type": "message", "message": {"createdAt": "2026-05-09T06:35:00+00:00", "msg": f"round {round_id} update"}}
             ],
         }
+
+    def round_artifacts(self, round_id, project_root=""):
+        return self._artifacts
+
+    def spec_status(self, project_root, change=""):
+        return self._spec_status
+
+    def validate_spec_change(self, project_root, change):
+        return self._validation
 
 
 def healthy_hub():
@@ -133,6 +146,7 @@ def healthy_k8s():
             {"name": "scion-hub", "desired": 1, "available": 1, "ready": True},
             {"name": "scion-broker", "desired": 1, "available": 1, "ready": True},
             {"name": "scion-ops-mcp", "desired": 1, "available": 1, "ready": True},
+            {"name": "scion-ops-web-app", "desired": 1, "available": 1, "ready": True},
         ],
         "pods": [],
     }
@@ -212,6 +226,7 @@ def test_kubernetes_normalization_reports_missing_control_plane():
     assert status["status"] == "degraded"
     assert "scion-broker" in status["missing_deployments"]
     assert "scion-ops-mcp" in status["missing_deployments"]
+    assert "scion-ops-web-app" in status["missing_deployments"]
 
 
 def test_structured_branch_fields_take_precedence_over_fallback_text_and_names():
@@ -340,6 +355,170 @@ def test_outcome_only_final_review_visible_in_rounds_list():
     row = snapshot["rounds"][0]
     assert row["final_review"]["normalized_verdict"] == "accept", "outcome-only final_review must be visible in rounds list"
     assert row["visible_status"] == "accepted"
+
+
+def spec_round_payload(**overrides):
+    payload = {
+        "ok": False,
+        "done": True,
+        "status": "blocked",
+        "health": "blocked",
+        "summary": "round 20260509t063201z-6c02 blocked validation=failed",
+        "source": "spec_round_runner",
+        "project_root": "/workspace",
+        "round_id": "20260509t063201z-6c02",
+        "change": "update-web-app",
+        "base_branch": "main",
+        "expected_branch": "round-20260509t063201z-6c02-spec-integration",
+        "pr_ready_branch": "",
+        "remote_branch_sha": "1111222233334444555566667777888899990000",
+        "base_branch_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "branch_changed": False,
+        "validation_status": "failed",
+        "validation": {
+            "ok": False,
+            "validator": "openspec_cli",
+            "errors": [{"message": "Requirement missing scenario"}],
+        },
+        "protocol": {
+            "integration_branch_valid": False,
+            "ops_review_agent_count": 1,
+            "ops_review_complete": True,
+            "finalizer_agent_count": 0,
+            "finalizer_complete": False,
+            "complete": False,
+        },
+        "blockers": ["expected branch did not move from base SHA"],
+        "warnings": ["OpenSpec validation is currently failing on the remote branch"],
+        "progress_lines": ["round 20260509t063201z-6c02 blocked validation=failed"],
+        "cursor": "cursor-spec-1",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def artifact_payload():
+    return {
+        "source": "local_git",
+        "project_root": "/workspace",
+        "branches": ["round-20260509t063201z-6c02-spec-integration"],
+        "remote_branches": [
+            {
+                "branch": "round-20260509t063201z-6c02-spec-integration",
+                "sha": "1111222233334444555566667777888899990000",
+            }
+        ],
+        "workspaces": ["/workspace/.scion/agents/round/workspace"],
+        "prompts": [],
+    }
+
+
+def spec_status_payload():
+    return {
+        "ok": False,
+        "source": "local_git",
+        "project_root": "/workspace",
+        "change": "update-web-app",
+        "validation": {
+            "ok": False,
+            "validator": "openspec_cli",
+            "errors": ["OpenSpec validation failed"],
+        },
+        "validation_result": {"ok": False, "error_kind": "openspec_validation"},
+        "openspec_status": {"ok": False},
+    }
+
+
+def test_current_run_spec_round_fields_are_preserved_in_rounds_detail_and_inbox():
+    payload = spec_round_payload()
+    messages = {
+        "ok": True,
+        "items": [
+            {
+                "id": "spec-progress",
+                "sender": "round-20260509t063201z-6c02-consensus",
+                "msg": json.dumps(payload),
+                "createdAt": "2026-05-09T06:42:01+00:00",
+            }
+        ],
+    }
+    provider = FixtureProvider(
+        messages=messages,
+        notifications={"ok": True, "items": []},
+        round_events={
+            "ok": True,
+            "round_id": "20260509t063201z-6c02",
+            "cursor": "cursor-events-2",
+            "progress_lines": payload["progress_lines"],
+            "events": [{"type": "message", "message": messages["items"][0]}],
+            "outcome": {},
+        },
+    )
+    snapshot = web_app_hub.build_snapshot(provider)
+    row = snapshot["rounds"][0]
+    assert row["status"] == "blocked"
+    assert row["spec_round"]["expected_branch"] == "round-20260509t063201z-6c02-spec-integration"
+    assert row["spec_round"]["validation_status"] == "failed"
+    assert row["spec_round"]["branch_changed"] is False
+    assert row["spec_round"]["blockers"] == ["expected branch did not move from base SHA"]
+    assert snapshot["inbox"][0]["items"][0]["spec_round"]["warnings"]
+    detail = web_app_hub.build_round_detail(provider, "20260509t063201z-6c02")
+    assert detail["event_cursor"] == "cursor-events-2"
+    assert detail["spec_round"]["protocol"]["complete"] is False
+
+
+def test_round_artifacts_and_spec_status_shapes_are_exposed():
+    payload = spec_round_payload(status="completed", ok=True, done=True, validation_status="passed", blockers=[], warnings=[], branch_changed=True, pr_ready_branch="round-20260509t063201z-6c02-spec-integration")
+    messages = {
+        "ok": True,
+        "items": [
+            {
+                "id": "spec-complete",
+                "sender": "round-20260509t063201z-6c02-consensus",
+                "msg": json.dumps(payload),
+                "createdAt": "2026-05-09T06:42:01+00:00",
+            }
+        ],
+    }
+    provider = FixtureProvider(
+        messages=messages,
+        notifications={"ok": True, "items": []},
+        artifacts=artifact_payload(),
+        spec_status=spec_status_payload(),
+    )
+    snapshot = web_app_hub.build_snapshot(provider)
+    row = snapshot["rounds"][0]
+    assert row["artifacts"]["remote_branches"][0]["sha"] == "1111222233334444555566667777888899990000"
+    assert row["validation"]["status"] == "failed"
+    assert row["spec_round"]["validation"]["errors"] == ["OpenSpec validation failed"]
+    assert "round-20260509t063201z-6c02-spec-integration" in row["branches"]
+
+
+def test_blocked_final_review_structured_payload_preserves_issues():
+    notifications = {
+        "ok": True,
+        "items": [
+            {
+                "id": "final-structured-blocked",
+                "agentId": "round-20260509t063201z-6c02-final-review",
+                "summary": json.dumps({
+                    "final_review": {
+                        "source": "final_review_message",
+                        "verdict": "blocked",
+                        "normalized_verdict": "blocked",
+                        "source_summary": "blocked by missing fixture coverage",
+                        "blocking_issues": ["fixture coverage missing"],
+                    }
+                }),
+                "createdAt": "2026-05-09T06:43:01+00:00",
+            }
+        ],
+    }
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(notifications=notifications))
+    row = snapshot["rounds"][0]
+    assert row["status"] == "blocked"
+    assert row["final_review"]["summary"] == "blocked by missing fixture coverage"
+    assert row["final_review"]["blocking_issues"] == ["fixture coverage missing"]
 
 
 if __name__ == "__main__":
