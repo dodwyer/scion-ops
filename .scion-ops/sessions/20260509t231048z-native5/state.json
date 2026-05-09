@@ -5,8 +5,8 @@
   "kind": "implementation",
   "change": "update-web-app",
   "base_branch": "round-20260509t185251z-1cfe-spec-integration",
-  "status": "running",
-  "phase": "final_review_repair",
+  "status": "ready",
+  "phase": "accepted",
   "branches": {
     "steward": "round-20260509t231048z-native5-implementation-steward",
     "implementer": "round-20260509t231048z-native5-impl-codex",
@@ -54,12 +54,15 @@
   "final_review": {
     "branch": "round-20260509t231048z-native5-final-review-r2",
     "review_branch": "round-20260509t231048z-native5-integration",
-    "status": "running",
+    "status": "accepted",
     "started": "2026-05-09T23:30:00Z",
     "verdict_file": ".scion-ops/sessions/20260509t231048z-native5/reviews/final-review.json",
     "previous_branch": "round-20260509t231048z-native5-final-review",
     "previous_verdict": "request_changes",
-    "repair_branch": "round-20260509t231048z-native5-impl-rbac-repair"
+    "repair_branch": "round-20260509t231048z-native5-impl-rbac-repair",
+    "verdict": "accept",
+    "head": "0a7a6184b94740379a8d76e3cdb5bcaefd4b3ae6",
+    "blocking_issues": []
   },
   "verification": {
     "status": "passed",
