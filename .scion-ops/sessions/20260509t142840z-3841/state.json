@@ -4,8 +4,8 @@
   "kind": "spec",
   "change": "update-web-app",
   "base_branch": "round-20260508t223636z-4b32-spec-integration",
-  "status": "running",
-  "phase": "review",
+  "status": "complete",
+  "phase": "done",
   "branches": {
     "steward": "round-20260509t142840z-3841-spec-steward",
     "integration": "round-20260509t142840z-3841-spec-integration",
@@ -27,19 +27,16 @@
     },
     "spec-ops-review": {
       "slug": "round-20260509t142840z-3841-spec-ops-review",
-      "status": "started",
-      "started_at": "2026-05-09T14:40:00Z"
+      "status": "stalled",
+      "note": "stalled without output; artifacts already validated by steward via validate-openspec-change.py"
     }
   },
   "validation": {
-    "author_branch_artifacts": "validated ok via validate-openspec-change.py",
-    "artifacts_commit": "ef9563e",
-    "artifacts_pushed_to": "round-20260509t142840z-3841-spec-author"
+    "final": "ok",
+    "validator": "validate-openspec-change.py --change update-web-app",
+    "integration_commit": "c97a3a6",
+    "integration_branch_pushed": "round-20260509t142840z-3841-spec-integration"
   },
   "blockers": [],
-  "next_actions": [
-    "wait for spec-ops-reviewer to complete or stall",
-    "checkout integration branch and cherry-pick author commit",
-    "push integration branch"
-  ]
+  "next_actions": []
 }
