@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 
@@ -133,6 +134,7 @@ def healthy_k8s():
             {"name": "scion-hub", "desired": 1, "available": 1, "ready": True},
             {"name": "scion-broker", "desired": 1, "available": 1, "ready": True},
             {"name": "scion-ops-mcp", "desired": 1, "available": 1, "ready": True},
+            {"name": "scion-ops-web-app", "desired": 1, "available": 1, "ready": True},
         ],
         "pods": [],
     }
@@ -212,6 +214,7 @@ def test_kubernetes_normalization_reports_missing_control_plane():
     assert status["status"] == "degraded"
     assert "scion-broker" in status["missing_deployments"]
     assert "scion-ops-mcp" in status["missing_deployments"]
+    assert "scion-ops-web-app" in status["missing_deployments"]
 
 
 def test_structured_branch_fields_take_precedence_over_fallback_text_and_names():
@@ -340,6 +343,199 @@ def test_outcome_only_final_review_visible_in_rounds_list():
     row = snapshot["rounds"][0]
     assert row["final_review"]["normalized_verdict"] == "accept", "outcome-only final_review must be visible in rounds list"
     assert row["visible_status"] == "accepted"
+
+
+def test_spec_round_progress_fields_extracted_from_message():
+    """scion_ops_run_spec_round progress payload in a message must populate spec-round fields."""
+    notifications = {
+        "ok": True,
+        "items": [
+            {
+                "id": "spec-progress-1",
+                "agentId": "round-20260509t063201z-6c02-spec-runner",
+                "summary": json.dumps({
+                    "source": "spec_round_runner",
+                    "round_id": "20260509t063201z-6c02",
+                    "status": "running",
+                    "expected_branch": "round-20260509t063201z-6c02-impl-claude",
+                    "pr_ready_branch": "",
+                    "validation_status": "passed",
+                    "branch_changed": True,
+                    "blockers": [],
+                    "warnings": ["integration branch validates; waiting for spec finalizer"],
+                    "protocol": {
+                        "integration_branch_valid": True,
+                        "ops_review_complete": True,
+                        "finalizer_complete": False,
+                        "complete": False,
+                    },
+                }),
+                "createdAt": "2026-05-09T07:00:00+00:00",
+            }
+        ],
+    }
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(notifications=notifications))
+    row = snapshot["rounds"][0]
+    assert row["spec_round"] is True
+    assert row["validation_status"] == "passed"
+    assert row["expected_branch"] == "round-20260509t063201z-6c02-impl-claude"
+    assert row["pr_ready_branch"] == ""
+    assert row["warnings"] == ["integration branch validates; waiting for spec finalizer"]
+    assert row["blockers"] == []
+    assert row["protocol"]["integration_branch_valid"] is True
+    assert row["protocol"]["finalizer_complete"] is False
+
+
+def test_spec_round_blockers_set_round_status_to_blocked():
+    """A spec-round progress message with non-empty blockers must mark the round blocked."""
+    notifications = {
+        "ok": True,
+        "items": [
+            {
+                "id": "spec-blocked",
+                "agentId": "round-20260509t063201z-6c02-spec-runner",
+                "summary": json.dumps({
+                    "source": "spec_round_runner",
+                    "status": "blocked",
+                    "expected_branch": "round-20260509t063201z-6c02-impl-claude",
+                    "validation_status": "failed",
+                    "blockers": ["OpenSpec validation failed on the remote branch"],
+                    "warnings": [],
+                }),
+                "createdAt": "2026-05-09T07:05:00+00:00",
+            }
+        ],
+    }
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(notifications=notifications))
+    row = snapshot["rounds"][0]
+    assert row["spec_round"] is True
+    assert row["validation_status"] == "failed"
+    assert "OpenSpec validation failed on the remote branch" in row["blockers"]
+    assert row["status"] == "blocked"
+    assert row["visible_status"] == "blocked"
+
+
+def test_spec_round_structured_fields_take_precedence_over_text():
+    """Structured spec-round fields must not be overridden by agent name or text parsing."""
+    notifications = {
+        "ok": True,
+        "items": [
+            {
+                "id": "spec-prog",
+                "agentId": "round-20260509t063201z-6c02-spec-runner",
+                "summary": json.dumps({
+                    "source": "spec_round_runner",
+                    "expected_branch": "round-20260509t063201z-6c02-impl-claude",
+                    "validation_status": "passed",
+                    "blockers": [],
+                    "warnings": [],
+                }),
+                "createdAt": "2026-05-09T07:10:00+00:00",
+            }
+        ],
+    }
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(notifications=notifications, messages={"ok": True, "items": []}))
+    row = snapshot["rounds"][0]
+    assert row["branch_source"] in {"structured", "fallback", ""}
+    assert row["spec_round"] is True
+    assert row["validation_status"] == "passed"
+
+
+def test_round_artifacts_structured_remote_branches():
+    """round_artifacts remote_branches shape: [{sha, branch}] must be exposed in branch refs."""
+    hub = healthy_hub()
+    hub["agents"] = [
+        {
+            "name": "round-20260509t063201z-6c02-impl-claude",
+            "template": "impl-claude",
+            "phase": "completed",
+            "activity": "completed",
+            "taskSummary": "complete: done",
+            "created": "2026-05-09T06:32:01+00:00",
+            "updated": "2026-05-09T06:37:01+00:00",
+        }
+    ]
+    messages = {
+        "ok": True,
+        "items": [
+            {
+                "id": "artifacts-msg",
+                "sender": "round-20260509t063201z-6c02-impl-claude",
+                "msg": json.dumps({
+                    "source": "local_git",
+                    "branches": ["round-20260509t063201z-6c02-impl-claude"],
+                    "remote_branches": [
+                        {"sha": "abc123def456", "branch": "round-20260509t063201z-6c02-impl-claude"}
+                    ],
+                }),
+                "createdAt": "2026-05-09T06:38:00+00:00",
+            }
+        ],
+    }
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(hub=hub, messages=messages, notifications={"ok": True, "items": []}))
+    row = snapshot["rounds"][0]
+    assert "round-20260509t063201z-6c02-impl-claude" in row["branches"]
+    assert row["branch_source"] == "structured"
+
+
+def test_spec_status_validation_failure_visible():
+    """scion_ops_spec_status validation failure shape must be preserved without text parsing."""
+    notifications = {
+        "ok": True,
+        "items": [
+            {
+                "id": "spec-status-fail",
+                "agentId": "round-20260509t063201z-6c02-spec-ops-review",
+                "summary": json.dumps({
+                    "source": "spec_round_runner",
+                    "expected_branch": "round-20260509t063201z-6c02-spec",
+                    "validation_status": "failed",
+                    "blockers": ["OpenSpec validation failed on the remote branch"],
+                    "warnings": [],
+                    "protocol": {"integration_branch_valid": True, "ops_review_complete": False, "finalizer_complete": False, "complete": False},
+                }),
+                "createdAt": "2026-05-09T07:20:00+00:00",
+            }
+        ],
+    }
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(notifications=notifications))
+    row = snapshot["rounds"][0]
+    assert row["spec_round"] is True
+    assert row["validation_status"] == "failed"
+    assert row["status"] == "blocked"
+    assert row["visible_status"] not in {"completed", "accepted"}
+
+
+def test_web_app_deployment_health_in_overview():
+    """web_app source must be included in snapshot sources and overview checks."""
+    original = web_app_hub.utc_now
+    try:
+        web_app_hub.utc_now = lambda: "2026-05-09T06:39:30+00:00"
+        snapshot = web_app_hub.build_snapshot(FixtureProvider())
+    finally:
+        web_app_hub.utc_now = original
+    assert "web_app" in snapshot["sources"]
+    assert snapshot["sources"]["web_app"]["ok"] is True
+    assert snapshot["sources"]["web_app"]["status"] == "healthy"
+    assert snapshot["readiness"] == "ready"
+
+
+def test_web_app_deployment_missing_degrades_readiness():
+    """Missing scion-ops-web-app deployment must degrade readiness."""
+    k8s = {
+        "source": "kubernetes",
+        "ok": True,
+        "status": "healthy",
+        "deployments": [
+            {"name": "scion-hub", "desired": 1, "available": 1, "ready": True},
+            {"name": "scion-broker", "desired": 1, "available": 1, "ready": True},
+            {"name": "scion-ops-mcp", "desired": 1, "available": 1, "ready": True},
+        ],
+        "pods": [],
+    }
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(k8s=k8s))
+    assert snapshot["sources"]["web_app"]["ok"] is False
+    assert snapshot["readiness"] == "degraded"
 
 
 if __name__ == "__main__":

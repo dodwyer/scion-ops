@@ -39,7 +39,7 @@ import mcp_servers.scion_ops as scion_ops
 
 STALE_AFTER_SECONDS = 90
 ROUND_RE = re.compile(r"(?:round-)?(?P<id>\d{8}t\d{6}z-[a-z0-9]+)", re.IGNORECASE)
-CONTROL_PLANE_NAMES = {"scion-hub", "scion-broker", "scion-ops-mcp"}
+CONTROL_PLANE_NAMES = {"scion-hub", "scion-broker", "scion-ops-mcp", "scion-ops-web-app"}
 BRANCH_FIELD_NAMES = {
     "branch",
     "targetbranch",
@@ -50,11 +50,16 @@ BRANCH_FIELD_NAMES = {
     "source_branch",
     "prreadybranch",
     "pr_ready_branch",
+    "expectedbranch",
+    "expected_branch",
     "integrationbranch",
     "integration_branch",
     "finalbranch",
     "final_branch",
 }
+# Spec-round progress fields surfaced from scion_ops_run_spec_round payloads.
+SPEC_ROUND_SOURCES = {"spec_round_runner"}
+SPEC_ROUND_FIELDS = {"validation_status", "expected_branch", "pr_ready_branch", "blockers", "warnings", "protocol", "branch_changed"}
 
 
 def utc_now() -> str:
@@ -483,6 +488,31 @@ def normalize_notifications(payload: dict[str, Any]) -> dict[str, Any]:
     return ok_source("notifications", "healthy", items=[item for item in payload.get("items", []) if isinstance(item, dict)])
 
 
+def _merge_spec_round_fields(row: dict[str, Any], payload: dict[str, Any], timestamp: str) -> None:
+    """Merge spec-round progress fields from a structured MCP payload into a round row."""
+    if not payload:
+        return
+    is_spec = payload.get("source") in SPEC_ROUND_SOURCES or bool(SPEC_ROUND_FIELDS & set(payload.keys()))
+    if not is_spec:
+        return
+    if timestamp < row.get("_spec_round_time", ""):
+        return
+    row["spec_round"] = True
+    row["_spec_round_time"] = timestamp
+    if payload.get("validation_status"):
+        row["validation_status"] = str(payload["validation_status"])
+    if payload.get("expected_branch"):
+        row["expected_branch"] = str(payload["expected_branch"])
+    if payload.get("pr_ready_branch"):
+        row["pr_ready_branch"] = str(payload["pr_ready_branch"])
+    if isinstance(payload.get("blockers"), list):
+        row["blockers"] = list(payload["blockers"])
+    if isinstance(payload.get("warnings"), list):
+        row["warnings"] = list(payload["warnings"])
+    if isinstance(payload.get("protocol"), dict):
+        row["protocol"] = dict(payload["protocol"])
+
+
 def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], notifications: list[dict[str, Any]], *, provider: Any = None) -> list[dict[str, Any]]:
     grouped: dict[str, dict[str, Any]] = {}
 
@@ -503,8 +533,16 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
                 "phase": "unknown",
                 "outcome": "",
                 "final_review": {},
+                "spec_round": False,
+                "validation_status": "",
+                "expected_branch": "",
+                "pr_ready_branch": "",
+                "blockers": [],
+                "warnings": [],
+                "protocol": {},
                 "_structured_branches": [],
                 "_fallback_branches": [],
+                "_spec_round_time": "",
             },
         )
 
@@ -548,6 +586,7 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
             review = final_review_from_item(item, source=collection_name[:-1])
             if review and str(review.get("time") or "") >= str(row.get("final_review", {}).get("time") or ""):
                 row["final_review"] = review
+            _merge_spec_round_fields(row, payload, event_time(item))
             timestamp = event_time(item)
             if timestamp > row["latest_update"]:
                 row["latest_update"] = timestamp
@@ -577,6 +616,9 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
             row["status"] = "completed"
         elif not row["agents"] and (row["messages"] or row["notifications"]):
             row["status"] = "observed"
+        # Spec-round blockers override status before final_review is applied.
+        if row["blockers"] and row["status"] not in {"blocked"}:
+            row["status"] = "blocked"
         if row["final_review"]:
             if row["final_review"].get("status") == "blocked":
                 row["status"] = "blocked"
@@ -601,6 +643,7 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
         row["notification_count"] = len(row["notifications"])
         del row["_structured_branches"]
         del row["_fallback_branches"]
+        del row["_spec_round_time"]
     return sorted(grouped.values(), key=lambda item: item.get("latest_update") or "", reverse=True)
 
 
@@ -634,8 +677,21 @@ def build_inbox(messages: list[dict[str, Any]], notifications: list[dict[str, An
     return sorted(result, key=lambda item: item.get("latest_update") or "", reverse=True)
 
 
+def derive_web_app_source(kubernetes: dict[str, Any]) -> dict[str, Any]:
+    """Extract the web app deployment health from the kubernetes source."""
+    if not kubernetes.get("ok"):
+        return error_source("web_app", str(kubernetes.get("error_kind") or "runtime"), "Kubernetes unavailable")
+    deployments = kubernetes.get("deployments") or []
+    web_deploy = next((d for d in deployments if d.get("name") == "scion-ops-web-app"), None)
+    if web_deploy is None:
+        return error_source("web_app", "runtime", "scion-ops-web-app deployment not found")
+    if web_deploy.get("ready"):
+        return ok_source("web_app", "healthy", deployment=web_deploy)
+    return error_source("web_app", "runtime", f"scion-ops-web-app not ready: {web_deploy.get('available', 0)}/{web_deploy.get('desired', 0)} replicas available", deployment=web_deploy)
+
+
 def readiness_status(sources: dict[str, dict[str, Any]]) -> str:
-    required = ["hub", "broker", "mcp", "kubernetes"]
+    required = ["hub", "broker", "mcp", "kubernetes", "web_app"]
     states = [sources.get(name, {}).get("status", "unavailable") for name in required]
     if all(state == "healthy" for state in states):
         return "ready"
@@ -651,6 +707,7 @@ def build_snapshot(provider: RuntimeProvider | Any) -> dict[str, Any]:
     notifications = normalize_notifications(provider.hub_notifications())
     mcp = provider.mcp_status()
     kubernetes = provider.kubernetes_status()
+    web_app = derive_web_app_source(kubernetes)
     brokers = hub.get("brokers", []) if hub.get("ok") else []
     broker = ok_source("broker", "healthy" if brokers else "degraded", brokers=brokers, count=len(brokers))
     agents = hub.get("agents", []) if hub.get("ok") else []
@@ -659,7 +716,7 @@ def build_snapshot(provider: RuntimeProvider | Any) -> dict[str, Any]:
     rounds = build_rounds(agents, message_items, notification_items, provider=provider)
     latest = max([item.get("latest_update") or "" for item in rounds], default="")
     stale = source_stale(latest, parse_time(generated_at))
-    sources = {"hub": hub, "broker": broker, "mcp": mcp, "kubernetes": kubernetes, "messages": messages, "notifications": notifications}
+    sources = {"hub": hub, "broker": broker, "mcp": mcp, "kubernetes": kubernetes, "web_app": web_app, "messages": messages, "notifications": notifications}
     status = readiness_status(sources)
     if stale and status == "ready":
         status = "degraded"
@@ -835,15 +892,24 @@ INDEX_HTML = r"""<!doctype html>
           <div class="card"><strong>${fmt(s.overview.latest_update)}</strong><div class="muted">Latest update</div></div>
         </div>
         <h2>Checks</h2>
-        <div class="grid">${["hub","broker","mcp","kubernetes"].map(name => `<div class="card"><div>${status(sources[name]?.status)}</div><strong>${esc(name)}</strong><div class="muted">${esc(sources[name]?.error || `${sources[name]?.count ?? ""} ${name === "broker" ? "brokers" : ""}`)}</div></div>`).join("")}</div>`;
+        <div class="grid">${["hub","broker","mcp","kubernetes","web_app"].map(name => `<div class="card"><div>${status(sources[name]?.status)}</div><strong>${esc(name)}</strong><div class="muted">${esc(sources[name]?.error || `${sources[name]?.count ?? ""} ${name === "broker" ? "brokers" : ""}`)}</div></div>`).join("")}</div>`;
     }
     function renderRounds() {
       const rows = state.snapshot.rounds;
       document.getElementById("rounds").innerHTML = rows.length ? `
-        <div class="table-wrap"><table><thead><tr><th>Round</th><th>Status</th><th>Phase</th><th>Agents</th><th>Latest update</th><th>Outcome</th><th>Branches</th></tr></thead><tbody>
-        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}</td><td>${esc(row.phase)}</td><td>${row.agent_count}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.outcome || "")}</td><td>${(row.branches || []).map(branch => `<div class="mono">${esc(branch)}</div>`).join("")}${row.branch_source ? `<div class="muted">${esc(row.branch_source)}</div>` : ""}</td></tr>`).join("")}
+        <div class="table-wrap"><table><thead><tr><th>Round</th><th>Status</th><th>Phase</th><th>Agents</th><th>Latest update</th><th>Outcome</th><th>Branches</th><th>Spec</th></tr></thead><tbody>
+        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}</td><td>${esc(row.phase)}</td><td>${row.agent_count}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.outcome || "")}</td><td>${(row.branches || []).map(branch => `<div class="mono">${esc(branch)}</div>`).join("")}${row.branch_source ? `<div class="muted">${esc(row.branch_source)}</div>` : ""}</td><td>${row.spec_round ? renderSpecSummary(row) : ""}</td></tr>`).join("")}
         </tbody></table></div>` : `<div class="card"><strong>No rounds found</strong><div class="muted">Hub returned no round-identifiable agents, messages, or notifications.</div></div>`;
       document.querySelectorAll("[data-round]").forEach(row => row.onclick = () => openRound(row.dataset.round));
+    }
+    function renderSpecSummary(row) {
+      const parts = [];
+      if (row.validation_status) parts.push(status(row.validation_status));
+      if (row.expected_branch) parts.push(`<div class="mono">${esc(row.expected_branch)}</div>`);
+      if (row.pr_ready_branch && row.pr_ready_branch !== row.expected_branch) parts.push(`<div class="muted">pr-ready: <span class="mono">${esc(row.pr_ready_branch)}</span></div>`);
+      if (row.blockers?.length) parts.push(`<div class="blocked">${row.blockers.map(b => `<div>${esc(b)}</div>`).join("")}</div>`);
+      if (row.warnings?.length) parts.push(`<div class="muted">${row.warnings.map(w => `<div>${esc(w)}</div>`).join("")}</div>`);
+      return parts.join("");
     }
     async function openRound(roundId) {
       state.selectedRound = roundId;
@@ -852,19 +918,24 @@ INDEX_HTML = r"""<!doctype html>
       const detail = await getJson(`/api/rounds/${encodeURIComponent(roundId)}`);
       const agents = detail.status.agents || [];
       const review = detail.final_review || {};
+      const row = state.snapshot.rounds.find(r => r.round_id === roundId) || {};
+      const specHtml = row.spec_round ? `<h3>Spec Round</h3><div class="card">${renderSpecSummary(row)}${row.protocol?.complete !== undefined ? `<div class="muted">Protocol: ${row.protocol.complete ? "complete" : "in progress"}${row.protocol.integration_branch_valid ? " - branch validates" : ""}${row.protocol.ops_review_complete ? " - ops review done" : ""}${row.protocol.finalizer_complete ? " - finalizer done" : ""}</div>` : ""}</div>` : "";
       document.getElementById("round-detail").innerHTML = `
         <div class="bar"><button id="back-rounds">Back to rounds</button><button id="refresh-round">Refresh timeline</button></div>
         <div class="split">
           <div class="detail"><h2 class="mono">${esc(roundId)}</h2><div>${status(detail.visible_status || detail.status.status || "unknown")}</div><h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div></div>`).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
-          <div class="detail"><h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? agents.map(agent => `<div class="card"><strong>${esc(agent.name || agent.slug)}</strong><div>${status(agent.phase || "unknown")}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`).join("") : `<div class="muted">No agents found.</div>`}<h3>Runner Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No runner output available.")}</div>`}</div>
+          <div class="detail"><h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}${review.blocking_issues?.length ? `<ul>${review.blocking_issues.map(i => `<li>${esc(i)}</li>`).join("")}</ul>` : ""}</div>` : `<div class="muted">No final review available.</div>`}${specHtml}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? agents.map(agent => `<div class="card"><strong>${esc(agent.name || agent.slug)}</strong><div>${status(agent.phase || "unknown")}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`).join("") : `<div class="muted">No agents found.</div>`}<h3>Runner Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No runner output available.")}</div>`}</div>
         </div>`;
       document.getElementById("back-rounds").onclick = () => setView("rounds");
       document.getElementById("refresh-round").onclick = () => openRound(roundId);
     }
     function renderInbox() {
       const groups = state.snapshot.inbox;
-      document.getElementById("inbox").innerHTML = groups.length ? groups.map(group => `
-        <div class="detail"><h2>${esc(group.round_id)}</h2>${group.items.map(item => `<div class="timeline item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)} ${esc(item.source_id)}</div><div>${esc(item.summary)}</div></div>`).join("")}</div>`).join("") : `<div class="card"><strong>No inbox updates</strong><div class="muted">Hub returned no messages or notifications.</div></div>`;
+      document.getElementById("inbox").innerHTML = groups.length ? groups.map(group => {
+        const roundData = state.snapshot.rounds.find(r => r.round_id === group.round_id) || {};
+        const specBadge = roundData.spec_round && roundData.validation_status ? `<span class="muted"> · spec validation: ${esc(roundData.validation_status)}</span>` : "";
+        return `<div class="detail"><h2>${esc(group.round_id)}${specBadge}</h2>${group.items.map(item => `<div class="timeline item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)} ${esc(item.source_id)}</div><div>${esc(item.summary)}</div></div>`).join("")}</div>`;
+      }).join("") : `<div class="card"><strong>No inbox updates</strong><div class="muted">Hub returned no messages or notifications.</div></div>`;
     }
     function renderRuntime() {
       const sources = state.snapshot.sources;

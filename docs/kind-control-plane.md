@@ -21,7 +21,7 @@ task down       # destroy kind and cluster-local state
 - verifies the workspace mount
 - loads local images
 - applies `deploy/kind/control-plane`
-- restarts Hub, broker, and MCP deployments
+- restarts Hub, broker, MCP, and web app deployments
 - waits for rollouts
 
 ## Resources
@@ -37,6 +37,7 @@ deploy/kind/
     hub-*.yaml
     broker-*.yaml
     mcp-*.yaml
+    web-app-*.yaml
     config/
 ```
 
@@ -48,6 +49,7 @@ kubectl --context kind-scion-ops -n scion-agents get pods
 kubectl --context kind-scion-ops -n scion-agents logs deploy/scion-hub
 kubectl --context kind-scion-ops -n scion-agents logs deploy/scion-broker -c broker
 kubectl --context kind-scion-ops -n scion-agents logs deploy/scion-ops-mcp
+kubectl --context kind-scion-ops -n scion-agents logs deploy/scion-ops-web-app
 ```
 
 ## Defaults
@@ -60,6 +62,7 @@ kubectl --context kind-scion-ops -n scion-agents logs deploy/scion-ops-mcp
 | namespace | `scion-agents` |
 | Hub URL | `http://192.168.122.103:18090` |
 | MCP URL | `http://192.168.122.103:8765/mcp` |
+| Web App URL | `http://192.168.122.103:8787` |
 | workspace host path | `~/workspace` when possible |
 | workspace pod path | `/workspace` |
 
@@ -72,16 +75,19 @@ task up
 
 ## Access
 
-Kind exposes Hub and MCP through native port mappings and NodePort Services. Do
-not use `kubectl port-forward` for normal operation.
+Kind exposes Hub, MCP, and the web app through native port mappings and NodePort
+Services. Do not use `kubectl port-forward` for normal operation.
 
 ```bash
 eval "$(task kind:hub:auth-export)"
 task kind:mcp:smoke
+# Open http://192.168.122.103:8787 in a browser for the read-only web app
 ```
 
 The MCP pod reads Hub through the in-cluster `scion-hub` Service and uses the
-`scion-hub-dev-auth` Secret restored by `task bootstrap`.
+`scion-hub-dev-auth` Secret restored by `task bootstrap`. The web app uses the
+same in-cluster Hub endpoint (`http://scion-hub:8090`) and the same dev-auth
+Secret mount, and connects to MCP at `http://scion-ops-mcp:8765/mcp`.
 
 ## Bootstrap
 
@@ -139,9 +145,31 @@ task build:base
 task update:hub
 task build:mcp
 task update:mcp
+task update:web-app
 task build:harness -- codex
 task load:image -- localhost/scion-codex:latest
 task dev:test
+```
+
+`task update:web-app` reloads the MCP image (shared with the web app), restarts
+the `scion-ops-web-app` deployment, and reports rollout status. Use
+`task kind:web-app:logs` to tail web app logs.
+
+## Troubleshooting: Web App
+
+```bash
+task kind:web-app:status           # rollout status and service info
+task kind:web-app:logs             # tail web app container logs
+kubectl --context kind-scion-ops -n scion-agents describe deploy/scion-ops-web-app
+```
+
+The web app runs on the same `localhost/scion-ops-mcp:latest` image as MCP. If
+the image is not loaded, build and load it:
+
+```bash
+task build:mcp
+task kind:load-images -- localhost/scion-ops-mcp:latest
+task update:web-app
 ```
 
 Use `task storage:status` before full image rebuilds. If Docker is using `vfs`,
