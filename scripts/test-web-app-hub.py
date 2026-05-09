@@ -22,7 +22,20 @@ SPEC.loader.exec_module(web_app_hub)
 
 
 class FixtureProvider:
-    def __init__(self, *, hub=None, messages=None, notifications=None, mcp=None, k8s=None, round_outcome=None, round_events=None) -> None:
+    def __init__(
+        self,
+        *,
+        hub=None,
+        messages=None,
+        notifications=None,
+        mcp=None,
+        k8s=None,
+        round_outcome=None,
+        round_events=None,
+        artifacts=None,
+        spec_status=None,
+        validation_result=None,
+    ) -> None:
         self._hub = hub if hub is not None else healthy_hub()
         self._messages = messages if messages is not None else healthy_messages()
         self._notifications = notifications if notifications is not None else healthy_notifications()
@@ -30,6 +43,9 @@ class FixtureProvider:
         self._k8s = k8s if k8s is not None else healthy_k8s()
         self._round_outcome = round_outcome if round_outcome is not None else {"status": "completed"}
         self._round_events = round_events
+        self._artifacts = artifacts if artifacts is not None else {"source": "local_git", "branches": [], "remote_branches": []}
+        self._spec_status = spec_status if spec_status is not None else {}
+        self._validation_result = validation_result if validation_result is not None else {}
 
     def hub_status(self):
         return self._hub
@@ -60,6 +76,15 @@ class FixtureProvider:
                 {"type": "message", "message": {"createdAt": "2026-05-09T06:35:00+00:00", "msg": f"round {round_id} update"}}
             ],
         }
+
+    def round_artifacts(self, round_id):
+        return self._artifacts
+
+    def spec_status(self, project_root, change=""):
+        return self._spec_status
+
+    def validate_spec_change(self, project_root, change):
+        return self._validation_result
 
 
 def healthy_hub():
@@ -133,7 +158,9 @@ def healthy_k8s():
             {"name": "scion-hub", "desired": 1, "available": 1, "ready": True},
             {"name": "scion-broker", "desired": 1, "available": 1, "ready": True},
             {"name": "scion-ops-mcp", "desired": 1, "available": 1, "ready": True},
+            {"name": "scion-ops-web", "desired": 1, "available": 1, "ready": True},
         ],
+        "services": [{"name": "scion-ops-web", "type": "NodePort"}],
         "pods": [],
     }
 
@@ -146,6 +173,7 @@ def test_healthy_snapshot_is_ready():
     finally:
         web_app_hub.utc_now = original
     assert snapshot["readiness"] == "ready"
+    assert snapshot["sources"]["web"]["status"] == "healthy"
     assert snapshot["overview"]["active_round_count"] == 1
     assert snapshot["rounds"][0]["round_id"] == "20260509t063201z-6c02"
     assert snapshot["inbox"][0]["round_id"] == "20260509t063201z-6c02"
@@ -212,6 +240,7 @@ def test_kubernetes_normalization_reports_missing_control_plane():
     assert status["status"] == "degraded"
     assert "scion-broker" in status["missing_deployments"]
     assert "scion-ops-mcp" in status["missing_deployments"]
+    assert "scion-ops-web" in status["missing_deployments"]
 
 
 def test_structured_branch_fields_take_precedence_over_fallback_text_and_names():
@@ -340,6 +369,136 @@ def test_outcome_only_final_review_visible_in_rounds_list():
     row = snapshot["rounds"][0]
     assert row["final_review"]["normalized_verdict"] == "accept", "outcome-only final_review must be visible in rounds list"
     assert row["visible_status"] == "accepted"
+
+
+def test_nested_final_review_payload_preserves_blocking_issues():
+    notifications = {
+        "ok": True,
+        "items": [
+            {
+                "id": "final-nested",
+                "agentId": "round-20260509t063201z-6c02-final-review",
+                "summary": '{"final_review":{"normalized_verdict":"request_changes","summary":"needs repair","blocking_issues":["missing web smoke"]}}',
+                "createdAt": "2026-05-09T06:41:01+00:00",
+            }
+        ],
+    }
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(notifications=notifications))
+    row = snapshot["rounds"][0]
+    assert row["final_review"]["normalized_verdict"] == "request_changes"
+    assert row["final_review"]["blocking_issues"] == ["missing web smoke"]
+    assert row["visible_status"] == "changes requested"
+
+
+def test_spec_round_progress_payload_is_preserved_and_blocks_row():
+    progress = {
+        "source": "spec_round_runner",
+        "status": "blocked",
+        "health": "blocked",
+        "round_id": "20260509t063201z-6c02",
+        "expected_branch": "round-20260509t063201z-6c02-spec-integration",
+        "pr_ready_branch": "",
+        "remote_branch_sha": "",
+        "base_branch_sha": "abc123",
+        "branch_changed": False,
+        "validation_status": "failed",
+        "validation": {"ok": False, "errors": ["proposal.md missing"]},
+        "protocol": {"ops_review_complete": False, "finalizer_complete": False, "complete": False},
+        "blockers": ["expected branch was not found on origin: round-20260509t063201z-6c02-spec-integration"],
+        "warnings": ["OpenSpec validation is currently failing on the remote branch"],
+    }
+    messages = {
+        "ok": True,
+        "items": [
+            {
+                "id": "spec-progress",
+                "sender": "round-20260509t063201z-6c02-consensus",
+                "msg": __import__("json").dumps(progress),
+                "createdAt": "2026-05-09T06:42:01+00:00",
+            }
+        ],
+    }
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(messages=messages, notifications={"ok": True, "items": []}))
+    row = snapshot["rounds"][0]
+    assert row["status"] == "blocked"
+    assert row["expected_branch"] == "round-20260509t063201z-6c02-spec-integration"
+    assert row["validation_status"] == "failed"
+    assert row["blockers"] == progress["blockers"]
+    assert row["spec_progress"]["validation"]["errors"] == ["proposal.md missing"]
+
+
+def test_completed_spec_round_pr_branch_and_artifacts_are_detail_fields():
+    progress = {
+        "source": "spec_round_runner",
+        "status": "completed",
+        "health": "complete",
+        "round_id": "20260509t063201z-6c02",
+        "project_root": "/workspace/project",
+        "change": "update-web-app",
+        "expected_branch": "round-20260509t063201z-6c02-spec-integration",
+        "pr_ready_branch": "round-20260509t063201z-6c02-spec-integration",
+        "remote_branch_sha": "f00dbabe",
+        "branch_changed": True,
+        "validation_status": "passed",
+        "validation": {"ok": True, "errors": []},
+        "protocol": {"complete": True},
+        "blockers": [],
+        "warnings": [],
+    }
+    events = {
+        "ok": True,
+        "round_id": "20260509t063201z-6c02",
+        "cursor": "cursor-2",
+        "events": [
+            {
+                "type": "message",
+                "message": {
+                    "createdAt": "2026-05-09T06:42:01+00:00",
+                    "msg": __import__("json").dumps(progress),
+                },
+            }
+        ],
+        "outcome": progress,
+    }
+    artifacts = {
+        "source": "local_git",
+        "branches": ["round-20260509t063201z-6c02-local"],
+        "remote_branches": [{"branch": "round-20260509t063201z-6c02-spec-integration", "sha": "f00dbabe"}],
+    }
+    spec_status = {
+        "ok": True,
+        "source": "local_git",
+        "project_root": "/workspace/project",
+        "change": "update-web-app",
+        "validation": {"ok": True},
+        "openspec_status": {"artifacts": [{"change": "update-web-app"}]},
+    }
+    validation_result = {
+        "ok": True,
+        "source": "local_git",
+        "project_root": "/workspace/project",
+        "change": "update-web-app",
+        "validation": {"ok": True, "errors": []},
+    }
+    detail = web_app_hub.build_round_detail(
+        FixtureProvider(
+            round_outcome=progress,
+            round_events=events,
+            artifacts=artifacts,
+            spec_status=spec_status,
+            validation_result=validation_result,
+        ),
+        "20260509t063201z-6c02",
+    )
+    assert detail["spec_progress"]["pr_ready_branch"] == "round-20260509t063201z-6c02-spec-integration"
+    assert detail["spec_progress"]["remote_branch_sha"] == "f00dbabe"
+    assert "round-20260509t063201z-6c02-local" in detail["branches"]
+    assert detail["artifacts"]["remote_branches"][0]["sha"] == "f00dbabe"
+    assert detail["validation"]["ok"] is True
+    assert detail["openspec"]["spec_status"]["openspec_status"]["artifacts"][0]["change"] == "update-web-app"
+    assert detail["openspec"]["validation_result"]["validation"]["errors"] == []
+    assert "web" in web_app_hub.INDEX_HTML
+    assert "OpenSpec" in web_app_hub.INDEX_HTML
 
 
 if __name__ == "__main__":

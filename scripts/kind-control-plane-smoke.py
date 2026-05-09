@@ -37,6 +37,7 @@ DEFAULT_HUB_ENDPOINT = os.environ.get(
     f"http://192.168.122.103:{DEFAULT_HUB_PORT}",
 )
 DEFAULT_MCP_URL = os.environ.get("SCION_OPS_MCP_URL", "http://192.168.122.103:8765/mcp")
+DEFAULT_WEB_URL = os.environ.get("SCION_OPS_WEB_URL", "http://192.168.122.103:8787")
 DEFAULT_GENERIC_CONFIG = ROOT / "deploy/kind/smoke/generic-smoke-agent.yaml"
 DEFAULT_GENERIC_PROMPT = "printf 'scion kind control-plane smoke\\n'; pwd; sleep 30"
 DEFAULT_TEMPLATE_PROMPT = "Smoke test: report the current working directory and stop."
@@ -195,6 +196,45 @@ def http_ready(endpoint: str) -> bool:
             return 200 <= response.status < 300
     except (OSError, urllib.error.URLError):
         return False
+
+
+def read_url(url: str, *, timeout: int = 3, method: str = "GET") -> tuple[int, str]:
+    request = urllib.request.Request(url, method=method)
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return response.status, response.read().decode(errors="replace")
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read().decode(errors="replace")
+
+
+def ensure_web_app(*, endpoint: str, timeout_seconds: int) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout_seconds
+    last_error: Exception | None = None
+    snapshot: dict[str, Any] = {}
+    while time.monotonic() <= deadline:
+        try:
+            index_status, index_body = read_url(service_url(endpoint, "/"), timeout=2)
+            api_status, api_body = read_url(service_url(endpoint, "/api/snapshot"), timeout=3)
+            post_status, _ = read_url(service_url(endpoint, "/api/snapshot"), timeout=2, method="POST")
+            if 200 <= index_status < 300 and "scion-ops hub" in index_body and 200 <= api_status < 300 and post_status == 405:
+                snapshot = json.loads(api_body)
+                if isinstance(snapshot, dict) and snapshot.get("sources"):
+                    log(f"kind web app is reachable at {endpoint}")
+                    return snapshot
+        except Exception as exc:
+            last_error = exc
+        time.sleep(0.5)
+    raise SmokeFailure(
+        "web_app",
+        f"kind web app was not ready at {endpoint}: {last_error}",
+        hint=(
+            "Check native kind port exposure and web rollout:\n"
+            "  task kind:status\n"
+            "  task kind:web:status\n"
+            "  task kind:web:logs"
+        ),
+        output=json.dumps(snapshot, indent=2) if snapshot else "",
+    )
 
 
 def ensure_hub_ready(*, endpoint: str, timeout_seconds: int) -> None:
@@ -590,6 +630,7 @@ def parser() -> argparse.ArgumentParser:
     parser.add_argument("--namespace", default=os.environ.get("SCION_K8S_NAMESPACE", "scion-agents"))
     parser.add_argument("--hub", default=os.environ.get("HUB_ENDPOINT", DEFAULT_HUB_ENDPOINT))
     parser.add_argument("--mcp-url", default=DEFAULT_MCP_URL)
+    parser.add_argument("--web-url", default=DEFAULT_WEB_URL)
     parser.add_argument("--timeout", type=int, default=int(os.environ.get("SCION_KIND_CP_SMOKE_TIMEOUT", "90")))
     parser.add_argument("--startup-timeout", type=int, default=30)
     parser.add_argument(
@@ -694,6 +735,17 @@ async def smoke(args: argparse.Namespace) -> None:
                     timeout_seconds=args.startup_timeout,
                 )
                 check_mcp_status(hub_status)
+                web_snapshot = ensure_web_app(
+                    endpoint=args.web_url,
+                    timeout_seconds=args.startup_timeout,
+                )
+                if web_snapshot.get("sources", {}).get("web", {}).get("status") == "unavailable":
+                    raise SmokeFailure(
+                        "web_app",
+                        "web app snapshot marks its own control-plane source unavailable",
+                        hint="Check web deployment/service:\n  task kind:web:status",
+                        output=json.dumps(web_snapshot, indent=2),
+                    )
 
             log(f"dispatch {agent} through kind Hub broker {args.broker}")
             start_args = [
@@ -736,6 +788,7 @@ async def smoke(args: argparse.Namespace) -> None:
             print(f"  agent:      {agent}")
             print(f"  hub:        {args.hub}")
             print(f"  mcp:        {'skipped' if args.skip_mcp else args.mcp_url}")
+            print(f"  web:        {'skipped' if args.skip_mcp else args.web_url}")
             print(f"  broker:     {args.broker}")
             print(f"  config:     {args.template or generic_config}")
             print(f"  kind:       {context}/{args.namespace}")

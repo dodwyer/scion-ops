@@ -39,9 +39,25 @@ import mcp_servers.scion_ops as scion_ops
 
 STALE_AFTER_SECONDS = 90
 ROUND_RE = re.compile(r"(?:round-)?(?P<id>\d{8}t\d{6}z-[a-z0-9]+)", re.IGNORECASE)
-CONTROL_PLANE_NAMES = {"scion-hub", "scion-broker", "scion-ops-mcp"}
+CONTROL_PLANE_NAMES = {"scion-hub", "scion-broker", "scion-ops-mcp", "scion-ops-web"}
+SPEC_PROGRESS_FIELDS = {
+    "expected_branch",
+    "pr_ready_branch",
+    "remote_branch_sha",
+    "base_branch_sha",
+    "branch_changed",
+    "validation_status",
+    "validation",
+    "protocol",
+    "blockers",
+    "warnings",
+    "artifacts",
+}
 BRANCH_FIELD_NAMES = {
     "branch",
+    "branches",
+    "expectedbranch",
+    "expected_branch",
     "targetbranch",
     "target_branch",
     "headbranch",
@@ -168,7 +184,15 @@ def final_review_label(verdict: str) -> str:
 def final_review_from_item(item: dict[str, Any], *, source: str) -> dict[str, Any]:
     payload = parse_json_object(item.get("msg") or item.get("message") or item.get("summary"))
     data = payload or item
-    verdict = data.get("verdict") or data.get("finalReviewVerdict") or data.get("final_review_verdict")
+    final_review = data.get("final_review") if isinstance(data.get("final_review"), dict) else {}
+    review_data = final_review or data
+    verdict = (
+        review_data.get("verdict")
+        or review_data.get("normalized_verdict")
+        or review_data.get("finalReviewVerdict")
+        or review_data.get("final_review_verdict")
+        or review_data.get("display")
+    )
     if not verdict:
         summary = str(item.get("summary") or item.get("msg") or item.get("message") or "")
         match = re.search(r"\b(accept(?:ed)?|approved|request_changes|changes_requested|revise|blocked)\b", summary, re.IGNORECASE)
@@ -178,7 +202,9 @@ def final_review_from_item(item: dict[str, Any], *, source: str) -> dict[str, An
     if normalized not in {"accept", "request_changes", "blocked"}:
         return {}
     summary = short_text(
-        data.get("summary")
+        review_data.get("summary")
+        or review_data.get("notes")
+        or data.get("summary")
         or data.get("notes")
         or item.get("summary")
         or item.get("msg")
@@ -188,13 +214,13 @@ def final_review_from_item(item: dict[str, Any], *, source: str) -> dict[str, An
     return {
         "source": source,
         "time": event_time(item),
-        "verdict": str(verdict or ""),
+        "verdict": str(review_data.get("verdict") or verdict or ""),
         "normalized_verdict": normalized,
         "status": "accepted" if normalized == "accept" else "blocked",
         "display": final_review_label(normalized),
         "summary": summary,
-        "branch": next(iter(structured_branch_refs(data)), ""),
-        "blocking_issues": data.get("blocking_issues") if isinstance(data.get("blocking_issues"), list) else [],
+        "branch": next(iter(structured_branch_refs(review_data) or structured_branch_refs(data)), ""),
+        "blocking_issues": review_data.get("blocking_issues") if isinstance(review_data.get("blocking_issues"), list) else [],
     }
 
 
@@ -219,6 +245,93 @@ def final_review_from_outcome(outcome: Any) -> dict[str, Any]:
         "branch": next(iter(structured_branch_refs(data)), ""),
         "blocking_issues": data.get("blocking_issues") if isinstance(data.get("blocking_issues"), list) else [],
     }
+
+
+def spec_progress_from_data(data: Any, *, source: str = "", time_value: str = "") -> dict[str, Any]:
+    if not isinstance(data, dict) or not (SPEC_PROGRESS_FIELDS & set(data)):
+        return {}
+    artifacts = data.get("artifacts") if isinstance(data.get("artifacts"), dict) else {}
+    remote_branches = artifacts.get("remote_branches") if isinstance(artifacts.get("remote_branches"), list) else []
+    progress = {
+        "source": source or str(data.get("source") or ""),
+        "time": time_value,
+        "status": str(data.get("status") or ""),
+        "health": str(data.get("health") or ""),
+        "summary": short_text(data.get("summary") or "", 260),
+        "project_root": str(data.get("project_root") or ""),
+        "change": str(data.get("change") or ""),
+        "expected_branch": normalize_branch(data.get("expected_branch")),
+        "pr_ready_branch": normalize_branch(data.get("pr_ready_branch")),
+        "remote_branch_sha": str(data.get("remote_branch_sha") or ""),
+        "base_branch_sha": str(data.get("base_branch_sha") or ""),
+        "branch_changed": data.get("branch_changed") if isinstance(data.get("branch_changed"), bool) else None,
+        "validation_status": str(data.get("validation_status") or ""),
+        "validation": data.get("validation") if isinstance(data.get("validation"), dict) else {},
+        "protocol": data.get("protocol") if isinstance(data.get("protocol"), dict) else {},
+        "blockers": [str(item) for item in data.get("blockers", [])] if isinstance(data.get("blockers"), list) else [],
+        "warnings": [str(item) for item in data.get("warnings", [])] if isinstance(data.get("warnings"), list) else [],
+        "remote_branches": [
+            {"branch": normalize_branch(item.get("branch")), "sha": str(item.get("sha") or "")}
+            for item in remote_branches
+            if isinstance(item, dict) and normalize_branch(item.get("branch"))
+        ],
+        "fallback": False,
+    }
+    return {key: value for key, value in progress.items() if value not in ("", None, [], {})}
+
+
+def openspec_context_from_progress(progress: dict[str, Any]) -> tuple[str, str]:
+    project_root = str(progress.get("project_root") or "")
+    change = str(progress.get("change") or "")
+    return project_root, change
+
+
+def openspec_detail(provider: Any, progress: dict[str, Any]) -> dict[str, Any]:
+    project_root, change = openspec_context_from_progress(progress)
+    detail: dict[str, Any] = {"project_root": project_root, "change": change, "spec_status": {}, "validation_result": {}}
+    if not project_root:
+        return detail
+    if hasattr(provider, "spec_status"):
+        try:
+            detail["spec_status"] = provider.spec_status(project_root, change)
+        except Exception as exc:
+            detail["spec_status"] = error_source("openspec_status", "openspec_status", str(exc))
+    if change and hasattr(provider, "validate_spec_change"):
+        try:
+            detail["validation_result"] = provider.validate_spec_change(project_root, change)
+        except Exception as exc:
+            detail["validation_result"] = error_source("openspec_validation", "openspec_validation", str(exc))
+    return detail
+
+
+def merge_spec_progress(current: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
+    if not candidate:
+        return current
+    if not current:
+        return candidate
+    current_time = str(current.get("time") or "")
+    candidate_time = str(candidate.get("time") or "")
+    if candidate_time and candidate_time >= current_time:
+        return {**current, **candidate}
+    return {**candidate, **current}
+
+
+def web_source_from_kubernetes(kubernetes: dict[str, Any]) -> dict[str, Any]:
+    if not kubernetes.get("ok"):
+        return error_source("web", str(kubernetes.get("error_kind") or "runtime"), str(kubernetes.get("error") or "Kubernetes unavailable"))
+    deployments = {item.get("name"): item for item in kubernetes.get("deployments", []) if isinstance(item, dict)}
+    services = {item.get("name"): item for item in kubernetes.get("services", []) if isinstance(item, dict)}
+    deployment = deployments.get("scion-ops-web") or {}
+    service = services.get("scion-ops-web") or {}
+    status = "healthy" if deployment.get("ready") and service else "degraded"
+    return ok_source(
+        "web",
+        status,
+        deployment=deployment,
+        service=service,
+        url=os.environ.get("SCION_OPS_WEB_URL", ""),
+        missing=[] if status == "healthy" else [name for name, present in {"deployment": deployment, "service": service}.items() if not present],
+    )
 
 
 def ok_source(name: str, status: str, **extra: Any) -> dict[str, Any]:
@@ -350,6 +463,15 @@ class RuntimeProvider:
 
     def round_events(self, round_id: str, cursor: str = "", include_existing: bool = False) -> dict[str, Any]:
         return scion_ops.scion_ops_round_events(round_id=round_id, cursor=cursor, include_existing=include_existing)
+
+    def round_artifacts(self, round_id: str) -> dict[str, Any]:
+        return scion_ops.scion_ops_round_artifacts(round_id=round_id)
+
+    def spec_status(self, project_root: str, change: str = "") -> dict[str, Any]:
+        return scion_ops.scion_ops_spec_status(project_root=project_root, change=change)
+
+    def validate_spec_change(self, project_root: str, change: str) -> dict[str, Any]:
+        return scion_ops.scion_ops_validate_spec_change(project_root=project_root, change=change)
 
     def mcp_status(self) -> dict[str, Any]:
         url = os.environ.get("SCION_OPS_MCP_URL", "http://192.168.122.103:8765/mcp")
@@ -503,6 +625,7 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
                 "phase": "unknown",
                 "outcome": "",
                 "final_review": {},
+                "spec_progress": {},
                 "_structured_branches": [],
                 "_fallback_branches": [],
             },
@@ -539,6 +662,10 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
             row = ensure(round_id)
             row[collection_name].append(item)
             payload = parse_json_object(item.get("msg") or item.get("message") or item.get("summary"))
+            row["spec_progress"] = merge_spec_progress(
+                row["spec_progress"],
+                spec_progress_from_data(payload, source=collection_name[:-1], time_value=event_time(item)),
+            )
             for branch in structured_branch_refs(item):
                 add_unique(row["_structured_branches"], branch)
             for branch in structured_branch_refs(payload):
@@ -564,6 +691,10 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
                     outcome_time = str(outcome_review.get("time") or "")
                     if not row["final_review"] or outcome_time >= existing_time:
                         row["final_review"] = outcome_review
+                row["spec_progress"] = merge_spec_progress(
+                    row["spec_progress"],
+                    spec_progress_from_data(outcome, source="round_status", time_value=str(outcome.get("created") or "")),
+                )
             except Exception:
                 pass
 
@@ -585,6 +716,21 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
             row["visible_status"] = str(row["final_review"].get("display") or row["status"])
         else:
             row["visible_status"] = row["status"]
+        progress = row.get("spec_progress") or {}
+        if progress:
+            row["expected_branch"] = progress.get("expected_branch", "")
+            row["pr_ready_branch"] = progress.get("pr_ready_branch", "")
+            row["remote_branch_sha"] = progress.get("remote_branch_sha", "")
+            row["validation_status"] = progress.get("validation_status", "")
+            row["blockers"] = progress.get("blockers", [])
+            row["warnings"] = progress.get("warnings", [])
+            if progress.get("pr_ready_branch"):
+                add_unique(row["_structured_branches"], progress.get("pr_ready_branch"))
+            if progress.get("expected_branch"):
+                add_unique(row["_structured_branches"], progress.get("expected_branch"))
+            if progress.get("blockers") or progress.get("validation_status") == "failed":
+                row["status"] = "blocked"
+                row["visible_status"] = "blocked"
         phases = [str(agent.get("phase") or "") for agent in row["agents"] if agent.get("phase")]
         row["phase"] = Counter(phases).most_common(1)[0][0] if phases else row["phase"]
         summaries = [str(agent.get("taskSummary") or "") for agent in row["agents"] if agent.get("taskSummary")]
@@ -623,6 +769,11 @@ def build_inbox(messages: list[dict[str, Any]], notifications: list[dict[str, An
                 "source_id": item.get("id") or item.get("agentId") or item.get("sender") or "",
                 "summary": short_text(item.get("msg") or item.get("message") or item.get("summary") or item.get("status"), 260),
                 "raw": item,
+                "spec_progress": spec_progress_from_data(
+                    parse_json_object(item.get("msg") or item.get("message") or item.get("summary")),
+                    source=kind,
+                    time_value=event_time(item),
+                ),
             })
     result = []
     for round_id, items in groups.items():
@@ -635,7 +786,7 @@ def build_inbox(messages: list[dict[str, Any]], notifications: list[dict[str, An
 
 
 def readiness_status(sources: dict[str, dict[str, Any]]) -> str:
-    required = ["hub", "broker", "mcp", "kubernetes"]
+    required = ["hub", "broker", "mcp", "kubernetes", "web"]
     states = [sources.get(name, {}).get("status", "unavailable") for name in required]
     if all(state == "healthy" for state in states):
         return "ready"
@@ -651,6 +802,7 @@ def build_snapshot(provider: RuntimeProvider | Any) -> dict[str, Any]:
     notifications = normalize_notifications(provider.hub_notifications())
     mcp = provider.mcp_status()
     kubernetes = provider.kubernetes_status()
+    web = web_source_from_kubernetes(kubernetes)
     brokers = hub.get("brokers", []) if hub.get("ok") else []
     broker = ok_source("broker", "healthy" if brokers else "degraded", brokers=brokers, count=len(brokers))
     agents = hub.get("agents", []) if hub.get("ok") else []
@@ -659,7 +811,7 @@ def build_snapshot(provider: RuntimeProvider | Any) -> dict[str, Any]:
     rounds = build_rounds(agents, message_items, notification_items, provider=provider)
     latest = max([item.get("latest_update") or "" for item in rounds], default="")
     stale = source_stale(latest, parse_time(generated_at))
-    sources = {"hub": hub, "broker": broker, "mcp": mcp, "kubernetes": kubernetes, "messages": messages, "notifications": notifications}
+    sources = {"hub": hub, "broker": broker, "mcp": mcp, "web": web, "kubernetes": kubernetes, "messages": messages, "notifications": notifications}
     status = readiness_status(sources)
     if stale and status == "ready":
         status = "degraded"
@@ -685,6 +837,7 @@ def build_snapshot(provider: RuntimeProvider | Any) -> dict[str, Any]:
 def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[str, Any]:
     status = provider.round_status(round_id)
     events = provider.round_events(round_id, include_existing=True)
+    artifacts = provider.round_artifacts(round_id) if hasattr(provider, "round_artifacts") else {}
     timeline: list[dict[str, Any]] = []
     structured_branches: list[str] = []
     fallback_branches: list[str] = []
@@ -696,8 +849,14 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
         for branch in fallback_branch_refs(agent.get("taskSummary")):
             add_unique(fallback_branches, branch)
     outcome = status.get("outcome") or events.get("outcome") or {}
+    spec_progress = spec_progress_from_data(outcome, source="outcome", time_value=str(outcome.get("created") or "")) if isinstance(outcome, dict) else {}
     for branch in structured_branch_refs(outcome):
         add_unique(structured_branches, branch)
+    for branch in structured_branch_refs(artifacts):
+        add_unique(structured_branches, branch)
+    for item in artifacts.get("remote_branches", []) if isinstance(artifacts.get("remote_branches"), list) else []:
+        if isinstance(item, dict):
+            add_unique(structured_branches, item.get("branch"))
     outcome_review = final_review_from_outcome(outcome)
     if outcome_review:
         final_reviews.append(outcome_review)
@@ -705,6 +864,10 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
         for event in events.get("events", []):
             item = event.get("message") or event.get("notification") or event.get("agent") or {}
             payload = parse_json_object(item.get("msg") or item.get("message") or item.get("summary"))
+            spec_progress = merge_spec_progress(
+                spec_progress,
+                spec_progress_from_data(payload, source=str(event.get("type") or "event"), time_value=event_time(item)),
+            )
             for branch in structured_branch_refs(item):
                 add_unique(structured_branches, branch)
             for branch in structured_branch_refs(payload):
@@ -726,6 +889,8 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
     branches = structured_branches if structured_branches else fallback_branches
     final_review = final_reviews[-1] if final_reviews else {}
     visible_status = str(final_review.get("display") or status.get("status") or "unknown")
+    validation = spec_progress.get("validation", {}) if isinstance(spec_progress.get("validation"), dict) else {}
+    openspec = openspec_detail(provider, spec_progress)
     return {
         "ok": bool(status.get("ok")) or bool(events.get("ok")),
         "round_id": round_id,
@@ -736,6 +901,10 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
         "runner_output_error": "" if transcript.get("ok") or not transcript else transcript.get("error") or transcript.get("output", ""),
         "outcome": outcome,
         "final_review": final_review,
+        "spec_progress": spec_progress,
+        "artifacts": artifacts,
+        "validation": validation,
+        "openspec": openspec,
         "visible_status": visible_status,
         "branches": branches,
         "branch_source": "structured" if structured_branches else ("fallback" if branches else ""),
@@ -835,13 +1004,13 @@ INDEX_HTML = r"""<!doctype html>
           <div class="card"><strong>${fmt(s.overview.latest_update)}</strong><div class="muted">Latest update</div></div>
         </div>
         <h2>Checks</h2>
-        <div class="grid">${["hub","broker","mcp","kubernetes"].map(name => `<div class="card"><div>${status(sources[name]?.status)}</div><strong>${esc(name)}</strong><div class="muted">${esc(sources[name]?.error || `${sources[name]?.count ?? ""} ${name === "broker" ? "brokers" : ""}`)}</div></div>`).join("")}</div>`;
+        <div class="grid">${["hub","broker","mcp","web","kubernetes"].map(name => `<div class="card"><div>${status(sources[name]?.status)}</div><strong>${esc(name)}</strong><div class="muted">${esc(sources[name]?.error || sources[name]?.url || `${sources[name]?.count ?? ""} ${name === "broker" ? "brokers" : ""}`)}</div></div>`).join("")}</div>`;
     }
     function renderRounds() {
       const rows = state.snapshot.rounds;
       document.getElementById("rounds").innerHTML = rows.length ? `
         <div class="table-wrap"><table><thead><tr><th>Round</th><th>Status</th><th>Phase</th><th>Agents</th><th>Latest update</th><th>Outcome</th><th>Branches</th></tr></thead><tbody>
-        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}</td><td>${esc(row.phase)}</td><td>${row.agent_count}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.outcome || "")}</td><td>${(row.branches || []).map(branch => `<div class="mono">${esc(branch)}</div>`).join("")}${row.branch_source ? `<div class="muted">${esc(row.branch_source)}</div>` : ""}</td></tr>`).join("")}
+        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}${row.validation_status ? `<div class="muted">validation ${esc(row.validation_status)}</div>` : ""}</td><td>${esc(row.phase)}</td><td>${row.agent_count}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.outcome || "")}${(row.blockers || []).map(item => `<div class="error-box">${esc(item)}</div>`).join("")}${(row.warnings || []).map(item => `<div class="muted">${esc(item)}</div>`).join("")}</td><td>${(row.branches || []).map(branch => `<div class="mono">${esc(branch)}</div>`).join("")}${row.remote_branch_sha ? `<div class="mono">${esc(row.remote_branch_sha)}</div>` : ""}${row.branch_source ? `<div class="muted">${esc(row.branch_source)}</div>` : ""}</td></tr>`).join("")}
         </tbody></table></div>` : `<div class="card"><strong>No rounds found</strong><div class="muted">Hub returned no round-identifiable agents, messages, or notifications.</div></div>`;
       document.querySelectorAll("[data-round]").forEach(row => row.onclick = () => openRound(row.dataset.round));
     }
@@ -852,11 +1021,12 @@ INDEX_HTML = r"""<!doctype html>
       const detail = await getJson(`/api/rounds/${encodeURIComponent(roundId)}`);
       const agents = detail.status.agents || [];
       const review = detail.final_review || {};
+      const progress = detail.spec_progress || {};
       document.getElementById("round-detail").innerHTML = `
         <div class="bar"><button id="back-rounds">Back to rounds</button><button id="refresh-round">Refresh timeline</button></div>
         <div class="split">
           <div class="detail"><h2 class="mono">${esc(roundId)}</h2><div>${status(detail.visible_status || detail.status.status || "unknown")}</div><h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div></div>`).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
-          <div class="detail"><h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? agents.map(agent => `<div class="card"><strong>${esc(agent.name || agent.slug)}</strong><div>${status(agent.phase || "unknown")}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`).join("") : `<div class="muted">No agents found.</div>`}<h3>Runner Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No runner output available.")}</div>`}</div>
+          <div class="detail"><h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>${(review.blocking_issues || []).map(item => `<div class="error-box">${esc(item)}</div>`).join("")}` : `<div class="muted">No final review available.</div>`}<h3>Spec Progress</h3>${progress.status || progress.validation_status ? `<div>${status(progress.status || progress.health || "observed")}</div><div class="muted">validation ${esc(progress.validation_status || "unknown")}</div>${progress.expected_branch ? `<div class="mono">expected ${esc(progress.expected_branch)}</div>` : ""}${progress.pr_ready_branch ? `<div class="mono">PR ${esc(progress.pr_ready_branch)}</div>` : ""}${progress.remote_branch_sha ? `<div class="mono">${esc(progress.remote_branch_sha)}</div>` : ""}${(progress.blockers || []).map(item => `<div class="error-box">${esc(item)}</div>`).join("")}${(progress.warnings || []).map(item => `<div class="muted">${esc(item)}</div>`).join("")}` : `<div class="muted">No spec-round progress available.</div>`}<h3>OpenSpec</h3>${detail.openspec?.change ? `<div class="mono">${esc(detail.openspec.change)}</div><div>${status(detail.openspec.spec_status?.ok === false || detail.openspec.validation_result?.ok === false ? "blocked" : "observed")}</div><pre class="mono">${esc(JSON.stringify(detail.openspec, null, 2))}</pre>` : `<div class="muted">No OpenSpec context available.</div>`}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? agents.map(agent => `<div class="card"><strong>${esc(agent.name || agent.slug)}</strong><div>${status(agent.phase || "unknown")}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`).join("") : `<div class="muted">No agents found.</div>`}<h3>Runner Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No runner output available.")}</div>`}</div>
         </div>`;
       document.getElementById("back-rounds").onclick = () => setView("rounds");
       document.getElementById("refresh-round").onclick = () => openRound(roundId);
@@ -864,7 +1034,7 @@ INDEX_HTML = r"""<!doctype html>
     function renderInbox() {
       const groups = state.snapshot.inbox;
       document.getElementById("inbox").innerHTML = groups.length ? groups.map(group => `
-        <div class="detail"><h2>${esc(group.round_id)}</h2>${group.items.map(item => `<div class="timeline item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)} ${esc(item.source_id)}</div><div>${esc(item.summary)}</div></div>`).join("")}</div>`).join("") : `<div class="card"><strong>No inbox updates</strong><div class="muted">Hub returned no messages or notifications.</div></div>`;
+        <div class="detail"><h2>${esc(group.round_id)}</h2>${group.items.map(item => `<div class="timeline item"><div>${status(item.spec_progress?.status || item.type)}</div><div class="muted">${fmt(item.time)} ${esc(item.source_id)}</div><div>${esc(item.summary)}</div>${item.spec_progress?.validation_status ? `<div class="muted">validation ${esc(item.spec_progress.validation_status)}</div>` : ""}${(item.spec_progress?.blockers || []).map(blocker => `<div class="error-box">${esc(blocker)}</div>`).join("")}</div>`).join("")}</div>`).join("") : `<div class="card"><strong>No inbox updates</strong><div class="muted">Hub returned no messages or notifications.</div></div>`;
     }
     function renderRuntime() {
       const sources = state.snapshot.sources;
