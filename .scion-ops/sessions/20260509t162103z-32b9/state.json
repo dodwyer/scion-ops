@@ -23,7 +23,7 @@
     "explorer": {
       "status": "completed",
       "id": "round-20260509t162103z-32b9-spec-explorer",
-      "summary": "Explorer completed (containerStatus: Succeeded). Branch had no new commits; findings expected via message channel."
+      "summary": "Explorer completed (containerStatus: Succeeded, activity: stalled). Container ran to completion; no branch commits (codex-exec harness). Stall notification received 2026-05-09T16:27:17Z — expected process exit, not a failure. No recovery needed."
     },
     "author": {"status": "running", "id": "round-20260509t162103z-32b9-spec-author", "summary": null},
     "review": {"status": "pending", "id": null, "summary": null}
