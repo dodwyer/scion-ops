@@ -123,10 +123,11 @@ $GOAL
 
 required_first_actions:
 1. Before detailed repository inspection or any OpenSpec authoring, create
-   $SESSION_STATE_ROOT/state.json on the steward branch with status "running",
-   phase "clarifying", branches for steward/clarifier/explorer/author/review/
-   integration, validation.status "pending", blockers [], and next_actions.
-   Commit and push that state to $STEWARD_BRANCH.
+   $SESSION_STATE_ROOT/state.json on the steward branch by running this exact
+   helper command, then commit and push that state to $STEWARD_BRANCH:
+
+   python3 "$AGENT_SCION_OPS_ROOT/scripts/steward-state.py" spec-init --project-root "\$PWD" --session-id "$SESSION_ID" --change "$CHANGE" --base-branch "$BASE_BRANCH"
+
 2. Start both required discovery agents with these exact commands from the
    current Scion checkout:
 
@@ -237,4 +238,4 @@ printf '\nWatch progress:\n'
 printf '  scion look %s\n' "$STEWARD_NAME"
 printf '  scion messages --agent %s\n' "$STEWARD_NAME"
 printf '\nValidate session:\n'
-printf '  task steward:validate -- --project-root %q --session-id %q --kind spec --change %q --branch %q --require-ready\n' "$PROJECT_ROOT" "$SESSION_ID" "$CHANGE" "$FINAL_BRANCH"
+printf '  task steward:validate -- --project-root %q --session-id %q --kind spec --change %q --base-branch %q --branch %q --require-ready\n' "$PROJECT_ROOT" "$SESSION_ID" "$CHANGE" "$BASE_BRANCH" "$FINAL_BRANCH"

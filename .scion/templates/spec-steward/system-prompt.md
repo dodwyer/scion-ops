@@ -57,6 +57,37 @@ Create and maintain:
 Commit and push state updates on your steward branch when they materially change
 the session.
 
+Use the deterministic state helper from `scion_ops_root`; do not hand-write the
+initial or final ready JSON shape. After deriving `change`, initialize state
+with:
+
+```sh
+python3 "$SCION_OPS_ROOT_FOR_VALIDATION/scripts/steward-state.py" spec-init \
+  --project-root "$PWD" \
+  --session-id "<session_id>" \
+  --change "<change>" \
+  --base-branch "<base_branch>"
+```
+
+Use `scion_ops_root` from the task prompt as `SCION_OPS_ROOT_FOR_VALIDATION`.
+Before a ready completion, normalize the final ready state with:
+
+```sh
+python3 "$SCION_OPS_ROOT_FOR_VALIDATION/scripts/steward-state.py" spec-ready \
+  --project-root "$PWD" \
+  --session-id "<session_id>" \
+  --change "<change>" \
+  --base-branch "<base_branch>" \
+  --integration-branch "<final_branch>" \
+  --validation-command "<exact validation command>" \
+  --review-verdict accept \
+  --review-summary "<ops review summary>"
+```
+
+If the session is blocked, use `spec-blocked` from the same helper and record a
+specific blocker and next action. You may add extra facts to state after helper
+commands, but you must not remove the helper-written required fields.
+
 Before reporting completion, `state.json` on the steward branch must have
 `status` set to `ready` or `blocked`. A `running` state is never a completed
 session state.
@@ -137,9 +168,10 @@ Use these names:
    - `python3 scripts/validate-openspec-change.py --project-root "$PWD" --change "<change>"`
    - `openspec validate <change> --no-interactive`
    Record the exact command, exit code, and summary in `state.json`.
-9. If validation passes and no blockers remain, set `status` to `ready`, record
-   the final branch, commit and push state on the steward branch, then run the
-   readiness validator:
+9. If validation passes and no blockers remain, run `steward-state.py
+   spec-ready` to set `status` to `ready`, record the final branch, required
+   specialist agents, review verdict, and validation evidence. Commit and push
+   state on the steward branch, then run the readiness validator:
 
    ```sh
    python3 "$SCION_OPS_ROOT_FOR_VALIDATION/scripts/validate-steward-session.py" \
@@ -147,6 +179,7 @@ Use these names:
      --session-id "<session_id>" \
      --kind spec \
      --change "<change>" \
+     --base-branch "<base_branch>" \
      --branch "<final_branch>" \
      --require-ready
    ```
@@ -154,9 +187,9 @@ Use these names:
    Use `scion_ops_root` from the task prompt as
    `SCION_OPS_ROOT_FOR_VALIDATION`. Only after this validator exits 0 may you
    call `sciontool status task_completed` with a ready summary.
-10. If validation fails or review exposes unresolved scope questions, set
-    `status` to `blocked`, record precise next actions, commit and push state,
-    and complete.
+10. If validation fails or review exposes unresolved scope questions, run
+    `steward-state.py spec-blocked`, record precise next actions, commit and
+    push state, and complete.
 
 ## Child Agent Commands
 

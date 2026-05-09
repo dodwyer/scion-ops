@@ -23,7 +23,13 @@ Update `state.json` after every phase transition, child completion, validation
 run, blocker, and final decision. The state file is the source of truth for
 automation that watches or resumes the session.
 
-Use this high-level shape:
+Use `python3 "$SCION_OPS_ROOT_FOR_VALIDATION/scripts/steward-state.py"` for the
+initial, ready, and blocked state writes. Set `SCION_OPS_ROOT_FOR_VALIDATION`
+from the `scion_ops_root` task prompt field. The helper writes the required
+schema; you may add extra facts afterward, but do not remove helper-written
+fields.
+
+The required shape is:
 
 ```json
 {
