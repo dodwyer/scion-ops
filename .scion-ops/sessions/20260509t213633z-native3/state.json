@@ -6,7 +6,7 @@
   "change": "update-web-app",
   "base_branch": "round-20260509t185251z-1cfe-spec-integration",
   "status": "running",
-  "phase": "starting",
+  "phase": "implementing",
   "branches": {
     "steward": "round-20260509t213633z-native3-implementation-steward",
     "implementer": "round-20260509t213633z-native3-impl-codex",
@@ -14,7 +14,20 @@
     "final_review": "round-20260509t213633z-native3-final-review",
     "integration": "round-20260509t213633z-native3-integration"
   },
-  "agents": {},
+  "agents": {
+    "round-20260509t213633z-native3-impl-codex": {
+      "branch": "round-20260509t213633z-native3-impl-codex",
+      "type": "impl-codex",
+      "scope": "Web App MCP Contract And UI",
+      "status": "running"
+    },
+    "round-20260509t213633z-native3-impl-claude": {
+      "branch": "round-20260509t213633z-native3-impl-claude",
+      "type": "impl-claude",
+      "scope": "Kind Install, Lifecycle Tasks, Smoke, And Docs",
+      "status": "running"
+    }
+  },
   "implementation": {
     "branch": "",
     "base_branch": "round-20260509t185251z-1cfe-spec-integration",
@@ -27,9 +40,8 @@
   },
   "blockers": [],
   "next_actions": [
-    "Write implementation brief and bounded task groups",
-    "Start bounded implementer agents",
-    "Integrate the accepted implementation branch",
+    "Monitor bounded implementer agents",
+    "Integrate accepted implementation branches",
     "Run verification and final review"
   ]
 }
