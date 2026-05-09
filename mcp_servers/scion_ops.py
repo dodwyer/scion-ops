@@ -260,10 +260,16 @@ def _kubectl_agent_logs(agent_name: str, num_lines: int) -> dict[str, Any]:
 
 def _looks_like_missing_terminal_output(result: dict[str, Any]) -> bool:
     output = str(result.get("output") or "").lower()
+    error = str(result.get("error") or "").lower()
     return (
         not result.get("ok")
-        and "failed to capture terminal output" in output
-        and ("not_found" in output or "resource not found" in output)
+        and (
+            (
+                "failed to capture terminal output" in output
+                and ("not_found" in output or "resource not found" in output)
+            )
+            or "no such file or directory" in error
+        )
     )
 
 
@@ -1316,6 +1322,36 @@ def _default_base_branch(project_root: str = "") -> str:
     return current or "HEAD"
 
 
+def _default_steward_base_branch(project_root: str = "") -> str:
+    root = _project_root(project_root) if project_root else _repo_root()
+    origin_head = _run(
+        ["git", "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
+        timeout=10,
+        cwd=root,
+    )
+    if origin_head.get("ok"):
+        value = origin_head["output"].strip()
+        if value.startswith("origin/"):
+            return value.removeprefix("origin/")
+    for candidate in ("main", "master"):
+        remote = _run(
+            ["git", "rev-parse", "--verify", "--quiet", f"origin/{candidate}^{{commit}}"],
+            timeout=10,
+            cwd=root,
+        )
+        local = _run(
+            ["git", "rev-parse", "--verify", "--quiet", f"{candidate}^{{commit}}"],
+            timeout=10,
+            cwd=root,
+        )
+        if remote.get("ok") or local.get("ok"):
+            return candidate
+    current = _default_base_branch(str(root))
+    if current.startswith("round-"):
+        return "main"
+    return current or "main"
+
+
 def _target_round_env(target_root: Path) -> dict[str, str]:
     env = {"SCION_OPS_PROJECT_ROOT": str(target_root)}
     grove_id = _read_text_file(target_root / ".scion" / "grove-id")
@@ -1653,6 +1689,33 @@ def _start_round_response(
     }
 
 
+def _start_steward_response(
+    result: dict[str, Any],
+    *,
+    target_root: Path,
+    parsed_session_id: str,
+    steward: str,
+    next_hints: dict[str, str],
+) -> dict[str, Any]:
+    event_cursor = ""
+    event_cursor_error: dict[str, Any] = {}
+    if parsed_session_id:
+        try:
+            event_cursor = _encode_cursor(_round_event_snapshot(parsed_session_id, str(target_root)))
+        except HubAPIError as exc:
+            event_cursor_error = _hub_error_payload(exc, "start_steward_event_cursor")
+    return {
+        **_command_result(result),
+        "project_root": str(target_root),
+        "session_id": parsed_session_id,
+        "round_id": parsed_session_id,
+        "steward_agent": steward,
+        "event_cursor": event_cursor,
+        "event_cursor_error": event_cursor_error,
+        "next": next_hints,
+    }
+
+
 def _validate_spec_change_result(root: Path, change: str) -> tuple[dict[str, Any], dict[str, Any]]:
     if _env_bool("SCION_OPS_USE_OPENSPEC_CLI", True):
         cli_result, cli_payload = _run_openspec_validation(root, change)
@@ -1799,9 +1862,18 @@ def scion_ops_round_status(
         ),
         "",
     )
+    status_agent = consensus or next(
+        (
+            item.get("name")
+            for item in summaries
+            if str(item.get("template") or "").endswith("steward")
+            and _agent_health(item) != "completed"
+        ),
+        "",
+    )
     transcript: dict[str, Any] = {}
-    if include_transcript and consensus:
-        transcript = scion_ops_look(consensus, num_lines=num_lines, project_root=project_root)
+    if include_transcript and status_agent:
+        transcript = scion_ops_look(status_agent, num_lines=num_lines, project_root=project_root)
     snapshot = {
         "agents": summaries,
         "messages": messages,
@@ -1820,7 +1892,9 @@ def scion_ops_round_status(
         "outcome": outcome,
         "terminal": _round_terminal_status(snapshot) or {},
         "consensus_agent": consensus,
+        "status_agent": status_agent,
         "consensus_transcript": transcript,
+        "status_transcript": transcript,
     }
 
 
@@ -2319,8 +2393,10 @@ def scion_ops_spec_status(project_root: str, change: str = "") -> dict[str, Any]
         "openspec_status_result": openspec_status_result,
         "next": {
             "draft_spec_tool": "scion_ops_start_spec_round",
+            "draft_spec_steward_tool": "scion_ops_start_spec_steward",
             "validate_tool": "scion_ops_validate_spec_change",
             "start_implementation_tool": "scion_ops_start_impl_round",
+            "start_implementation_steward_tool": "scion_ops_start_implementation_steward",
             "archive_tool": "scion_ops_archive_spec_change",
             "watch_tool": "scion_ops_watch_round_events",
         },
@@ -2381,6 +2457,46 @@ def scion_ops_start_spec_round(
             "watch_tool": "scion_ops_watch_round_events",
             "events_tool": "scion_ops_round_events",
             "artifacts_tool": "scion_ops_round_artifacts",
+            "abort_tool": "scion_ops_abort_round",
+        },
+    )
+
+
+@mcp.tool()
+def scion_ops_start_spec_steward(
+    goal: str,
+    project_root: str,
+    change: str = "",
+    session_id: str = "",
+    base_branch: str = "",
+) -> dict[str, Any]:
+    """Start a Scion-native OpenSpec steward session for a target project."""
+    goal = goal.strip()
+    if not goal:
+        raise ValueError("goal is required")
+    target_root = _project_root(project_root)
+    env: dict[str, str] = _target_round_env(target_root)
+    if change:
+        env["SCION_OPS_SPEC_CHANGE"] = _clean_name(change, "change")
+    if session_id:
+        env["SCION_OPS_SESSION_ID"] = _clean_name(session_id, "session_id")
+    if base_branch:
+        env["BASE_BRANCH"] = _clean_name(base_branch, "base_branch")
+    else:
+        env["BASE_BRANCH"] = _default_steward_base_branch(str(target_root))
+    result = _run(["task", "spec:steward", "--", goal], timeout=60, env=env)
+    parsed_session_id = _parse_started_round_id(result["output"], env.get("SCION_OPS_SESSION_ID", ""))
+    steward = f"round-{parsed_session_id.lower()}-spec-steward" if parsed_session_id else ""
+    return _start_steward_response(
+        result,
+        target_root=target_root,
+        parsed_session_id=parsed_session_id,
+        steward=steward,
+        next_hints={
+            "watch_tool": "scion_ops_watch_round_events",
+            "events_tool": "scion_ops_round_events",
+            "artifacts_tool": "scion_ops_round_artifacts",
+            "validate_tool": "scion_ops_validate_steward_session",
             "abort_tool": "scion_ops_abort_round",
         },
     )
@@ -3156,6 +3272,115 @@ def scion_ops_start_implementation_round(
         base_branch=base_branch,
         final_reviewer=final_reviewer,
     )
+
+
+@mcp.tool()
+def scion_ops_start_implementation_steward(
+    project_root: str,
+    change: str,
+    goal: str = "",
+    session_id: str = "",
+    base_branch: str = "",
+) -> dict[str, Any]:
+    """Start a Scion-native implementation steward session from an approved OpenSpec change."""
+    target_root = _project_root(project_root)
+    change = _clean_name(change, "change")
+    validation_result, validation = _validate_spec_change_result(target_root, change)
+    if not validation.get("ok"):
+        return {
+            **validation_result,
+            "source": "openspec_validator",
+            "project_root": str(target_root),
+            "change": change,
+            "validation": validation,
+            "next": {
+                "draft_spec_steward_tool": "scion_ops_start_spec_steward",
+                "spec_status_tool": "scion_ops_spec_status",
+            },
+        }
+
+    env: dict[str, str] = _target_round_env(target_root)
+    if session_id:
+        env["SCION_OPS_SESSION_ID"] = _clean_name(session_id, "session_id")
+    if base_branch:
+        env["BASE_BRANCH"] = _clean_name(base_branch, "base_branch")
+    else:
+        env["BASE_BRANCH"] = _default_steward_base_branch(str(target_root))
+
+    args = ["task", "spec:implement:steward", "--", "--change", change]
+    if goal.strip():
+        args.append(goal.strip())
+    result = _run(args, timeout=60, env=env)
+    parsed_session_id = _parse_started_round_id(result["output"], env.get("SCION_OPS_SESSION_ID", ""))
+    steward = f"round-{parsed_session_id.lower()}-implementation-steward" if parsed_session_id else ""
+    response = _start_steward_response(
+        result,
+        target_root=target_root,
+        parsed_session_id=parsed_session_id,
+        steward=steward,
+        next_hints={
+            "watch_tool": "scion_ops_watch_round_events",
+            "events_tool": "scion_ops_round_events",
+            "artifacts_tool": "scion_ops_round_artifacts",
+            "validate_tool": "scion_ops_validate_steward_session",
+            "abort_tool": "scion_ops_abort_round",
+        },
+    )
+    return {**response, "change": change, "validation": validation}
+
+
+@mcp.tool()
+def scion_ops_validate_steward_session(
+    project_root: str,
+    session_id: str,
+    kind: str,
+    change: str = "",
+    branch: str = "",
+    state_branch: str = "",
+    base_branch: str = "",
+    require_ready: bool = True,
+) -> dict[str, Any]:
+    """Validate durable state for a Scion OpenSpec steward session."""
+    target_root = _project_root(project_root)
+    session_id = _clean_name(session_id, "session_id")
+    kind = kind.strip().lower()
+    if kind not in {"spec", "implementation"}:
+        raise ValueError("kind must be 'spec' or 'implementation'")
+
+    args = [
+        "python3",
+        str(_repo_root() / "scripts" / "validate-steward-session.py"),
+        "--project-root",
+        str(target_root),
+        "--session-id",
+        session_id,
+        "--kind",
+        kind,
+        "--json",
+    ]
+    if change:
+        args.extend(["--change", _clean_name(change, "change")])
+    if branch:
+        args.extend(["--branch", _clean_name(branch, "branch")])
+    if state_branch:
+        args.extend(["--state-branch", _clean_name(state_branch, "state_branch")])
+    if base_branch:
+        args.extend(["--base-branch", _clean_name(base_branch, "base_branch")])
+    if require_ready:
+        args.append("--require-ready")
+
+    result = _run(args, timeout=30, cwd=_repo_root())
+    payload = _parse_json_result(result)
+    if payload:
+        return {**_command_result(result), "source": "steward_session_validator", "validation": payload}
+    return {
+        **_command_result(result),
+        "source": "steward_session_validator",
+        "project_root": str(target_root),
+        "session_id": session_id,
+        "kind": kind,
+        "error": "validator did not return JSON",
+    }
 
 
 @mcp.tool()

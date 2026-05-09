@@ -55,6 +55,7 @@ Commands:
   down                Delete the kind cluster.
   status              Show cluster, namespace, RBAC, and node status.
   workspace-status    Verify the kind node can see the scion-ops workspace.
+  configure-mcp-root  Point the MCP deployment at this scion-ops checkout.
   load-images IMAGE   Load one or more local images into the kind nodes.
   load-archive FILE   Load one or more image archives into the kind nodes.
   configure-scion     Configure global Scion profile "kind" for this cluster.
@@ -257,6 +258,17 @@ apply_manifests() {
   fi
   # Make ad-hoc kubectl commands predictable after setup.
   kubectl config set-context "$CONTEXT" --namespace "$NAMESPACE" >/dev/null
+  configure_mcp_root
+}
+
+configure_mcp_root() {
+  require kubectl
+  log "configure MCP repo root ${SCION_OPS_REPO_NODE_PATH}"
+  kubectl_ctx -n "$NAMESPACE" set env deploy/scion-ops-mcp \
+    "SCION_OPS_ROOT=${SCION_OPS_REPO_NODE_PATH}" \
+    "SCION_OPS_HOST_WORKSPACE_ROOT=${WORKSPACE_HOST_PATH}" \
+    "SCION_OPS_CONTAINER_WORKSPACE_ROOT=${WORKSPACE_NODE_PATH}" \
+    >/dev/null
 }
 
 cmd_up() {
@@ -344,6 +356,11 @@ cmd_workspace_status() {
 
   warn_missing_workspace_mount
   return 1
+}
+
+cmd_configure_mcp_root() {
+  require kubectl
+  configure_mcp_root
 }
 
 cmd_load_images() {
@@ -482,6 +499,10 @@ case "${1:-}" in
   workspace-status)
     shift
     cmd_workspace_status "$@"
+    ;;
+  configure-mcp-root)
+    shift
+    cmd_configure_mcp_root "$@"
     ;;
   load-images)
     shift

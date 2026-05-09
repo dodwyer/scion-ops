@@ -124,18 +124,41 @@ tasks:
         set -- {{.CLI_ARGS}}
         SCION_OPS_DRY_RUN=1 bash orchestrator/spec-round.sh "$@"
 
-  spec:implement:
-    desc: Start an implementation round from an approved OpenSpec change.
+  spec:steward:
+    desc: Start a Scion-native OpenSpec steward session for a target project.
     cmds:
       - |
         set -- {{.CLI_ARGS}}
-        bash orchestrator/spec-implementation-round.sh "$@"
+        bash orchestrator/spec-steward.sh "$@"
+
+  spec:steward:dry-run:
+    cmds:
+      - |
+        set -- {{.CLI_ARGS}}
+        SCION_OPS_DRY_RUN=1 bash orchestrator/spec-steward.sh "$@"
+
+  spec:implement:
+    desc: Start an implementation steward session from an approved OpenSpec change.
+    cmds:
+      - |
+        set -- {{.CLI_ARGS}}
+        bash orchestrator/implementation-steward.sh "$@"
 
   spec:implement:dry-run:
     cmds:
       - |
         set -- {{.CLI_ARGS}}
-        SCION_OPS_DRY_RUN=1 bash orchestrator/spec-implementation-round.sh "$@"
+        SCION_OPS_DRY_RUN=1 bash orchestrator/implementation-steward.sh "$@"
+
+  steward:validate:
+    desc: Validate durable state for a Scion OpenSpec steward session.
+    cmds:
+      - python3 scripts/validate-steward-session.py {{.CLI_ARGS}}
+
+  steward:pr:
+    desc: Create or return the GitHub PR for a ready Scion OpenSpec steward session.
+    cmds:
+      - python3 scripts/finalize-steward-pr.py {{.CLI_ARGS}}
 
   down:
     desc: Destroy the kind Kubernetes deployment.
@@ -259,6 +282,7 @@ tasks:
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' apply -f deploy/kind/namespace.yaml
       - kubectl --context '{{.KIND_CONTEXT}}' apply -k deploy/kind/control-plane
+      - bash scripts/kind-scion-runtime.sh configure-mcp-root
 
   kind:control-plane:restart:
     cmds:
@@ -395,12 +419,16 @@ tasks:
     cmds:
       - git diff --check
       - task --list
-      - python3 -c "import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in ('mcp_servers/scion_ops.py', 'scripts/kind-control-plane-smoke.py', 'scripts/smoke-mcp-server.py', 'scripts/validate-openspec-change.py', 'scripts/archive-openspec-change.py', 'scripts/test-openspec-change-validator.py', 'scripts/test-openspec-archive.py', 'scripts/test-mcp-openspec-cli.py', 'scripts/test-mcp-progress-lines.py', 'scripts/test-verdict-schema.py', 'scripts/final_review_repair.py', 'scripts/test-final-review-repair.py', 'scripts/web_app_hub.py', 'scripts/test-web-app-hub.py')]"
+      - python3 -c "import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in ('mcp_servers/scion_ops.py', 'scripts/hub-managed-templates.py', 'scripts/steward-state.py', 'scripts/kind-control-plane-smoke.py', 'scripts/smoke-mcp-server.py', 'scripts/validate-openspec-change.py', 'scripts/validate-steward-session.py', 'scripts/finalize-steward-pr.py', 'scripts/archive-openspec-change.py', 'scripts/final_review_repair.py', 'scripts/web_app_hub.py', 'scripts/test-openspec-change-validator.py', 'scripts/test-steward-session-validator.py', 'scripts/test-steward-pr-finalizer.py', 'scripts/test-openspec-archive.py', 'scripts/test-mcp-openspec-cli.py', 'scripts/test-mcp-progress-lines.py', 'scripts/test-mcp-base-branch.py', 'scripts/test-mcp-implementation-base-branch.py', 'scripts/test-web-app-hub.py', 'scripts/test-verdict-schema.py', 'scripts/test-final-review-repair.py')]"
       - python3 scripts/test-openspec-change-validator.py
+      - python3 scripts/test-steward-session-validator.py
+      - python3 scripts/test-steward-pr-finalizer.py
       - python3 scripts/test-openspec-archive.py
       - uv run scripts/test-mcp-openspec-cli.py
       - uv run scripts/test-mcp-progress-lines.py
+      - uv run scripts/test-mcp-base-branch.py
+      - uv run scripts/test-mcp-implementation-base-branch.py
       - uv run scripts/test-web-app-hub.py
       - python3 scripts/test-verdict-schema.py
       - python3 scripts/test-final-review-repair.py
-      - bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh scripts/release-smoke-round.sh scripts/scion-runtime-patches.sh scripts/storage-status.sh deploy/kind/control-plane/config/broker-entrypoint.sh orchestrator/lib/github-branches.sh orchestrator/run-round.sh orchestrator/round.sh orchestrator/spec-round.sh orchestrator/spec-implementation-round.sh orchestrator/abort.sh
+      - bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh scripts/release-smoke-round.sh scripts/scion-runtime-patches.sh scripts/storage-status.sh deploy/kind/control-plane/config/broker-entrypoint.sh orchestrator/lib/github-branches.sh orchestrator/run-round.sh orchestrator/round.sh orchestrator/spec-round.sh orchestrator/spec-steward.sh orchestrator/implementation-steward.sh orchestrator/abort.sh

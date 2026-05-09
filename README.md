@@ -145,20 +145,38 @@ Spec rounds create only OpenSpec artifacts under
 `openspec/changes/<change>/`. Implementation rounds consume an approved change
 folder.
 
+The preferred flow is the Scion-native steward path. A long-running steward
+keeps durable session state under `.scion-ops/sessions/<session_id>/`, delegates
+bounded work to specialist agents, and records validation/review gates before
+marking a session ready.
+
 ```bash
 SCION_OPS_PROJECT_ROOT=/home/david/workspace/github/example/project \
 SCION_OPS_SPEC_CHANGE=add-widget \
-task spec:round -- "Specify the widget behavior."
+task spec:steward -- "Specify the widget behavior."
 
 task spec:validate -- --project-root /home/david/workspace/github/example/project --change add-widget
 
 SCION_OPS_PROJECT_ROOT=/home/david/workspace/github/example/project \
-task spec:implement -- --change add-widget "Implement the approved change."
+task spec:implement:steward -- --change add-widget "Implement the approved change."
+
+task steward:validate -- \
+  --project-root /home/david/workspace/github/example/project \
+  --session-id <session-id> \
+  --kind implementation \
+  --change add-widget \
+  --require-ready
 ```
 
-MCP callers should prefer `scion_ops_run_spec_round` for spec rounds because it
-starts, monitors, validates, and returns the PR-ready branch in one repeatable
-tool loop.
+MCP callers can use `scion_ops_start_spec_steward`,
+`scion_ops_start_implementation_steward`, and
+`scion_ops_validate_steward_session`. The older `spec:round`,
+`spec:implement`, and `scion_ops_run_spec_round` commands remain available for
+one-shot automation.
+
+When `base_branch` is omitted, steward launchers prefer the repository's origin
+default branch, then `main`/`master`. Legacy one-shot commands keep their
+checkout-based default unless `base_branch` is passed explicitly.
 
 The MCP runtime uses the official OpenSpec CLI for validation and status when
 available, with the repo-local validator kept as the local fallback.

@@ -3,6 +3,11 @@
 scion-ops uses OpenSpec as the contract between planning rounds and
 implementation rounds.
 
+The preferred workflow is Scion-native stewardship: a long-running steward owns
+the session, records durable state, delegates bounded work to specialist agents,
+and uses deterministic validation/review gates before declaring a branch ready.
+The older one-shot round commands remain available for compact automation.
+
 ## Artifact Contract
 
 A spec round writes only:
@@ -27,16 +32,16 @@ Delta specs use:
 - `### Requirement: <name>`
 - `#### Scenario: <name>`
 
-## Shell Workflow
+## Steward Shell Workflow
 
-Start a spec round:
+Start a spec steward session:
 
 ```bash
 task bootstrap -- /path/to/project
 
 SCION_OPS_PROJECT_ROOT=/path/to/project \
 SCION_OPS_SPEC_CHANGE=add-widget \
-task spec:round -- "Specify the widget behavior."
+task spec:steward -- "Specify the widget behavior."
 ```
 
 Render the prompt without starting agents:
@@ -44,7 +49,7 @@ Render the prompt without starting agents:
 ```bash
 SCION_OPS_PROJECT_ROOT=/path/to/project \
 SCION_OPS_SPEC_CHANGE=add-widget \
-task spec:round:dry-run -- "Specify the widget behavior."
+task spec:steward:dry-run -- "Specify the widget behavior."
 ```
 
 Validate artifacts:
@@ -53,20 +58,43 @@ Validate artifacts:
 task spec:validate -- --project-root /path/to/project --change add-widget
 ```
 
-Start implementation after the spec PR is merged:
+Validate steward session state after the steward reports ready:
+
+```bash
+task steward:validate -- \
+  --project-root /path/to/project \
+  --session-id <session-id> \
+  --kind spec \
+  --change add-widget \
+  --require-ready
+```
+
+Start implementation after the spec PR is merged or after the approved spec
+branch is selected:
 
 ```bash
 task bootstrap -- /path/to/project
 
 SCION_OPS_PROJECT_ROOT=/path/to/project \
-task spec:implement -- --change add-widget "Implement the approved change."
+task spec:implement:steward -- --change add-widget "Implement the approved change."
 ```
 
 Render the implementation prompt without starting agents:
 
 ```bash
 SCION_OPS_PROJECT_ROOT=/path/to/project \
-task spec:implement:dry-run -- --change add-widget "Implement the approved change."
+task spec:implement:steward:dry-run -- --change add-widget "Implement the approved change."
+```
+
+Validate implementation steward state:
+
+```bash
+task steward:validate -- \
+  --project-root /path/to/project \
+  --session-id <session-id> \
+  --kind implementation \
+  --change add-widget \
+  --require-ready
 ```
 
 Archive after the implementation PR is merged:
@@ -79,6 +107,22 @@ task spec:archive -- --project-root /path/to/project --change add-widget --yes
 The archive command syncs accepted delta specs into `openspec/specs/` and moves
 the change folder under `openspec/changes/archive/`.
 
+## Legacy Shell Workflow
+
+The one-shot runner tasks are still supported:
+
+```bash
+SCION_OPS_PROJECT_ROOT=/path/to/project \
+SCION_OPS_SPEC_CHANGE=add-widget \
+task spec:round -- "Specify the widget behavior."
+
+SCION_OPS_PROJECT_ROOT=/path/to/project \
+task spec:implement -- --change add-widget "Implement the approved change."
+```
+
+Use these when a compact start-and-watch automation loop is more important than
+durable steward state.
+
 ## MCP Workflow
 
 For Zed and other MCP clients, keep the request small:
@@ -90,10 +134,19 @@ Run a spec round for change=add-widget:
 "Specify the widget behavior."
 ```
 
-The external agent should call `scion_ops_run_spec_round`. That tool starts or
-resumes the round, watches for progress, validates the artifact branch, and
-returns the PR-ready branch when done. Re-call it with `next.args` until
-`done=true`.
+The preferred external-agent tool is `scion_ops_start_spec_steward`. Monitor the
+session with `scion_ops_watch_round_events` and validate readiness with
+`scion_ops_validate_steward_session`.
+
+When `base_branch` is omitted, steward MCP tools choose the repository's origin
+default branch, then `main`/`master`. This keeps new steward sessions off stale
+round branches while preserving explicit caller control.
+
+`scion_ops_run_spec_round` remains available for the legacy compact loop. It
+starts or resumes a one-shot round, watches for progress, validates the artifact
+branch, and returns the PR-ready branch when done. Re-call it with `next.args`
+until `done=true`. Legacy compact tools keep the checkout-based default unless
+`base_branch` is passed explicitly.
 
 Implementation request:
 
@@ -104,6 +157,9 @@ Validate change=add-widget, then start an implementation round from that
 approved spec:
 "Implement the approved change."
 ```
+
+The preferred tool is `scion_ops_start_implementation_steward`. Validate the
+final state with `scion_ops_validate_steward_session`.
 
 Archive request:
 

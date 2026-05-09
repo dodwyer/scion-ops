@@ -31,8 +31,11 @@ REQUIRED_TOOLS = {
     "scion_ops_spec_status",
     "scion_ops_archive_spec_change",
     "scion_ops_start_spec_round",
+    "scion_ops_start_spec_steward",
     "scion_ops_run_spec_round",
     "scion_ops_start_impl_round",
+    "scion_ops_start_implementation_steward",
+    "scion_ops_validate_steward_session",
     "scion_ops_look",
 }
 

@@ -64,6 +64,8 @@ required_templates=(
   spec-author
   spec-ops-reviewer
   spec-finalizer
+  spec-steward
+  implementation-steward
 )
 
 for template in "${required_templates[@]}"; do
