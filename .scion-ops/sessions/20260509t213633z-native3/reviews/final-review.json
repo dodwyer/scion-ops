@@ -1,0 +1,53 @@
+{
+  "session_id": "20260509t213633z-native3",
+  "change": "update-web-app",
+  "base_branch": "round-20260509t185251z-1cfe-spec-integration",
+  "review_branch": "round-20260509t213633z-native3-integration",
+  "verdict": "reject",
+  "normalized_verdict": "request_changes",
+  "pr_ready": false,
+  "summary": "Reject: implementation mostly aligns MCP fields and kind deployment wiring, but it misses the approved Operator Overview requirement to expose and evaluate the web app control-plane dependency separately, including required Service/endpoint availability.",
+  "blocking_issues": [
+    {
+      "severity": "blocking",
+      "file": "scripts/web_app_hub.py",
+      "line": 629,
+      "requirement": "openspec/changes/update-web-app/specs/web-app-hub/spec.md:32",
+      "title": "Web app health is not a separate readiness dependency and missing Services/endpoints do not degrade readiness",
+      "details": "The approved spec requires the overview/runtime views to show Hub, broker, MCP, web app, and Kubernetes checks as healthy, and to identify the web app dependency as degraded or unavailable when its Deployment, Service, pod, or endpoint is missing. The implementation only folds web app Deployment readiness into the generic Kubernetes source. normalize_kubernetes collects Services but never checks for missing or unavailable required Services/endpoints, readiness_status only requires hub/broker/mcp/kubernetes, and the overview checks omit a web_app source. As a result, the dashboard can report ready when the web app Service or endpoint is absent, and operators do not get the required separate web app dependency signal."
+    }
+  ],
+  "non_blocking_notes": [
+    "Structured spec-round fields, final-review blocker summaries, branch artifacts, OpenSpec validation fields, and inbox/detail rendering are covered by focused fixture tests.",
+    "Kustomize renders the added web app Deployment, Service, and RBAC resources."
+  ],
+  "verification": [
+    {
+      "command": "uv run scripts/validate-openspec-change.py update-web-app",
+      "status": "passed",
+      "notes": "OpenSpec change update-web-app: ok"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 uv run scripts/test-web-app-hub.py",
+      "status": "passed",
+      "notes": "Fixture test script exited 0."
+    },
+    {
+      "command": "kubectl kustomize deploy/kind/control-plane",
+      "status": "passed",
+      "notes": "Rendered manifests include scion-ops-web-app Deployment, Service, ServiceAccount, Role, and RoleBinding."
+    },
+    {
+      "command": "uv run python -m py_compile scripts/web_app_hub.py scripts/kind-control-plane-smoke.py",
+      "status": "passed",
+      "notes": "Python syntax compilation succeeded."
+    }
+  ],
+  "verification_gaps": [
+    "Did not run a live kind cluster smoke against http://192.168.122.103:8787; review was limited to static rendering and fixture/no-spend checks."
+  ],
+  "pr_readiness": {
+    "ready": false,
+    "reason": "Blocking OpenSpec requirement gap remains in overview/runtime web app dependency health semantics."
+  }
+}
