@@ -39,7 +39,7 @@ import mcp_servers.scion_ops as scion_ops
 
 STALE_AFTER_SECONDS = 90
 ROUND_RE = re.compile(r"(?:round-)?(?P<id>\d{8}t\d{6}z-[a-z0-9]+)", re.IGNORECASE)
-CONTROL_PLANE_NAMES = {"scion-hub", "scion-broker", "scion-ops-mcp"}
+CONTROL_PLANE_NAMES = {"scion-hub", "scion-broker", "scion-ops-mcp", "scion-ops-web-app"}
 BRANCH_FIELD_NAMES = {
     "branch",
     "targetbranch",
@@ -582,7 +582,7 @@ class RuntimeProvider:
             "-n",
             namespace,
             "get",
-            "deploy,pod,svc,pvc",
+            "deploy,pod,svc,endpoints,pvc",
             "-o",
             "json",
         ]
@@ -606,6 +606,7 @@ def normalize_kubernetes(payload: dict[str, Any], *, namespace: str) -> dict[str
     deployments: list[dict[str, Any]] = []
     pods: list[dict[str, Any]] = []
     services: list[dict[str, Any]] = []
+    endpoints: list[dict[str, Any]] = []
     pvcs: list[dict[str, Any]] = []
     for item in items:
         kind = item.get("kind")
@@ -637,12 +638,37 @@ def normalize_kubernetes(payload: dict[str, Any], *, namespace: str) -> dict[str
             pods.append({"name": name, "phase": phase, "ready": ready})
         elif kind == "Service":
             services.append({"name": name, "type": item.get("spec", {}).get("type") or ""})
+        elif kind == "Endpoints":
+            subsets = item.get("subsets") if isinstance(item.get("subsets"), list) else []
+            ready_addresses = sum(
+                len(subset.get("addresses") or [])
+                for subset in subsets
+                if isinstance(subset, dict)
+            )
+            not_ready_addresses = sum(
+                len(subset.get("notReadyAddresses") or [])
+                for subset in subsets
+                if isinstance(subset, dict)
+            )
+            endpoints.append({
+                "name": name,
+                "ready_addresses": ready_addresses,
+                "not_ready_addresses": not_ready_addresses,
+                "ready": ready_addresses > 0,
+            })
         elif kind == "PersistentVolumeClaim":
             pvcs.append({"name": name, "phase": item.get("status", {}).get("phase") or ""})
     missing = sorted(CONTROL_PLANE_NAMES - {item["name"] for item in deployments})
+    missing_services = sorted(CONTROL_PLANE_NAMES - {item["name"] for item in services})
+    missing_endpoints = sorted(CONTROL_PLANE_NAMES - {item["name"] for item in endpoints})
     bad_deployments = [item for item in deployments if not item["ready"]]
     bad_pods = [item for item in pods if not item["ready"] and item["phase"] not in {"Succeeded", "Completed"}]
-    status = "healthy" if not missing and not bad_deployments and not bad_pods else "degraded"
+    bad_endpoints = [item for item in endpoints if not item["ready"]]
+    status = (
+        "healthy"
+        if not missing and not missing_services and not missing_endpoints and not bad_deployments and not bad_pods and not bad_endpoints
+        else "degraded"
+    )
     return ok_source(
         "kubernetes",
         status,
@@ -650,9 +676,13 @@ def normalize_kubernetes(payload: dict[str, Any], *, namespace: str) -> dict[str
         deployments=deployments,
         pods=pods,
         services=services,
+        endpoints=endpoints,
         pvcs=pvcs,
         missing_deployments=missing,
+        missing_services=missing_services,
+        missing_endpoints=missing_endpoints,
         degraded_pods=bad_pods,
+        degraded_endpoints=bad_endpoints,
     )
 
 
