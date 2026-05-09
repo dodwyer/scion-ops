@@ -2,8 +2,8 @@
   "session_id": "20260509t175738z-7673",
   "round_id": "20260509t175738z-7673",
   "change": "update-web-app",
-  "status": "running",
-  "phase": "authoring",
+  "status": "ready",
+  "phase": "complete",
   "branches": {
     "steward": "round-20260509t175738z-7673-spec-steward",
     "clarifier": "round-20260509t175738z-7673-spec-clarifier",
@@ -13,12 +13,13 @@
     "integration": "round-20260509t175738z-7673-spec-integration"
   },
   "validation": {
-    "status": "pending"
+    "status": "passed",
+    "command": "python3 scripts/validate-openspec-change.py --project-root . --change update-web-app",
+    "integration_branch": "round-20260509t175738z-7673-spec-integration",
+    "review_agent": "round-20260509t175738z-7673-spec-ops-review"
   },
   "blockers": [],
   "next_actions": [
-    "Start spec-author agent",
-    "Create integration branch from authored OpenSpec artifacts",
-    "Validate OpenSpec artifacts on integration branch"
+    "Use round-20260509t175738z-7673-spec-integration for OpenSpec review or implementation planning"
   ]
 }
