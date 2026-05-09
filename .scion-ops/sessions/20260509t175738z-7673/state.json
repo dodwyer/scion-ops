@@ -3,7 +3,7 @@
   "round_id": "20260509t175738z-7673",
   "change": "update-web-app",
   "status": "running",
-  "phase": "clarifying",
+  "phase": "authoring",
   "branches": {
     "steward": "round-20260509t175738z-7673-spec-steward",
     "clarifier": "round-20260509t175738z-7673-spec-clarifier",
@@ -17,8 +17,8 @@
   },
   "blockers": [],
   "next_actions": [
-    "Start spec-goal-clarifier discovery agent",
-    "Start spec-repo-explorer discovery agent",
-    "Wait for both discovery summaries before authoring OpenSpec artifacts"
+    "Start spec-author agent",
+    "Create integration branch from authored OpenSpec artifacts",
+    "Validate OpenSpec artifacts on integration branch"
   ]
 }
