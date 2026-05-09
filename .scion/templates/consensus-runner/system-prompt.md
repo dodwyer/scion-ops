@@ -82,6 +82,7 @@ The task prompt will include:
   integrator agents)
 - `base_branch` (the branch the round started from; default `main`)
 - `final_reviewer` (`codex` or `gemini`; default `codex`)
+- `max_final_repair_rounds` (default 2)
 - `scion_profile` (default `kind`; use this for every `scion start`)
 - the original user task
 
@@ -106,9 +107,12 @@ Use these names unless the prompt gives explicit alternatives:
 - `round-<round_id>-review-claude-r<N>-from-codex`
 - `round-<round_id>-review-codex-r<N>-from-claude`
 - `round-<round_id>-integrator`
+- `round-<round_id>-integrator-r<N>`
 - `round-<round_id>-final-review`
 - `round-<round_id>-final-review-snapshot`
+- `round-<round_id>-final-review-snapshot-r<N>`
 - `round-<round_id>-integration`
+- `round-<round_id>-integration-r<N>`
 
 When `origin` is configured, child agents must push their branches so later
 agents and remote brokers can review them. When no remote is configured, local
@@ -139,8 +143,15 @@ At minimum include:
   "prompt": "...",
   "implementers": {},
   "review_rounds": [],
-  "integration": {},
-  "final_review": {}
+  "integration": {
+    "branch": "...",
+    "verification_handoff": {}
+  },
+  "final_review": {
+    "final_repair_rounds_used": 0,
+    "max_final_repair_rounds": 2,
+    "repair_history": []
+  }
 }
 ```
 
@@ -253,23 +264,113 @@ The audit file is a working artifact. It does not need to be committed.
    - apply agreed reviewer feedback,
    - run tests,
    - commit,
-   - push `round-<round_id>-integration`.
-9. Create `round-<round_id>-final-review-snapshot` from
-   `round-<round_id>-integration`, force-push it when origin is configured, and
-   verify it is visible with `git ls-remote --heads origin
-   round-<round_id>-final-review-snapshot`. Then spawn the final reviewer on
-   that snapshot branch with
-   `--broker kind-control-plane --harness-auth auth-file --no-upload`.
-   - If `final_reviewer` is missing or exactly `codex`, start `final-reviewer-codex` with:
-     `scion --profile <scion_profile> start <final_review_agent> --type final-reviewer-codex --branch <final_review_snapshot_branch> --broker kind-control-plane --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "<final review task>"`
-   - If `final_reviewer` is exactly `gemini`, first start `final-reviewer-gemini` with:
-     `scion --profile <scion_profile> start <final_review_agent> --type final-reviewer-gemini --branch <final_review_snapshot_branch> --broker kind-control-plane --harness-auth auth-file --no-upload --non-interactive --notify "<final review task>"`
-   - If Gemini cannot start, reaches `phase == error`, reports `activity == limits_exceeded`, or reports a quota/capacity/auth failure instead of a verdict, start `final-reviewer-codex` as the fallback.
-   - If you fall back from Gemini to Codex, record the failed Gemini output or state and fallback reason in `state/<round_id>.json`.
-   - Never use an `impl-*` template for final review. If the final-review agent appears with an `impl-*` template, stop and delete it, then recreate it with the requested `final-reviewer-*` template before continuing.
-   - Require the final reviewer to send the final verdict JSON to the Hub user inbox.
-10. Accept only if the final reviewer verdict is `accept`. Otherwise set status `blocked` and report the final blocking issues.
-11. On success, set status `success` and report the integration branch.
+   - push `round-<round_id>-integration`,
+   - record the canonical verification commands run, the integration branch and
+     commit identifiers, the observed verification results (pass/fail summary
+     and relevant output), and known caveats or skipped checks in the
+     `task_completed` summary and send them to the coordinator inbox.
+8a. Extract the verification handoff from the integrator's completed message.
+    Record it in `state/<round_id>.json` under `integration.verification_handoff`:
+    ```json
+    {
+      "branch": "round-<round_id>-integration",
+      "commit": "<sha-if-available>",
+      "verification_commands": ["<commands-run-by-integrator>"],
+      "observed_results": "<pass/fail-summary-and-relevant-output>",
+      "caveats": ["<known-caveats-or-skipped-checks>"]
+    }
+    ```
+    If the integrator message does not include commands or observed results,
+    record what is available and proceed to step 9 for enforcement.
+9. Verify the verification handoff before starting final review. Check that
+   `integration.verification_handoff` in `state/<round_id>.json` contains
+   `branch`, non-empty `verification_commands`, and `observed_results`. If any
+   required field is missing, set status `blocked` and ask the integrator to
+   provide a corrected handoff without classifying the branch as an
+   implementation or integration defect. Update `integration.verification_handoff`
+   before proceeding to step 10.
+10. Final-review repair loop. Initialize in `state/<round_id>.json`:
+    `final_review.final_repair_rounds_used = 0`,
+    `final_review.max_final_repair_rounds` from input (default 2),
+    `final_review.repair_history = []`.
+    Repeat until final review accepts or the round stops:
+
+    a. Create or refresh the final-review snapshot. For the first attempt use
+       `round-<round_id>-final-review-snapshot`; for repair cycle N (N ≥ 2)
+       use `round-<round_id>-final-review-snapshot-r<N>`. Create from the
+       current integration branch, force-push when origin is configured, and
+       verify visibility with `git ls-remote --heads origin <snapshot>`.
+       Spawn the final reviewer on the snapshot branch with
+       `--broker kind-control-plane --harness-auth auth-file --no-upload`.
+       Include the canonical verification commands from
+       `integration.verification_handoff` in the final-review task prompt.
+       - If `final_reviewer` is missing or exactly `codex`, start
+         `final-reviewer-codex` with:
+         `scion --profile <scion_profile> start <final_review_agent> --type final-reviewer-codex --branch <final_review_snapshot_branch> --broker kind-control-plane --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "<final review task>"`
+       - If `final_reviewer` is exactly `gemini`, first start
+         `final-reviewer-gemini` with:
+         `scion --profile <scion_profile> start <final_review_agent> --type final-reviewer-gemini --branch <final_review_snapshot_branch> --broker kind-control-plane --harness-auth auth-file --no-upload --non-interactive --notify "<final review task>"`
+       - If Gemini cannot start, reaches `phase == error`, reports
+         `activity == limits_exceeded`, or reports a quota/capacity/auth
+         failure instead of a verdict, start `final-reviewer-codex` as the
+         fallback.
+       - If you fall back from Gemini to Codex, record the failed Gemini
+         output or state and fallback reason in `state/<round_id>.json`.
+       - Never use an `impl-*` template for final review. If the final-review
+         agent appears with an `impl-*` template, stop and delete it, then
+         recreate it with the requested `final-reviewer-*` template before
+         continuing.
+       - Require the final reviewer to send the final verdict JSON to the Hub
+         user inbox with `failure_class` and `evidence` included when the
+         verdict is not `accept`.
+
+    b. Collect the final-review verdict JSON from the Hub inbox.
+
+    c. If the verdict is `accept`: proceed to step 11.
+
+    d. If the verdict is not `accept` and does not include `failure_class` or
+       `evidence`: set status `blocked` and report that the final reviewer did
+       not provide a classified failure. Stop.
+
+    e. Check the budget: if
+       `final_review.final_repair_rounds_used >= final_review.max_final_repair_rounds`:
+       set status `escalate`. Record the last classification, evidence,
+       verification handoff, branch identifiers, and full repair history in
+       `state/<round_id>.json`. Stop.
+
+    f. Increment `final_review.final_repair_rounds_used`. Append to
+       `final_review.repair_history`:
+       `{"cycle": N, "failure_class": "...", "evidence": "...", "route": "..."}`.
+
+    g. Route the failure by class and continue the loop:
+       - `implementation_defect`: Spawn a focused revision implementer for the
+         affected implementation surface using the existing `impl-claude` or
+         `impl-codex` template. The revision must pass peer review (steps 5–6
+         criteria) before reintegration. After peer review accepts, run the
+         integrator (step 8) again on the revised winner branch, refresh
+         `integration.verification_handoff`, and continue the loop.
+       - `integration_defect`: Spawn integrator `round-<round_id>-integrator-r<N>`
+         on branch `round-<round_id>-integration-r<N>` to repair the
+         integration. After repair, require the integrator to refresh the
+         verification handoff. Record the updated handoff in
+         `state/<round_id>.json` and continue the loop.
+       - `verification_contract`: Correct the verification command set,
+         acceptance contract, fixture documentation, or result interpretation.
+         Do not invalidate the accepted integration branch. Update
+         `integration.verification_handoff.verification_commands` with the
+         corrected commands. Invalidate the branch only if the corrected
+         contract exposes a separate `implementation_defect` or
+         `integration_defect`. Continue the loop.
+       - `environment_failure`: Wait for the failed environment dependency to
+         be restored, then continue the loop. Escalate if recovery is not
+         possible within round policy. Do not mark submitted branches as
+         defective.
+       - `transient_agent_failure`: Continue the loop (retry). Escalate when
+         retries are exhausted. Reclassify only when new evidence supports a
+         different category.
+
+11. On success, set status `success` in `state/<round_id>.json` and report the
+    integration branch.
 
 ## Review Prompt Requirements
 
@@ -327,3 +428,25 @@ The final reviewer must run the project test command. Any failing test is a
 blocking issue. Style nits do not block the final review unless they indicate a
 production or compliance risk. Prefer Gemini for this final independent check
 unless the prompt explicitly asks for Codex or Gemini cannot be started.
+
+When the verdict is not `accept`, the final reviewer must classify the failure
+and include both `failure_class` and `evidence` in the verdict JSON. The
+`failure_class` must be exactly one of:
+
+- `implementation_defect` — a bug, missing requirement, incomplete test, or
+  regression traceable to an implementation branch.
+- `integration_defect` — a merge, conflict-resolution, branch selection,
+  dependency-ordering, or assembly error introduced during integration.
+- `verification_contract` — missing, stale, ambiguous, or inconsistent
+  verification commands, fixtures, acceptance criteria, or result
+  interpretation that prevent a definitive pass/fail determination.
+- `environment_failure` — unavailable infrastructure, credentials, services,
+  dependencies, filesystem state, network access, or runtime capacity outside
+  the submitted branches.
+- `transient_agent_failure` — agent timeout, transport failure, malformed
+  transient response, or other non-deterministic execution failure that does
+  not yet indicate a branch defect.
+
+The `evidence` field must support the selected classification. If the evidence
+is insufficient for the chosen class, the coordinator will treat the verdict as
+needing classification clarification rather than routing to a repair path.

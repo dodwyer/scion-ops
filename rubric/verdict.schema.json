@@ -61,6 +61,21 @@
         }
       }
     },
+    "failure_class": {
+      "type": "string",
+      "enum": [
+        "implementation_defect",
+        "integration_defect",
+        "verification_contract",
+        "environment_failure",
+        "transient_agent_failure"
+      ],
+      "description": "Required for final-review verdicts that are not accept. Classifies the failure category for remediation routing."
+    },
+    "evidence": {
+      "type": "string",
+      "description": "Evidence supporting the failure_class classification. Required when failure_class is present."
+    },
     "summary": {
       "type": "string",
       "description": "One-paragraph human-readable summary of the review."
