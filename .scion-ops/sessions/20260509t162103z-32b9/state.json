@@ -15,8 +15,8 @@
     "integration": "round-20260509t162103z-32b9-spec-integration"
   },
   "agents": {
-    "clarifier": {"status": "pending", "id": null, "summary": null},
-    "explorer": {"status": "pending", "id": null, "summary": null},
+    "clarifier": {"status": "running", "id": "round-20260509t162103z-32b9-spec-clarifier", "summary": null},
+    "explorer": {"status": "running", "id": "round-20260509t162103z-32b9-spec-explorer", "summary": null},
     "author": {"status": "pending", "id": null, "summary": null},
     "review": {"status": "pending", "id": null, "summary": null}
   },
