@@ -100,3 +100,23 @@ The system SHALL keep the web app hub read-only and SHALL NOT expose round-start
 - WHEN an operator views list, detail, inbox, overview, or runtime pages
 - THEN the app does not present controls that imply the browser can perform repair, retry, approval, archive, abort, or state-changing actions
 - AND any next-action text identifies the responsible owner or workflow outside the web app.
+
+### Requirement: Kustomize Kind Deployment
+
+The system SHALL include the read-only web app in the kustomize and kind install path alongside the scion-aligned MCP service.
+
+#### Scenario: Kind install deploys web app with MCP service
+
+- GIVEN an operator installs the local control plane through the documented kind and kustomize workflow
+- WHEN the Kubernetes resources are applied
+- THEN the scion-aligned MCP service and the web app are deployed by the same install path
+- AND the web app is configured to read from the existing Hub, MCP, Kubernetes, git, verification, and normalized helper sources needed for read-only diagnostics
+- AND the install exposes the web app through the local kind access pattern documented for operators.
+
+#### Scenario: Deployment preserves read-only constraints
+
+- GIVEN the web app is running from the kind and kustomize deployment
+- WHEN an operator opens overview, rounds, round detail, inbox, or runtime views
+- THEN the browser-facing service allows read-only app loading, refresh, filtering, sorting, detail navigation, copying identifiers, and read-only local links
+- AND it does not expose Kubernetes routes, service accounts, environment configuration, or backend endpoints that allow the browser to start, abort, retry, repair, approve, archive, delete, or mutate rounds
+- AND it does not grant the web app permission to write Hub records, modify Kubernetes resources, or change git branches, commits, remotes, or working tree state.

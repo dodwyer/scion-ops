@@ -39,6 +39,14 @@ The runtime view should continue to show readiness checks, but should add cleare
 
 The web app must not expose controls or endpoints that mutate scion-ops state. Refreshing, filtering, sorting, opening details, copying identifiers, and following local links are allowed. Starting rounds, aborting rounds, retrying agents, applying repair routes, writing Hub records, modifying Kubernetes resources, or changing git branches from the app remain prohibited.
 
+## Kustomize and Kind Deployment
+
+The local control-plane install should deploy the web app through the same kustomize/kind path as the scion-aligned MCP service. The web app resources should fit the existing Kubernetes layout, including service discovery, namespace conventions, labels, readiness checks, and the documented local access pattern used by kind operators.
+
+The deployment should provide only the configuration needed for read-only diagnostics. Browser-facing routes and backend adapters may read Hub, MCP, Kubernetes, git, verification, and normalized helper state, but the deployed service account, environment configuration, and exposed endpoints should not allow browser-driven round mutations, Hub writes, Kubernetes writes, or git changes.
+
+Kustomize overlays should keep web app configuration explicit enough for local operators to inspect which MCP endpoint, Hub endpoint, and runtime namespace the app reads from. The kind install should make the web app available alongside the MCP service without requiring a separate manual deployment step.
+
 ## Error Handling
 
 Source failures should be represented independently. A Kubernetes failure must not hide Hub messages; a Hub auth failure must not hide local git diagnostics; a verification-command failure must not be collapsed into a generic round failure when structured error categories are available.
@@ -54,3 +62,4 @@ Implementation should include fixture or unit coverage proving:
 - Filters, sorts, and URL state select the expected rounds without mutating backing data.
 - Partial-source failures preserve available data and expose source-specific error categories.
 - Normal app loading and refresh do not call round-starting, repair, retry, abort, archive, Kubernetes write, Hub write, or git mutation paths.
+- The kustomize/kind install renders and applies web app resources with the scion-aligned MCP service while preserving read-only runtime permissions and operator access.

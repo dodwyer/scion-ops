@@ -18,13 +18,14 @@ In scope:
 - Configuration and provenance panels showing active grove/project settings, branch names, commit identifiers, source timestamps, and data-source freshness.
 - Final-review and repair-loop visibility, including failure classification, handoff evidence, repair budget state, route history, and current owner when available.
 - Stronger degraded-state diagnostics for Hub, Runtime Broker, MCP, Kubernetes, git checkout state, and verification-command failures.
+- Kustomize and kind install coverage that deploys the read-only web app alongside the scion-aligned MCP service in the local control-plane workflow.
 - Filtering, sorting, and persistent URL state for operational round lists without persisting independent round data.
 - Tests and fixtures covering the updated read-only rendering and normalization behavior.
 
 Out of scope:
 
 - Starting, aborting, retrying, repairing, approving, archiving, or otherwise mutating rounds from the web app.
-- Changing orchestration behavior, Kubernetes manifests, Hub APIs, MCP tools, or runtime scripts except for read-only adapter support required by implementation.
+- Changing orchestration behavior, Hub APIs, MCP tools, or runtime scripts except for read-only adapter support and the Kubernetes/kustomize/kind install wiring required to deploy the web app.
 - Adding authentication, multi-user permissions, hosted deployment, or production hardening beyond the existing local control-plane model.
 - Replacing CLI or MCP workflows.
 
@@ -34,6 +35,7 @@ Out of scope:
 - Operators can inspect branch, commit, verification, and final-review repair details without parsing raw message bodies.
 - Degraded runtime or verification states preserve partial data and show source-specific causes.
 - Updated views remain read-only and do not start, stop, retry, repair, or mutate rounds during normal loading or refresh.
+- The kind/kustomize install deploys the web app with the scion-aligned MCP service and exposes only read-only web app traffic needed for operator access.
 - Implementation can be validated with fixture coverage for healthy, blocked, final-review repair, stale, and unavailable-source states.
 
 ## Unresolved Questions
