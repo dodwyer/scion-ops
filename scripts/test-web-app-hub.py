@@ -292,6 +292,56 @@ def test_final_review_changes_requested_is_not_collapsed_to_completed():
     assert detail["final_review"]["display"] == "changes requested"
 
 
+def test_final_review_blocked_verdict_is_exposed():
+    notifications = {
+        "ok": True,
+        "items": [
+            {
+                "id": "final-blocked",
+                "agentId": "round-20260509t063201z-6c02-final-review",
+                "summary": '{"reviewer":"final-claude","verdict":"blocked","summary":"implementation does not meet spec"}',
+                "createdAt": "2026-05-09T06:41:01+00:00",
+            }
+        ],
+    }
+    snapshot = web_app_hub.build_snapshot(FixtureProvider(notifications=notifications))
+    row = snapshot["rounds"][0]
+    assert row["final_review"]["normalized_verdict"] == "blocked"
+    assert row["status"] == "blocked"
+    assert row["visible_status"] == "blocked"
+
+
+def test_outcome_only_final_review_visible_in_rounds_list():
+    # No final_review verdict in messages or notifications - only in outcome state
+    messages = {"ok": True, "items": []}
+    notifications = {
+        "ok": True,
+        "items": [
+            {
+                "id": "note-plain",
+                "agentId": "round-20260509t063201z-6c02-codex",
+                "summary": "round 20260509t063201z-6c02 completed",
+                "createdAt": "2026-05-09T06:38:00+00:00",
+            }
+        ],
+    }
+    outcome = {
+        "source": "final_review_outcome",
+        "final_review": {
+            "source": "outcome",
+            "created": "2026-05-09T06:42:00+00:00",
+            "verdict": "accept",
+            "normalized_verdict": "accept",
+            "summary": "all requirements met",
+        },
+    }
+    provider = FixtureProvider(messages=messages, notifications=notifications, round_outcome=outcome)
+    snapshot = web_app_hub.build_snapshot(provider)
+    row = snapshot["rounds"][0]
+    assert row["final_review"]["normalized_verdict"] == "accept", "outcome-only final_review must be visible in rounds list"
+    assert row["visible_status"] == "accepted"
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
