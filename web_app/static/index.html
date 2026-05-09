@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>scion-ops hub</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:ui-monospace,Menlo,monospace;background:#161616;color:#d4d4d4;font-size:13px;line-height:1.5}
+    nav{background:#0d0d0d;border-bottom:1px solid #2a2a2a;padding:8px 20px;display:flex;align-items:center;gap:4px;position:sticky;top:0;z-index:10}
+    .nav-title{color:#4ec9b0;font-size:14px;font-weight:bold;margin-right:16px;letter-spacing:.5px}
+    nav a{color:#888;text-decoration:none;padding:4px 10px;border-radius:3px;font-size:12px}
+    nav a:hover{color:#d4d4d4;background:#1e1e1e}
+    nav a.active{color:#d4d4d4;background:#252526}
+    .spacer{flex:1}
+    .refresh-info{color:#555;font-size:11px;display:flex;align-items:center;gap:8px}
+    #refresh-btn{background:#252526;border:1px solid #3c3c3c;color:#888;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-family:inherit}
+    #refresh-btn:hover{background:#2d2d2d;color:#d4d4d4}
+    #main{padding:20px;max-width:1100px}
+    .view-title{font-size:16px;font-weight:bold;margin-bottom:16px;color:#d4d4d4;display:flex;align-items:center;gap:10px}
+    .card{background:#1e1e1e;border:1px solid #2a2a2a;border-radius:4px;padding:16px;margin-bottom:12px}
+    .card-title{font-size:12px;font-weight:bold;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+    .check-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #252526}
+    .check-row:last-child{border-bottom:none}
+    .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .dot-ok{background:#4ec9b0}
+    .dot-err{background:#f44747}
+    .dot-warn{background:#dcdcaa}
+    .check-name{color:#d4d4d4;min-width:100px}
+    .check-detail{color:#666;font-size:12px;flex:1}
+    .badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:.3px}
+    .b-ready{background:#0d3d2e;color:#4ec9b0;border:1px solid #1a6b50}
+    .b-degraded{background:#3d2f00;color:#dcdcaa;border:1px solid #6b5200}
+    .b-unavailable,.b-blocked{background:#3d0d0d;color:#f44747;border:1px solid #6b1a1a}
+    .b-running{background:#0d1e3d;color:#569cd6;border:1px solid #1a3a6b}
+    .b-completed,.b-terminal{background:#252526;color:#666;border:1px solid #3c3c3c}
+    .b-pending{background:#1e1e1e;color:#555;border:1px solid #333}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th{text-align:left;padding:6px 8px;color:#666;border-bottom:1px solid #2a2a2a;font-weight:normal;font-size:11px;text-transform:uppercase;letter-spacing:.3px}
+    td{padding:7px 8px;border-bottom:1px solid #1e1e1e;vertical-align:middle}
+    tr:hover td{background:#1a1a1a}
+    a.link{color:#569cd6;text-decoration:none}
+    a.link:hover{text-decoration:underline}
+    a.back{color:#888;text-decoration:none;font-size:12px;display:inline-block;margin-bottom:12px}
+    a.back:hover{color:#d4d4d4}
+    .loading{color:#555;padding:32px 0;text-align:center}
+    .empty{color:#555;padding:24px 0;font-style:italic}
+    .err-box{background:#1a0808;border:1px solid #4a1010;border-radius:4px;padding:12px;color:#f44747;margin-bottom:12px;font-size:12px}
+    .err-box strong{color:#f44747}
+    .stale{color:#555;font-size:11px}
+    .mono{font-family:ui-monospace,Menlo,monospace;font-size:11px}
+    .timeline-item{padding:10px 0;border-bottom:1px solid #1e1e1e}
+    .timeline-item:last-child{border-bottom:none}
+    .timeline-meta{color:#555;font-size:11px;margin-bottom:3px;display:flex;align-items:center;gap:8px}
+    .timeline-type{background:#252526;color:#666;padding:1px 5px;border-radius:3px;font-size:10px}
+    .timeline-sender{color:#569cd6}
+    .timeline-body{white-space:pre-wrap;word-break:break-all;color:#c8c8c8;font-size:12px;max-height:120px;overflow:hidden}
+    .grouped-section{margin-bottom:20px}
+    .grouped-header{font-size:12px;color:#888;border-bottom:1px solid #2a2a2a;padding-bottom:6px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+    .pill{background:#252526;color:#569cd6;padding:2px 8px;border-radius:10px;font-size:11px}
+    .summary-cell{max-width:280px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#888}
+    .id-cell{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#ce9178}
+    .phase-cell{font-size:11px;color:#888}
+  </style>
+</head>
+<body>
+<nav>
+  <span class="nav-title">scion-ops</span>
+  <a href="#overview" data-view="overview">Overview</a>
+  <a href="#rounds" data-view="rounds">Rounds</a>
+  <a href="#inbox" data-view="inbox">Inbox</a>
+  <a href="#runtime" data-view="runtime">Runtime</a>
+  <span class="spacer"></span>
+  <span class="refresh-info">
+    <span id="refresh-ts"></span>
+    <button id="refresh-btn">↻ Refresh</button>
+  </span>
+</nav>
+<div id="main"><div class="loading">Loading…</div></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var REFRESH_MS = 30000;
+  var refreshTimer = null;
+  var lastFetch = null;
+
+  // --- Utilities ---
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function timeAgo(ts) {
+    if (!ts) return '';
+    var d = new Date(ts);
+    if (isNaN(d.getTime())) return esc(ts);
+    var sec = Math.round((Date.now() - d.getTime()) / 1000);
+    if (sec < 5) return 'just now';
+    if (sec < 60) return sec + 's ago';
+    if (sec < 3600) return Math.round(sec / 60) + 'm ago';
+    if (sec < 86400) return Math.round(sec / 3600) + 'h ago';
+    return Math.round(sec / 86400) + 'd ago';
+  }
+
+  function badge(status) {
+    var map = {
+      ready: 'b-ready', degraded: 'b-degraded', unavailable: 'b-unavailable',
+      blocked: 'b-blocked', running: 'b-running', completed: 'b-completed',
+      terminal: 'b-terminal', pending: 'b-pending',
+    };
+    var cls = map[String(status).toLowerCase()] || 'b-pending';
+    return '<span class="badge ' + cls + '">' + esc(status) + '</span>';
+  }
+
+  function dot(ok) {
+    return '<span class="dot ' + (ok ? 'dot-ok' : 'dot-err') + '"></span>';
+  }
+
+  async function fetchJSON(url) {
+    var r = await fetch(url, { cache: 'no-store' });
+    return r.json();
+  }
+
+  function setMain(html) {
+    document.getElementById('main').innerHTML = html;
+  }
+
+  function showLoading() {
+    setMain('<div class="loading">Loading…</div>');
+  }
+
+  function showError(msg, kind) {
+    setMain(
+      '<div class="err-box"><strong>Error' + (kind ? ' [' + esc(kind) + ']' : '') +
+      ':</strong> ' + esc(msg) + '</div>'
+    );
+  }
+
+  function updateTimestamp() {
+    var el = document.getElementById('refresh-ts');
+    if (lastFetch) {
+      el.textContent = 'updated ' + timeAgo(lastFetch);
+    }
+  }
+
+  function scheduleRefresh() {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(function () {
+      runRoute(true);
+    }, REFRESH_MS);
+  }
+
+  // Update the "updated X ago" display every 15s without a full refresh
+  setInterval(updateTimestamp, 15000);
+
+  // --- Routing ---
+
+  var currentHash = '';
+
+  function parseHash() {
+    var hash = location.hash.slice(1) || 'overview';
+    var parts = hash.split('/');
+    return { view: parts[0] || 'overview', args: parts.slice(1) };
+  }
+
+  function activateNav(view) {
+    document.querySelectorAll('nav a[data-view]').forEach(function (a) {
+      a.classList.toggle('active', a.dataset.view === view);
+    });
+  }
+
+  async function runRoute(forceRefresh) {
+    var parsed = parseHash();
+    var hash = location.hash;
+    if (!forceRefresh && hash === currentHash) return;
+    currentHash = hash;
+    clearTimeout(refreshTimer);
+    activateNav(parsed.view);
+    showLoading();
+    try {
+      if (parsed.view === 'overview') {
+        await renderOverview();
+      } else if (parsed.view === 'rounds') {
+        if (parsed.args[0]) {
+          await renderRoundDetail(decodeURIComponent(parsed.args[0]));
+        } else {
+          await renderRounds();
+        }
+      } else if (parsed.view === 'inbox') {
+        await renderInbox();
+      } else if (parsed.view === 'runtime') {
+        await renderRuntime();
+      } else {
+        await renderOverview();
+      }
+      lastFetch = new Date();
+      updateTimestamp();
+      scheduleRefresh();
+    } catch (e) {
+      showError(e.message || String(e));
+      scheduleRefresh();
+    }
+  }
+
+  window.addEventListener('hashchange', function () { runRoute(false); });
+  document.getElementById('refresh-btn').onclick = function () { runRoute(true); };
+
+  // --- Overview ---
+
+  async function renderOverview() {
+    var data = await fetchJSON('/api/overview');
+    var checks = data.checks || [];
+    var h = '<div>';
+    h += '<div class="view-title">Control Plane ' + badge(data.status || (data.ok ? 'ready' : 'degraded')) + '</div>';
+    if (data.grove_id) {
+      h += '<p class="stale" style="margin-bottom:12px">Grove: ' + esc(data.grove_id) + '</p>';
+    }
+    h += '<div class="card">';
+    h += '<div class="card-title">Readiness Checks</div>';
+    if (!checks.length) {
+      h += '<div class="empty">No checks available.</div>';
+    } else {
+      checks.forEach(function (c) {
+        h += '<div class="check-row">' + dot(c.ok);
+        h += '<span class="check-name">' + esc(c.name) + '</span>';
+        h += '<span class="check-detail">' + esc(c.detail || '') + '</span>';
+        h += '</div>';
+      });
+    }
+    h += '</div>';
+    h += '<p style="margin-top:8px;font-size:12px;color:#555">';
+    h += '<a class="link" href="#rounds">→ Rounds</a> &nbsp; ';
+    h += '<a class="link" href="#inbox">→ Inbox</a> &nbsp; ';
+    h += '<a class="link" href="#runtime">→ Runtime</a>';
+    h += '</p></div>';
+    setMain(h);
+  }
+
+  // --- Rounds list ---
+
+  async function renderRounds() {
+    var data = await fetchJSON('/api/rounds');
+    var rounds = data.rounds || [];
+    var h = '<div>';
+    h += '<div class="view-title">Rounds';
+    if (rounds.length) h += ' <span class="stale">(' + rounds.length + ')</span>';
+    h += '</div>';
+    if (data.error) {
+      h += '<div class="err-box"><strong>' + esc(data.error_kind || 'error') + ':</strong> ' + esc(data.error) + '</div>';
+    }
+    if (!rounds.length) {
+      h += '<div class="empty">No rounds found. Start a round with <code>task round</code>.</div>';
+    } else {
+      h += '<div class="card" style="padding:0;overflow:hidden">';
+      h += '<table><thead><tr>';
+      h += '<th>Round</th><th>Status</th><th>Agents</th><th>Summary</th><th>Updated</th>';
+      h += '</tr></thead><tbody>';
+      rounds.forEach(function (r) {
+        h += '<tr>';
+        h += '<td class="id-cell"><a class="link" href="#rounds/' + esc(encodeURIComponent(r.id)) + '">' + esc(r.id) + '</a></td>';
+        h += '<td>' + badge(r.status) + '</td>';
+        h += '<td>' + r.agent_count + '</td>';
+        h += '<td class="summary-cell">' + esc(r.summary || '—') + '</td>';
+        h += '<td class="stale">' + timeAgo(r.updated) + '</td>';
+        h += '</tr>';
+      });
+      h += '</tbody></table></div>';
+    }
+    h += '</div>';
+    setMain(h);
+  }
+
+  // --- Round detail ---
+
+  async function renderRoundDetail(roundId) {
+    var data = await fetchJSON('/api/rounds/' + encodeURIComponent(roundId));
+    var agents = data.agents || [];
+    var messages = data.messages || [];
+    var notifications = data.notifications || [];
+    var errors = data.errors || {};
+
+    var h = '<div>';
+    h += '<a class="back" href="#rounds">← Rounds</a>';
+    h += '<div class="view-title mono" style="word-break:break-all">' + esc(roundId) + '</div>';
+
+    Object.keys(errors).forEach(function (k) {
+      h += '<div class="err-box"><strong>' + esc(k) + ':</strong> ' + esc(errors[k]) + '</div>';
+    });
+
+    // Agents
+    h += '<div class="card">';
+    h += '<div class="card-title">Agents (' + agents.length + ')</div>';
+    if (!agents.length) {
+      h += '<div class="empty">No agents found for this round.</div>';
+    } else {
+      h += '<table><thead><tr><th>Name</th><th>Phase</th><th>Activity</th><th>Summary</th><th>Updated</th></tr></thead><tbody>';
+      agents.forEach(function (a) {
+        var ph = String(a.phase || 'unknown').toLowerCase();
+        var phBadge = ph === 'running' ? badge('running') : badge(ph);
+        h += '<tr>';
+        h += '<td class="mono">' + esc(a.name || a.slug || '—') + '</td>';
+        h += '<td>' + phBadge + '</td>';
+        h += '<td class="phase-cell">' + esc(a.activity || '—') + '</td>';
+        h += '<td class="summary-cell">' + esc(a.taskSummary || '—') + '</td>';
+        h += '<td class="stale">' + timeAgo(a.updated) + '</td>';
+        h += '</tr>';
+      });
+      h += '</tbody></table>';
+    }
+    h += '</div>';
+
+    // Timeline: messages + notifications interleaved by time
+    var timeline = [];
+    messages.forEach(function (m) {
+      timeline.push({ _type: 'message', _time: m.created || m.updated || '', _item: m });
+    });
+    notifications.forEach(function (n) {
+      timeline.push({ _type: 'notification', _time: n.created || n.updated || '', _item: n });
+    });
+    timeline.sort(function (a, b) { return a._time < b._time ? -1 : a._time > b._time ? 1 : 0; });
+
+    h += '<div class="card">';
+    h += '<div class="card-title">Timeline (' + timeline.length + ' items)</div>';
+    if (!timeline.length) {
+      h += '<div class="empty">No messages or notifications found for this round.</div>';
+    } else {
+      timeline.forEach(function (entry) {
+        var item = entry._item;
+        var sender = item.sender || item.senderId || '';
+        var text = item.msg || item.message || item.text || item.body || '';
+        if (!text) text = JSON.stringify(item);
+        h += '<div class="timeline-item">';
+        h += '<div class="timeline-meta">';
+        h += '<span class="stale">' + esc(timeAgo(entry._time)) + '</span>';
+        h += '<span class="timeline-type">' + esc(entry._type) + '</span>';
+        if (sender) h += '<span class="timeline-sender">' + esc(sender) + '</span>';
+        h += '</div>';
+        h += '<div class="timeline-body">' + esc(String(text).slice(0, 600)) + '</div>';
+        h += '</div>';
+      });
+    }
+    h += '</div></div>';
+    setMain(h);
+  }
+
+  // --- Inbox ---
+
+  async function renderInbox() {
+    var data = await fetchJSON('/api/inbox');
+    var groups = data.groups || [];
+    var errors = data.errors || {};
+
+    var h = '<div>';
+    h += '<div class="view-title">Inbox</div>';
+
+    Object.keys(errors).forEach(function (k) {
+      h += '<div class="err-box"><strong>' + esc(k) + ':</strong> ' + esc(errors[k]) + '</div>';
+    });
+
+    if (!data.ok && !groups.length && data.error) {
+      h += '<div class="err-box">' + esc(data.error) + '</div>';
+    } else if (!groups.length) {
+      h += '<div class="empty">No messages or notifications in this grove.</div>';
+    } else {
+      groups.forEach(function (g) {
+        var msgs = g.messages || [];
+        var notifs = g.notifications || [];
+        var total = msgs.length + notifs.length;
+        h += '<div class="grouped-section">';
+        h += '<div class="grouped-header">';
+        if (g.round_id) {
+          h += '<a class="link" href="#rounds/' + esc(encodeURIComponent(g.round_id)) + '">' + esc(g.round_id) + '</a>';
+        } else {
+          h += '<span style="color:#555">ungrouped</span>';
+        }
+        h += '<span class="pill">' + total + '</span>';
+        h += '</div>';
+
+        var shown = msgs.slice(0, 4).concat(notifs.slice(0, 4));
+        shown.forEach(function (item) {
+          var isNotif = notifs.indexOf(item) >= 0;
+          var text = item.msg || item.message || item.text || item.body || JSON.stringify(item);
+          var sender = item.sender || item.senderId || '';
+          var ts = item.created || item.updated || '';
+          h += '<div class="timeline-item">';
+          h += '<div class="timeline-meta">';
+          h += '<span class="stale">' + esc(timeAgo(ts)) + '</span>';
+          h += '<span class="timeline-type">' + (isNotif ? 'notification' : 'message') + '</span>';
+          if (sender) h += '<span class="timeline-sender">' + esc(sender) + '</span>';
+          h += '</div>';
+          h += '<div class="timeline-body">' + esc(String(text).slice(0, 300)) + '</div>';
+          h += '</div>';
+        });
+        if (total > 8) {
+          h += '<div class="stale" style="padding:4px 0">+ ' + (total - 8) + ' more — <a class="link" href="#rounds/' + esc(encodeURIComponent(g.round_id || '')) + '">view round</a></div>';
+        }
+        h += '</div>';
+      });
+    }
+
+    h += '<p class="stale" style="margin-top:8px">Messages: ' + (data.message_count || 0) + ' · Notifications: ' + (data.notification_count || 0) + '</p>';
+    h += '</div>';
+    setMain(h);
+  }
+
+  // --- Runtime ---
+
+  async function renderRuntime() {
+    var data = await fetchJSON('/api/runtime');
+    var checks = data.checks || {};
+
+    var h = '<div>';
+    h += '<div class="view-title">Runtime ' + badge(data.ok ? 'ready' : 'degraded') + '</div>';
+    if (data.grove_id) {
+      h += '<p class="stale" style="margin-bottom:12px">Grove: ' + esc(data.grove_id) + '</p>';
+    }
+
+    // Hub
+    if (checks.hub) {
+      h += '<div class="card">';
+      h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' + dot(checks.hub.ok);
+      h += '<span class="card-title" style="margin:0">Hub</span>';
+      h += badge(checks.hub.ok ? 'ready' : 'unavailable') + '</div>';
+      h += '<p class="stale">Endpoint: ' + esc(checks.hub.endpoint || '') + '</p>';
+      if (checks.hub.detail && !checks.hub.ok) {
+        h += '<p style="color:#f44747;font-size:12px;margin-top:4px">' + esc(checks.hub.detail) + '</p>';
+      }
+      h += '</div>';
+    }
+
+    // Brokers
+    if (checks.brokers) {
+      var brokers = checks.brokers.brokers || [];
+      h += '<div class="card">';
+      h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' + dot(checks.brokers.ok);
+      h += '<span class="card-title" style="margin:0">Runtime Brokers</span>';
+      h += badge(checks.brokers.ok ? 'ready' : 'degraded') + '</div>';
+      if (checks.brokers.detail) h += '<p class="stale" style="margin-bottom:8px">' + esc(checks.brokers.detail) + '</p>';
+      if (brokers.length) {
+        h += '<table><thead><tr><th>Broker ID</th><th>Status</th><th>Connection</th></tr></thead><tbody>';
+        brokers.forEach(function (b) {
+          var st = String(b.status || '').toLowerCase();
+          h += '<tr><td class="mono">' + esc(b.id || b.name || '—') + '</td>';
+          h += '<td>' + badge(st === 'online' ? 'ready' : 'degraded') + '</td>';
+          h += '<td class="stale">' + esc(b.connectionState || b.connection_state || '—') + '</td></tr>';
+        });
+        h += '</tbody></table>';
+      } else {
+        h += '<div class="empty">No brokers registered.</div>';
+      }
+      h += '</div>';
+    }
+
+    // MCP
+    if (checks.mcp) {
+      h += '<div class="card">';
+      h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' + dot(checks.mcp.ok);
+      h += '<span class="card-title" style="margin:0">MCP</span>';
+      h += badge(checks.mcp.ok ? 'ready' : 'unavailable') + '</div>';
+      h += '<p class="stale">' + esc(checks.mcp.host || '') + ':' + esc(checks.mcp.port || '') + ' — ' + esc(checks.mcp.detail || '') + '</p>';
+      h += '</div>';
+    }
+
+    // Kubernetes deployments
+    if (checks.kubernetes) {
+      var deploys = checks.kubernetes.deployments || [];
+      h += '<div class="card">';
+      h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' + dot(checks.kubernetes.ok);
+      h += '<span class="card-title" style="margin:0">Kubernetes Deployments</span>';
+      h += badge(checks.kubernetes.ok ? 'ready' : 'degraded') + '</div>';
+      if (checks.kubernetes.namespace) {
+        h += '<p class="stale" style="margin-bottom:8px">Namespace: ' + esc(checks.kubernetes.namespace) + '</p>';
+      }
+      if (checks.kubernetes.detail && !checks.kubernetes.ok) {
+        h += '<p style="color:#f44747;font-size:12px;margin-bottom:8px">' + esc(checks.kubernetes.detail) + '</p>';
+      }
+      if (deploys.length) {
+        h += '<table><thead><tr><th>Deployment</th><th>Ready</th><th>Desired</th><th>Available</th></tr></thead><tbody>';
+        deploys.forEach(function (d) {
+          h += '<tr><td class="mono">' + esc(d.name) + '</td>';
+          h += '<td>' + d.ready + '</td>';
+          h += '<td>' + d.desired + '</td>';
+          h += '<td>' + badge(d.available ? 'ready' : 'degraded') + '</td></tr>';
+        });
+        h += '</tbody></table>';
+      }
+      h += '</div>';
+    }
+
+    // Pods
+    if (checks.pods) {
+      var pods = (checks.pods.pods || []).filter(function (p) { return p.phase !== 'Succeeded'; });
+      h += '<div class="card">';
+      h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' + dot(checks.pods.ok);
+      h += '<span class="card-title" style="margin:0">Pods</span></div>';
+      if (pods.length) {
+        h += '<table><thead><tr><th>Pod</th><th>Phase</th></tr></thead><tbody>';
+        pods.slice(0, 30).forEach(function (p) {
+          h += '<tr><td class="mono" style="font-size:11px">' + esc(p.name) + '</td>';
+          h += '<td>' + badge(p.phase === 'Running' ? 'ready' : 'degraded') + '</td></tr>';
+        });
+        if (pods.length > 30) {
+          h += '<tr><td colspan="2" class="stale">+ ' + (pods.length - 30) + ' more</td></tr>';
+        }
+        h += '</tbody></table>';
+      } else {
+        h += '<div class="empty">No pods found.</div>';
+      }
+      h += '</div>';
+    }
+
+    h += '</div>';
+    setMain(h);
+  }
+
+  // Bootstrap
+  runRoute(false);
+})();
+</script>
+</body>
+</html>

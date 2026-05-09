@@ -23,6 +23,7 @@ TAG="latest"
 REGISTRY="localhost"
 HARNESSES=(claude codex gemini)   # skip opencode by default to save time/disk
 BUILD_MCP=1
+BUILD_WEB=1
 BUILD_CORE=1
 BUILD_BASE=1
 BUILD_HARNESSES=1
@@ -39,6 +40,7 @@ while [[ $# -gt 0 ]]; do
     --harness)   HARNESSES=("$2"); shift 2 ;;
     --all-harnesses) HARNESSES=(claude codex gemini opencode); shift ;;
     --skip-mcp)  BUILD_MCP=0; shift ;;
+    --skip-web)  BUILD_WEB=0; shift ;;
     --skip-core) BUILD_CORE=0; shift ;;
     --skip-base) BUILD_BASE=0; shift ;;
     --skip-harnesses) BUILD_HARNESSES=0; shift ;;
@@ -47,11 +49,13 @@ while [[ $# -gt 0 ]]; do
       BUILD_BASE=0
       BUILD_HARNESSES=0
       BUILD_MCP=0
+      BUILD_WEB=0
       case "$2" in
         core) BUILD_CORE=1 ;;
         base) BUILD_CORE=1; BUILD_BASE=1 ;;
         harnesses) BUILD_HARNESSES=1 ;;
         mcp) BUILD_MCP=1 ;;
+        web) BUILD_WEB=1 ;;
         claude|codex|gemini|opencode)
           BUILD_HARNESSES=1
           HARNESSES=("$2")
@@ -61,6 +65,7 @@ while [[ $# -gt 0 ]]; do
           BUILD_BASE=1
           BUILD_HARNESSES=1
           BUILD_MCP=1
+          BUILD_WEB=1
           ;;
         *) red "Unknown --only target: $2"; exit 1 ;;
       esac
@@ -75,6 +80,7 @@ Usage: $(basename "$0") [options]
   --harness <name>   Build only this harness (repeatable)
   --all-harnesses    Build claude codex gemini opencode (default: claude codex gemini)
   --skip-mcp         Do not build the scion-ops MCP image
+  --skip-web         Do not build the scion-ops web hub image
   --skip-core        Do not build core-base
   --skip-base        Do not build scion-base
   --skip-harnesses   Do not build harness images
@@ -169,6 +175,13 @@ if [[ "$BUILD_MCP" == "1" ]]; then
   build "scion-ops-mcp" \
         "$LOCAL_IMG_BUILD/scion-ops-mcp/Dockerfile" \
         "$LOCAL_IMG_BUILD/scion-ops-mcp" \
+        --build-arg "BASE_IMAGE=${REGISTRY}/scion-base:${TAG}"
+fi
+
+if [[ "$BUILD_WEB" == "1" ]]; then
+  build "scion-ops-web" \
+        "$LOCAL_IMG_BUILD/scion-ops-web/Dockerfile" \
+        "$LOCAL_IMG_BUILD/scion-ops-web" \
         --build-arg "BASE_IMAGE=${REGISTRY}/scion-base:${TAG}"
 fi
 

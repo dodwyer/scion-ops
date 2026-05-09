@@ -12,6 +12,9 @@ resources:
   - mcp-checkouts-pvc.yaml
   - mcp-service.yaml
   - mcp-deployment.yaml
+  - web-rbac.yaml
+  - web-service.yaml
+  - web-deployment.yaml
 
 generatorOptions:
   disableNameSuffixHash: true
