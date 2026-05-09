@@ -210,7 +210,7 @@ expected_branch: $AUTHOR_NAME
 artifact_boundary: openspec/changes/$CHANGE only
 expected_summary: files changed, requirements added/modified, validation notes
 
-Write only OpenSpec artifacts for $CHANGE. Use the clarifier and explorer summaries. Send a concise completion summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT."
+Write only OpenSpec artifacts for $CHANGE. Use the clarifier and explorer summaries. Validate the OpenSpec artifacts, commit only openspec/changes/$CHANGE, push with git push origin HEAD:refs/heads/$AUTHOR_NAME, verify the remote branch with git ls-remote --heads origin $AUTHOR_NAME, then send a concise completion summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT. Do not report completion until the branch has been pushed and verified."
 
 5. Review only the integration branch with:
 
