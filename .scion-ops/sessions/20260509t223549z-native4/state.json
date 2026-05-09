@@ -51,7 +51,12 @@
   "final_review": {
     "branch": "round-20260509t223549z-native4-final-review",
     "base_sha": "aec1f18bd88cf8e5250c0fb138e20ceba38511ea",
-    "status": "running"
+    "status": "rejected",
+    "verdict": "reject",
+    "commit": "3ab5e9fbe42addacd074ddc6d5e22bde6e45b2ca",
+    "blocking_issues": [
+      "scripts/web_app_hub.py omits scion-ops-web-app from CONTROL_PLANE_NAMES, so missing web app deployment/service readiness can still be reported healthy."
+    ]
   },
   "verification": {
     "status": "passed",
@@ -66,7 +71,8 @@
   },
   "blockers": [],
   "next_actions": [
-    "Wait for final-review verdict",
-    "If accepted, mark session ready"
+    "Start narrow repair implementer for web app Kubernetes readiness model",
+    "Integrate repair and rerun verification",
+    "Run replacement final review"
   ]
 }
