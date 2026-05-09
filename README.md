@@ -71,6 +71,7 @@ task storage:status
 | namespace | `scion-agents` |
 | Hub URL | `http://192.168.122.103:18090` |
 | MCP URL | `http://192.168.122.103:8765/mcp` |
+| Web app URL | `http://192.168.122.103:8787` |
 | workspace host path | `~/workspace` when it contains this checkout, otherwise this checkout's parent |
 | workspace path in pods | `/workspace` |
 
