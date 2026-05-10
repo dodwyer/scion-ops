@@ -1,0 +1,106 @@
+{
+  "artifact": ".scion-ops/sessions/20260510t203256z-7ac9/findings/round-20260510t203256z-7ac9-impl-context-fix.json",
+  "artifact_json": {
+    "agent": "round-20260510t203256z-7ac9-impl-context-fix",
+    "blockers": [],
+    "branch": "round-20260510t203256z-7ac9-impl-context-fix",
+    "changed_files": [
+      "scripts/web_app_hub.py",
+      "scripts/test-web-app-hub.py"
+    ],
+    "head_sha": "5dc784eab446912f5992e20e1e8a0ae14986df4d",
+    "status": "completed",
+    "summary": "Addressed the final-review selected-context preservation blocker by keeping one-level-down NiceGUI diagnostic context in live view state instead of recomputing defaults during timer-driven live region rebuilds.",
+    "tasks_completed": [
+      "Persisted selected round detail tab in NiceGUI session state and wired tab changes through NiceGUI on_change callbacks.",
+      "Persisted selected troubleshooting source and runtime/troubleshooting expansion state across live timer refresh repaints.",
+      "Removed the visible explanatory UX-constraint copy from the runtime/troubleshooting view touched by this fix.",
+      "Added focused fixture coverage proving selected tab, selected source, and expander state survive a refresh that repaints the live region."
+    ],
+    "tests_run": [
+      "uv run scripts/test-web-app-hub.py",
+      "uv run python -m py_compile scripts/web_app_hub.py scripts/test-web-app-hub.py",
+      "git diff --check"
+    ]
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:14:03.109384Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:14:23.500127Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:14:43.937784Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:15:04.350877Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:15:24.741696Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:15:45.153575Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:16:05.576446Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:16:25.975992Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "cefc06edfd7c4fcb9c330342ef39d6b9d700200a",
+      "checked_at": "2026-05-10T21:16:46.405300Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260510t203256z-7ac9-impl-context-fix",
+  "branch_head": "cefc06edfd7c4fcb9c330342ef39d6b9d700200a",
+  "completed_at": "2026-05-10T21:16:46.966204Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
