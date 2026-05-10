@@ -926,6 +926,33 @@ def test_nicegui_live_state_preserves_selected_round_and_dedupes_timeline_replay
     assert [entry["id"] for entry in detail["timeline"]] == ["message:msg-3", "message:msg-2"]
 
 
+def test_nicegui_live_state_preserves_selected_tab_source_and_expanders_across_refresh():
+    round_id = "20260509t063201z-6c02"
+    provider = FixtureProvider()
+    state = web_app_hub.initialize_live_view_state(provider, round_id=round_id)
+    web_app_hub.set_selected_round_detail_tab(state, "diagnostics")
+    web_app_hub.set_selected_troubleshooting_source(state, "mcp")
+    web_app_hub.set_runtime_expansion_state(state, "mcp", True, troubleshooting=True)
+    web_app_hub.set_runtime_expansion_state(state, "kubernetes", True, troubleshooting=True)
+    web_app_hub.set_runtime_expansion_state(state, "hub", False)
+    provider._round_events = {
+        "ok": True,
+        "round_id": round_id,
+        "cursor": "cursor-2",
+        "events": [
+            {"type": "message", "message": {"id": "msg-refresh", "createdAt": "2026-05-09T06:47:00+00:00", "msg": f"round {round_id} repaint"}},
+        ],
+    }
+
+    assert web_app_hub.refresh_live_view_state(state, provider, round_id=round_id) is True
+
+    assert web_app_hub.selected_round_detail_tab(state) == "diagnostics"
+    assert state["selected_source"] == "mcp"
+    assert web_app_hub.runtime_expansion_state(state, "mcp", troubleshooting=True, selected_source="mcp") is True
+    assert web_app_hub.runtime_expansion_state(state, "kubernetes", troubleshooting=True, selected_source="mcp") is True
+    assert web_app_hub.runtime_expansion_state(state, "hub") is False
+
+
 def test_nicegui_live_state_reports_stale_fallback_and_failed_feedback_without_clearing_context():
     provider = FixtureProvider()
     state = web_app_hub.initialize_live_view_state(provider)

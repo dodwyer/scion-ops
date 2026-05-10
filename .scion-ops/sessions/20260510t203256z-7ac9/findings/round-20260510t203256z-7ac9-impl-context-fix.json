@@ -1,0 +1,23 @@
+{
+  "agent": "round-20260510t203256z-7ac9-impl-context-fix",
+  "blockers": [],
+  "branch": "round-20260510t203256z-7ac9-impl-context-fix",
+  "changed_files": [
+    "scripts/web_app_hub.py",
+    "scripts/test-web-app-hub.py"
+  ],
+  "head_sha": "5dc784eab446912f5992e20e1e8a0ae14986df4d",
+  "status": "completed",
+  "summary": "Addressed the final-review selected-context preservation blocker by keeping one-level-down NiceGUI diagnostic context in live view state instead of recomputing defaults during timer-driven live region rebuilds.",
+  "tasks_completed": [
+    "Persisted selected round detail tab in NiceGUI session state and wired tab changes through NiceGUI on_change callbacks.",
+    "Persisted selected troubleshooting source and runtime/troubleshooting expansion state across live timer refresh repaints.",
+    "Removed the visible explanatory UX-constraint copy from the runtime/troubleshooting view touched by this fix.",
+    "Added focused fixture coverage proving selected tab, selected source, and expander state survive a refresh that repaints the live region."
+  ],
+  "tests_run": [
+    "uv run scripts/test-web-app-hub.py",
+    "uv run python -m py_compile scripts/web_app_hub.py scripts/test-web-app-hub.py",
+    "git diff --check"
+  ]
+}

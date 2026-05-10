@@ -1993,10 +1993,48 @@ PROVIDER: RuntimeProvider = RuntimeProvider()
 
 
 NICEGUI_APP_REGISTERED = False
+ROUND_DETAIL_TABS = {"flow", "timeline", "agents", "validation", "branches", "diagnostics"}
 
 
 def nicegui_provider() -> RuntimeProvider:
     return PROVIDER
+
+
+def selected_round_detail_tab(state: dict[str, Any], fallback: str = "flow") -> str:
+    tab = str(state.get("selected_round_detail_tab") or fallback or "flow")
+    return tab if tab in ROUND_DETAIL_TABS else "flow"
+
+
+def set_selected_round_detail_tab(state: dict[str, Any], tab: Any) -> None:
+    candidate = str(tab or "")
+    if candidate in ROUND_DETAIL_TABS:
+        state["selected_round_detail_tab"] = candidate
+
+
+def set_selected_troubleshooting_source(state: dict[str, Any], source: Any) -> None:
+    state["selected_source"] = str(source or "")
+
+
+def runtime_expansion_state(state: dict[str, Any], source: str, *, troubleshooting: bool = False, selected_source: str = "") -> bool:
+    expanded = state.setdefault("runtime_expanded_sources", {})
+    key = f"{'troubleshooting' if troubleshooting else 'runtime'}:{source}"
+    if key not in expanded:
+        expanded[key] = source == selected_source or not troubleshooting
+    return bool(expanded[key])
+
+
+def set_runtime_expansion_state(state: dict[str, Any], source: str, expanded: Any, *, troubleshooting: bool = False) -> None:
+    key = f"{'troubleshooting' if troubleshooting else 'runtime'}:{source}"
+    state.setdefault("runtime_expanded_sources", {})[key] = bool(expanded)
+
+
+def nicegui_event_value(event: Any) -> Any:
+    if hasattr(event, "value"):
+        return getattr(event, "value")
+    args = getattr(event, "args", None)
+    if isinstance(args, dict) and "value" in args:
+        return args["value"]
+    return args
 
 
 def json_response(payload: dict[str, Any], status_code: int = 200) -> Any:
@@ -2186,16 +2224,18 @@ def render_rounds(snapshot: dict[str, Any] | None = None) -> None:
     mount_live_region(state, lambda: render_rounds_body(live_view_snapshot(state)), lambda: refresh_live_view_state(state, nicegui_provider()))
 
 
-def render_round_detail_body(round_id: str, detail: dict[str, Any], *, active_tab: str = "flow") -> None:
+def render_round_detail_body(round_id: str, detail: dict[str, Any], *, state: dict[str, Any] | None = None, active_tab: str = "flow") -> None:
     from nicegui import ui
 
+    live_state = state if state is not None else {}
+    active_tab = selected_round_detail_tab(live_state, active_tab)
     with ui.element("main").classes("console-wrap"):
         with ui.row().classes("items-center justify-between w-full gap-2"):
             ui.link("Back to rounds", "/rounds").classes("px-3 py-2 rounded-md border border-gray-300 text-sm")
             status_badge(detail.get("visible_status") or (detail.get("status") or {}).get("status"))
         ui.label(round_id).classes("font-mono text-xl font-semibold break-all mt-3")
         ui.label(detail.get("terminal_summary") or "").classes("text-sm text-gray-700")
-        with ui.tabs(value=active_tab).classes("mt-4") as tabs:
+        with ui.tabs(value=active_tab, on_change=lambda event: set_selected_round_detail_tab(live_state, nicegui_event_value(event))).classes("mt-4") as tabs:
             for name in ("flow", "timeline", "agents", "validation", "branches", "diagnostics"):
                 ui.tab(name, label=name.title())
         with ui.tab_panels(tabs, value=active_tab).classes("w-full bg-transparent"):
@@ -2237,11 +2277,12 @@ def render_round_detail_body(round_id: str, detail: dict[str, Any], *, active_ta
 def render_round_detail(round_id: str, detail: dict[str, Any] | None = None, *, active_tab: str = "flow") -> None:
     add_shell("rounds")
     state = initialize_live_view_state(nicegui_provider(), round_id=round_id)
+    set_selected_round_detail_tab(state, active_tab)
     if detail:
         state.setdefault("rounds_detail", {})[round_id] = detail
     mount_live_region(
         state,
-        lambda: render_round_detail_body(round_id, live_view_round_detail(state, round_id), active_tab=active_tab),
+        lambda: render_round_detail_body(round_id, live_view_round_detail(state, round_id), state=state, active_tab=active_tab),
         lambda: refresh_live_view_state(state, nicegui_provider(), round_id=round_id),
     )
 
@@ -2276,17 +2317,24 @@ def render_inbox(snapshot: dict[str, Any] | None = None) -> None:
     mount_live_region(state, lambda: render_inbox_body(live_view_snapshot(state)), lambda: refresh_live_view_state(state, nicegui_provider()))
 
 
-def render_runtime_body(snapshot: dict[str, Any], *, troubleshooting: bool = False, selected_source: str = "") -> None:
+def render_runtime_body(snapshot: dict[str, Any], *, state: dict[str, Any] | None = None, troubleshooting: bool = False, selected_source: str = "") -> None:
     from nicegui import ui
 
+    live_state = state if state is not None else {}
+    selected_source = str(live_state.get("selected_source") or selected_source or "")
     sources = snapshot.get("sources") if isinstance(snapshot.get("sources"), dict) else {}
     with ui.element("main").classes("console-wrap"):
         ui.label("Troubleshooting" if troubleshooting else "Runtime").classes("text-xl font-semibold")
-        ui.label("Raw diagnostics are grouped one level below the overview. The interface is read-only.").classes("text-sm text-gray-600")
         for name, source in sources.items():
             if selected_source and selected_source != name and not troubleshooting:
                 continue
-            with ui.expansion(name, icon="manage_search", value=(name == selected_source or not troubleshooting)).classes("w-full mt-3 border border-gray-200 rounded-md bg-white"):
+            expanded = runtime_expansion_state(live_state, name, troubleshooting=troubleshooting, selected_source=selected_source)
+            with ui.expansion(
+                name,
+                icon="manage_search",
+                value=expanded,
+                on_value_change=lambda event, source_name=name: set_runtime_expansion_state(live_state, source_name, nicegui_event_value(event), troubleshooting=troubleshooting),
+            ).classes("w-full mt-3 border border-gray-200 rounded-md bg-white"):
                 with ui.row().classes("items-center gap-2"):
                     status_badge(source.get("status"))
                     if source.get("error"):
@@ -2298,7 +2346,7 @@ def render_runtime_body(snapshot: dict[str, Any], *, troubleshooting: bool = Fal
 def render_runtime(snapshot: dict[str, Any] | None = None, *, troubleshooting: bool = False, selected_source: str = "") -> None:
     add_shell("troubleshooting" if troubleshooting else "runtime")
     state = initialize_live_view_state(nicegui_provider())
-    state["selected_source"] = selected_source
+    set_selected_troubleshooting_source(state, selected_source)
     if snapshot:
         state["snapshot"] = snapshot
         state["sources"] = snapshot.get("sources") or {}
@@ -2306,7 +2354,7 @@ def render_runtime(snapshot: dict[str, Any] | None = None, *, troubleshooting: b
         state["inbox"] = snapshot.get("inbox") or []
     mount_live_region(
         state,
-        lambda: render_runtime_body(live_view_snapshot(state), troubleshooting=troubleshooting, selected_source=str(state.get("selected_source") or "")),
+        lambda: render_runtime_body(live_view_snapshot(state), state=state, troubleshooting=troubleshooting, selected_source=str(state.get("selected_source") or "")),
         lambda: refresh_live_view_state(state, nicegui_provider()),
     )
 
