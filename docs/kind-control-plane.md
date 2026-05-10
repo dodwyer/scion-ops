@@ -21,7 +21,7 @@ task down       # destroy kind and cluster-local state
 - verifies the workspace mount
 - loads local images
 - applies `deploy/kind/control-plane`
-- restarts Hub, broker, and MCP deployments
+- restarts Hub, broker, MCP, and web app deployments
 - waits for rollouts
 
 ## Resources
@@ -37,6 +37,7 @@ deploy/kind/
     hub-*.yaml
     broker-*.yaml
     mcp-*.yaml
+    web-app-*.yaml
     config/
 ```
 
@@ -48,6 +49,7 @@ kubectl --context kind-scion-ops -n scion-agents get pods
 kubectl --context kind-scion-ops -n scion-agents logs deploy/scion-hub
 kubectl --context kind-scion-ops -n scion-agents logs deploy/scion-broker -c broker
 kubectl --context kind-scion-ops -n scion-agents logs deploy/scion-ops-mcp
+kubectl --context kind-scion-ops -n scion-agents logs deploy/scion-ops-web-app
 ```
 
 ## Defaults
@@ -60,6 +62,7 @@ kubectl --context kind-scion-ops -n scion-agents logs deploy/scion-ops-mcp
 | namespace | `scion-agents` |
 | Hub URL | `http://192.168.122.103:18090` |
 | MCP URL | `http://192.168.122.103:8765/mcp` |
+| Web app URL | `http://192.168.122.103:8808` |
 | workspace host path | `~/workspace` when possible |
 | workspace pod path | `/workspace` |
 
@@ -72,13 +75,17 @@ task up
 
 ## Access
 
-Kind exposes Hub and MCP through native port mappings and NodePort Services. Do
-not use `kubectl port-forward` for normal operation.
+Kind exposes Hub, MCP, and the web app through native port mappings and NodePort
+Services. Do not use `kubectl port-forward` for normal operation.
 
 ```bash
 eval "$(task kind:hub:auth-export)"
 task kind:mcp:smoke
 ```
+
+Open the web app in a browser at the configured web app URL (default
+`http://192.168.122.103:8808`). The web app reads operational state from Hub and
+MCP using the same in-cluster credentials as the MCP server.
 
 The MCP pod reads Hub through the in-cluster `scion-hub` Service and uses the
 `scion-hub-dev-auth` Secret restored by `task bootstrap`.
@@ -126,7 +133,7 @@ task release:smoke   # subscription-backed release confidence
 ```
 
 `task test` verifies kind, Hub health, broker registration, MCP tool surface,
-and no-auth Kubernetes agent dispatch.
+web app endpoint readiness, and no-auth Kubernetes agent dispatch.
 
 Use `task release:smoke` only before a release, after credential changes, or
 when diagnosing model-backed dispatch.
@@ -139,13 +146,42 @@ task build:base
 task update:hub
 task build:mcp
 task update:mcp
+task update:web-app
 task build:harness -- codex
 task load:image -- localhost/scion-codex:latest
 task dev:test
 ```
 
+The web app reuses the `scion-ops-mcp` image. `task update:web-app` reloads
+that image and restarts the web app deployment.
+
 Use `task storage:status` before full image rebuilds. If Docker is using `vfs`,
 switch to `overlay2` storage before large rebuild cycles.
+
+## Web App Troubleshooting
+
+```bash
+task kind:web-app:status    # rollout status and service info
+task kind:web-app:logs      # streaming logs
+```
+
+The web app reads Hub dev auth from the `scion-hub-dev-auth` Secret. If Hub
+credentials have changed, run `task bootstrap` to restore the Secret, then
+`task update:web-app` to pick it up.
+
+If the web app port is unreachable, verify the kind cluster has the web app port
+mapping active:
+
+```bash
+task kind:status
+```
+
+An old cluster without the web app port mapping must be recreated:
+
+```bash
+task down
+task up
+```
 
 ## Destroy
 
