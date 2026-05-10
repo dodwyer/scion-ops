@@ -25,6 +25,9 @@ The task prompt includes:
 - `collection_recipient`
 - `original_goal`
 - `session_state_root`
+- `specialist_templates`
+- `specialist_harnesses`
+- `required_multi_harness`
 
 Use `collection_recipient` exactly when asking child agents to send completion
 summaries, but also require each child to send its summary directly to this
@@ -50,6 +53,8 @@ Create and maintain:
 - `status`: `running`, `ready`, or `blocked`
 - `phase`
 - `branches`, including `steward` and final `integration`
+- `consensus`, including specialist templates, harnesses, and whether
+  multi-harness consensus is required
 - `agents`, keyed by agent name
 - `review.verdict`: `accept`, `reject`, or `blocked`
 - `validation.status`: `pending`, `passed`, or `failed`
@@ -128,6 +133,18 @@ Use these names:
 - `round-<session_id>-spec-ops-review`
 - final branch: `round-<session_id>-spec-integration`
 
+Default specialist roles use the existing Scion template mechanism with
+provider diversity recorded in durable state:
+
+- clarifier: `spec-goal-clarifier-claude` on `claude`
+- explorer: `spec-repo-explorer` on `codex-exec`
+- author: `spec-author` on `codex-exec`
+- ops review: `spec-ops-reviewer-claude` on `claude`
+
+Use the `specialist_templates` and `specialist_harnesses` values from the task
+prompt when present; otherwise use the defaults above. Record the template and
+`harness_config` for every completed specialist in `state.json`.
+
 ## Protocol
 
 1. Initialize session state.
@@ -173,11 +190,13 @@ Use these names:
      --change "<change>" \
      --base-branch "<base_branch>" \
      --branch "<final_branch>" \
-     --require-ready
+     --require-ready \
+     --require-multi-harness
    ```
 
    Use `scion_ops_root` from the task prompt as
-   `SCION_OPS_ROOT_FOR_VALIDATION`. Only after this validator exits 0 may you
+   `SCION_OPS_ROOT_FOR_VALIDATION`. Include `--require-multi-harness` when
+   `required_multi_harness` is true. Only after this validator exits 0 may you
    call `sciontool status task_completed` with a ready summary.
 10. If validation fails or review exposes unresolved scope questions, run
     update state as `blocked`, record precise next actions, commit and push
@@ -186,14 +205,14 @@ Use these names:
 ## Child Agent Commands
 
 Start child agents with this form, substituting the actual names, branch, type,
-profile, broker, and prompt:
+profile, broker, harness config, and prompt:
 
 ```sh
 scion --profile "$SCION_PROFILE" start "$AGENT_NAME" \
   --type "$TEMPLATE" \
   --branch "$BRANCH" \
   --broker kind-control-plane \
-  --harness-config codex-exec \
+  --harness-config "$HARNESS_CONFIG" \
   --harness-auth auth-file \
   --no-upload \
   --non-interactive \
@@ -202,9 +221,9 @@ scion --profile "$SCION_PROFILE" start "$AGENT_NAME" \
 ```
 
 The agent name is the positional argument immediately after `start`. Do not use
-`--name`; `scion start` does not support that flag. For every codex-exec child
-template, include `--harness-config codex-exec` even if the Hub already has a
-template default.
+`--name`; `scion start` does not support that flag. For every child template,
+include the harness config that matches the task prompt or default role map,
+even if the Hub already has a template default.
 
 Child prompts must include `session_id`, `change`, `base_branch`,
 `collection_recipient`, the expected branch, the artifact boundary, and the
@@ -218,10 +237,13 @@ Only mark the session ready when all of these are true:
 - The OpenSpec artifacts exist under `openspec/changes/<change>/`.
 - Validator output is recorded and passing.
 - Clarifier, explorer, author, and ops-reviewer agents are recorded in
-  `state.json`.
+  `state.json` with template and `harness_config`.
+- Ready spec consensus records at least two harness configs unless
+  `required_multi_harness` is explicitly disabled.
 - `review.verdict` is `accept`.
 - Reviewer blocking issues are resolved or explicitly recorded as blockers.
 - `state.json` names the final branch and next action for implementation.
-- `validate-steward-session.py --require-ready` exits 0.
+- `validate-steward-session.py --require-ready --require-multi-harness` exits
+  0 when multi-harness consensus is required.
 
 If any criterion is not met, finish as blocked with concrete next actions.

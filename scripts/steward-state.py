@@ -9,6 +9,21 @@ from pathlib import Path
 from typing import Any
 
 
+SPEC_ROLE_TEMPLATES = {
+    "clarifier": "spec-goal-clarifier-claude",
+    "explorer": "spec-repo-explorer",
+    "author": "spec-author",
+    "ops_review": "spec-ops-reviewer-claude",
+}
+
+SPEC_ROLE_HARNESSES = {
+    "clarifier": "claude",
+    "explorer": "codex-exec",
+    "author": "codex-exec",
+    "ops_review": "claude",
+}
+
+
 def session_root(project_root: Path, session_id: str) -> Path:
     return project_root / ".scion-ops" / "sessions" / session_id
 
@@ -44,27 +59,40 @@ def spec_agent_records(session_id: str) -> dict[str, dict[str, str]]:
         "clarifier": {
             "name": branches["clarifier"],
             "branch": branches["clarifier"],
-            "template": "spec-goal-clarifier",
+            "template": SPEC_ROLE_TEMPLATES["clarifier"],
+            "harness_config": SPEC_ROLE_HARNESSES["clarifier"],
             "status": "completed",
         },
         "explorer": {
             "name": branches["explorer"],
             "branch": branches["explorer"],
-            "template": "spec-repo-explorer",
+            "template": SPEC_ROLE_TEMPLATES["explorer"],
+            "harness_config": SPEC_ROLE_HARNESSES["explorer"],
             "status": "completed",
         },
         "author": {
             "name": branches["author"],
             "branch": branches["author"],
-            "template": "spec-author",
+            "template": SPEC_ROLE_TEMPLATES["author"],
+            "harness_config": SPEC_ROLE_HARNESSES["author"],
             "status": "completed",
         },
         "ops_review": {
             "name": branches["review"],
             "branch": branches["review"],
-            "template": "spec-ops-reviewer",
+            "template": SPEC_ROLE_TEMPLATES["ops_review"],
+            "harness_config": SPEC_ROLE_HARNESSES["ops_review"],
             "status": "completed",
         },
+    }
+
+
+def spec_consensus_record() -> dict[str, Any]:
+    return {
+        "mode": "multi_harness" if len(set(SPEC_ROLE_HARNESSES.values())) > 1 else "single_harness",
+        "templates": dict(SPEC_ROLE_TEMPLATES),
+        "harnesses": dict(SPEC_ROLE_HARNESSES),
+        "required_multi_harness": True,
     }
 
 
@@ -144,6 +172,7 @@ def base_state(args: argparse.Namespace, status: str, phase: str) -> dict[str, A
         "status": status,
         "phase": phase,
         "branches": branches,
+        "consensus": existing.get("consensus") if isinstance(existing.get("consensus"), dict) else spec_consensus_record(),
         "agents": existing.get("agents") if isinstance(existing.get("agents"), dict) else {},
         "review": existing.get("review") if isinstance(existing.get("review"), dict) else {},
         "validation": existing.get("validation") if isinstance(existing.get("validation"), dict) else {},
@@ -168,6 +197,7 @@ def spec_init(args: argparse.Namespace) -> None:
 def spec_ready(args: argparse.Namespace) -> None:
     root = Path(args.project_root).resolve()
     state = base_state(args, "ready", "complete")
+    state["consensus"] = spec_consensus_record()
     state["agents"] = spec_agent_records(args.session_id)
     state["review"] = {
         "verdict": args.review_verdict,

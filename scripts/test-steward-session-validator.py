@@ -118,11 +118,43 @@ def _spec_state() -> dict[str, object]:
         "status": "ready",
         "phase": "complete",
         "branches": {"integration": "round-s1-spec-integration"},
+        "consensus": {
+            "mode": "multi_harness",
+            "templates": {
+                "clarifier": "spec-goal-clarifier-claude",
+                "explorer": "spec-repo-explorer",
+                "author": "spec-author",
+                "ops_review": "spec-ops-reviewer-claude",
+            },
+            "harnesses": {
+                "clarifier": "claude",
+                "explorer": "codex-exec",
+                "author": "codex-exec",
+                "ops_review": "claude",
+            },
+            "required_multi_harness": True,
+        },
         "agents": {
-            "round-s1-spec-clarifier": {"template": "spec-goal-clarifier", "status": "completed"},
-            "round-s1-spec-explorer": {"template": "spec-repo-explorer", "status": "completed"},
-            "round-s1-spec-author": {"template": "spec-author", "status": "completed"},
-            "round-s1-spec-ops-review": {"template": "spec-ops-reviewer", "status": "completed"},
+            "round-s1-spec-clarifier": {
+                "template": "spec-goal-clarifier-claude",
+                "harness_config": "claude",
+                "status": "completed",
+            },
+            "round-s1-spec-explorer": {
+                "template": "spec-repo-explorer",
+                "harness_config": "codex-exec",
+                "status": "completed",
+            },
+            "round-s1-spec-author": {
+                "template": "spec-author",
+                "harness_config": "codex-exec",
+                "status": "completed",
+            },
+            "round-s1-spec-ops-review": {
+                "template": "spec-ops-reviewer-claude",
+                "harness_config": "claude",
+                "status": "completed",
+            },
         },
         "review": {"verdict": "accept"},
         "validation": {"status": "passed", "command": "python3 scripts/validate-openspec-change.py"},
@@ -174,6 +206,31 @@ def main() -> int:
         assert code == 0, payload
         assert payload["ok"] is True, payload
         assert payload["branch"]["resolved_ref"] == "round-s1-spec-integration", payload
+
+        code, payload = _run(root, "spec", "--require-ready", "--require-multi-harness")
+        assert code == 0, payload
+        assert payload["ok"] is True, payload
+        assert sorted(set(payload["agent_harnesses"].values())) == ["claude", "codex-exec"], payload
+
+        single_harness = _spec_state()
+        single_harness["consensus"] = {
+            "mode": "single_harness",
+            "harnesses": {
+                "clarifier": "codex-exec",
+                "explorer": "codex-exec",
+                "author": "codex-exec",
+                "ops_review": "codex-exec",
+            },
+        }
+        for agent in single_harness["agents"].values():
+            agent["harness_config"] = "codex-exec"
+        _write_state(root, single_harness)
+        code, payload = _run(root, "spec", "--require-ready", "--require-multi-harness")
+        assert code == 1, payload
+        assert payload["ok"] is False, payload
+        assert any(item["path"] == "state.agents.harness_config" for item in payload["errors"]), payload
+
+        _write_state(root, _spec_state())
 
         missing_pr = _spec_state()
         missing_pr.pop("pull_request")

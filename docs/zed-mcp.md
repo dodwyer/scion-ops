@@ -67,28 +67,16 @@ Use the scion-ops MCP server. Call scion_ops_project_status for project_root=/pa
 Use the scion-ops MCP server. Call scion_ops_hub_status and summarize Hub, broker, and agent health.
 ```
 
-## Start A Round
-
-```text
-Use scion-ops on project_root=/path/to/project.
-
-Start a round:
-"Make the requested change, verify it, push the resulting branch, and report the PR-ready branch name."
-```
-
-The external agent should call `scion_ops_start_round`, then monitor with
-`scion_ops_watch_round_events` until terminal.
-
 ## Start A Spec Round
 
 ```text
 Use scion-ops on project_root=/path/to/project.
 
-Run a spec round for change=add-widget:
+Run a spec steward session for change=add-widget:
 "Specify the widget behavior."
 ```
 
-`spec round` already means OpenSpec artifacts only. The external agent should
+The spec steward path writes OpenSpec artifacts only. The external agent should
 call `scion_ops_start_spec_steward`, monitor with
 `scion_ops_watch_round_events`, and validate with
 `scion_ops_validate_steward_session`. When validation succeeds, finish by

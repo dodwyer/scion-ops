@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Live status board for an in-flight consensus round.
+# Live status board for an in-flight Scion steward session.
 # Refreshes every INTERVAL seconds. Stop with Ctrl-C.
 #
 #   bash orchestrator/watch.sh                 # all agents in current grove
@@ -16,7 +16,7 @@ command -v jq >/dev/null         || { echo "jq not on PATH" >&2; exit 1; }
 
 while true; do
   clear
-  printf '== consensus round watch  ==  %s  ==  refresh %ss\n' "$(date +%H:%M:%S)" "$INTERVAL"
+  printf '== scion session watch  ==  %s  ==  refresh %ss\n' "$(date +%H:%M:%S)" "$INTERVAL"
   printf '   filter: %s\n\n' "${ROUND_FILTER:-(none)}"
 
   agents_json=$("$SCION_BIN" list --format json 2>/dev/null \
@@ -35,14 +35,14 @@ while true; do
         done
   fi
 
-  printf '\n-- recent runner / coordinator output --\n'
-  runner=$(jq -r '.[] | select(.name | contains("consensus")) | .name' <<<"$agents_json" | head -1)
+  printf '\n-- recent steward / coordinator output --\n'
+  runner=$(jq -r '.[] | select((.name | contains("steward")) or (.name | contains("consensus"))) | .name' <<<"$agents_json" | head -1)
   if [[ -n "$runner" ]]; then
     "$SCION_BIN" look "$runner" 2>/dev/null \
       | sed 's/\x1b\[[0-9;]*m//g' \
       | tail -10
   else
-    echo "  (no consensus-runner active)"
+    echo "  (no steward active)"
   fi
 
   printf '\n-- workspace artefacts --\n'

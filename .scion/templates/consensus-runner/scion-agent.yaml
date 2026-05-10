@@ -1,9 +1,0 @@
-schema_version: "1"
-description: "Consensus runner — coordinates implementers, reviewers, integration, and final review."
-default_harness_config: claude
-model: claude-sonnet-4-6
-command_args:
-  - --print
-agent_instructions: system-prompt.md
-max_turns: 120
-max_duration: 2h

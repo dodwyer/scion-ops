@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bootstrap kind Hub state needed for subscription-backed consensus rounds.
+# Bootstrap kind Hub state needed for subscription-backed steward sessions.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

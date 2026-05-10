@@ -187,28 +187,29 @@ def _run_validator(
     base_branch: str,
     state_branch: str,
 ) -> dict[str, Any]:
-    result = _run(
-        [
-            "python3",
-            str(ROOT / "scripts" / "validate-steward-session.py"),
-            "--project-root",
-            str(project),
-            "--session-id",
-            session_id,
-            "--kind",
-            kind,
-            "--change",
-            change,
-            "--branch",
-            branch,
-            "--base-branch",
-            base_branch,
-            "--state-branch",
-            state_branch,
-            "--require-ready",
-            "--json",
-        ]
-    )
+    args = [
+        "python3",
+        str(ROOT / "scripts" / "validate-steward-session.py"),
+        "--project-root",
+        str(project),
+        "--session-id",
+        session_id,
+        "--kind",
+        kind,
+        "--change",
+        change,
+        "--branch",
+        branch,
+        "--base-branch",
+        base_branch,
+        "--state-branch",
+        state_branch,
+        "--require-ready",
+        "--json",
+    ]
+    if kind == "spec":
+        args.append("--require-multi-harness")
+    result = _run(args)
     payload = json.loads(result.stdout)
     assert payload["ok"] is True, payload
     return payload

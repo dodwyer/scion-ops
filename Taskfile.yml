@@ -84,22 +84,10 @@ tasks:
     cmds:
       - task kind:control-plane:smoke -- {{.CLI_ARGS}}
 
-  release:smoke:
-    desc: Start an opt-in subscription-backed release smoke round.
-    cmds:
-      - bash scripts/release-smoke-round.sh {{.CLI_ARGS}}
-
   bootstrap:
     desc: Restore Hub secrets, harness configs, and templates for rounds.
     cmds:
       - task kind:bootstrap -- {{.CLI_ARGS}}
-
-  round:
-    desc: Start a Scion consensus round after Kubernetes Hub credential bootstrap.
-    cmds:
-      - |
-        set -- {{.CLI_ARGS}}
-        bash orchestrator/run-round.sh "$@"
 
   spec:validate:
     desc: Validate an OpenSpec change artifact set in a target project.
@@ -110,19 +98,6 @@ tasks:
     desc: Archive an accepted OpenSpec change and sync accepted specs.
     cmds:
       - python3 scripts/archive-openspec-change.py {{.CLI_ARGS}}
-
-  spec:round:
-    desc: Start a spec-building Scion round for a target project.
-    cmds:
-      - |
-        set -- {{.CLI_ARGS}}
-        bash orchestrator/spec-round.sh "$@"
-
-  spec:round:dry-run:
-    cmds:
-      - |
-        set -- {{.CLI_ARGS}}
-        SCION_OPS_DRY_RUN=1 bash orchestrator/spec-round.sh "$@"
 
   spec:steward:
     desc: Start a Scion-native OpenSpec steward session for a target project.
@@ -432,4 +407,4 @@ tasks:
       - uv run scripts/test-web-app-hub.py
       - python3 scripts/test-verdict-schema.py
       - python3 scripts/test-final-review-repair.py
-      - bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh scripts/release-smoke-round.sh scripts/scion-runtime-patches.sh scripts/storage-status.sh deploy/kind/control-plane/config/broker-entrypoint.sh orchestrator/lib/github-branches.sh orchestrator/run-round.sh orchestrator/round.sh orchestrator/spec-round.sh orchestrator/spec-steward.sh orchestrator/implementation-steward.sh orchestrator/abort.sh
+      - bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh scripts/scion-runtime-patches.sh scripts/storage-status.sh deploy/kind/control-plane/config/broker-entrypoint.sh orchestrator/lib/github-branches.sh orchestrator/spec-steward.sh orchestrator/implementation-steward.sh orchestrator/abort.sh

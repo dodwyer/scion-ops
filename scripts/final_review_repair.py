@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Final-review remediation routing policy for consensus rounds."""
+"""Final-review remediation routing policy for implementation steward sessions."""
 
 from __future__ import annotations
 

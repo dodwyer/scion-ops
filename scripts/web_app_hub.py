@@ -56,17 +56,18 @@ BROWSER_JSON_CONTRACT = {
         "visible_status": "operator-facing status, preserving final-review blocked/change states",
         "branches": "structured artifact/branch fields, with fallback text only when needed",
         "mcp": {
-            "expected_branch": "scion_ops_run_spec_round expected_branch",
-            "pr_ready_branch": "scion_ops_run_spec_round pr_ready_branch",
+            "expected_branch": "steward session expected branch",
+            "pr_ready_branch": "steward session PR-ready branch",
             "remote_branch_sha": "remote branch evidence from MCP/artifacts",
             "branch_changed": "boolean or null when unknown",
             "validation_status": "passed|failed|pending|skipped or empty",
-            "protocol": "spec-round milestone object",
+            "protocol": "steward milestone object",
             "blockers": "structured blocker strings",
             "warnings": "structured warning strings",
             "terminal": "structured terminal status when present",
         },
         "final_review": "structured final-review verdict, normalized verdict, display label, source, and blockers",
+        "agents": "normalized agent records with role, template, harness_config, phase, activity, and status",
     },
     "live_updates": {
         "endpoint": "/api/live?cursor=<last_cursor>&round_id=<optional-round>",
@@ -87,11 +88,42 @@ BROWSER_JSON_CONTRACT = {
         "idempotency": "every event has a stable id; timeline and inbox records preserve source ids when present and deterministic fallback ids otherwise",
         "source_errors": "source.error carries source, status, error_kind, error, and last known data remains valid for unrelated sources",
         "read_only": "subscribe, reconnect, cursor resume, and fallback polling only read existing Hub, MCP, Kubernetes, git, and OpenSpec status",
-        "snapshot": "automatic read-only GET /api/snapshot refresh with preserved selected view and scroll context",
+        "snapshot": "automatic read-only GET /api/snapshot update with preserved selected view and scroll context",
         "round_events": "cursor-based read-only GET /api/rounds/{round_id}/events polling for selected round timelines",
         "states": ["connected", "reconnecting", "stale", "fallback", "failed"],
-        "manual_refresh": "secondary troubleshooting-only control; ordinary monitoring uses automatic updates",
     },
+}
+TEMPLATE_HARNESSES = {
+    "spec-steward": "codex-exec",
+    "spec-goal-clarifier": "codex-exec",
+    "spec-goal-clarifier-claude": "claude",
+    "spec-repo-explorer": "codex-exec",
+    "spec-author": "codex-exec",
+    "spec-ops-reviewer": "codex-exec",
+    "spec-ops-reviewer-claude": "claude",
+    "implementation-steward": "codex-exec",
+    "impl-codex": "codex-exec",
+    "impl-claude": "claude",
+    "reviewer-codex": "codex-exec",
+    "reviewer-claude": "claude",
+    "final-reviewer-codex": "codex-exec",
+    "final-reviewer-gemini": "gemini",
+}
+TEMPLATE_ROLES = {
+    "spec-steward": "spec steward",
+    "spec-goal-clarifier": "clarifier",
+    "spec-goal-clarifier-claude": "clarifier",
+    "spec-repo-explorer": "explorer",
+    "spec-author": "author",
+    "spec-ops-reviewer": "ops review",
+    "spec-ops-reviewer-claude": "ops review",
+    "implementation-steward": "implementation steward",
+    "impl-codex": "implementer",
+    "impl-claude": "implementer",
+    "reviewer-codex": "peer review",
+    "reviewer-claude": "peer review",
+    "final-reviewer-codex": "final review",
+    "final-reviewer-gemini": "final review",
 }
 BRANCH_FIELD_NAMES = {
     "branch",
@@ -239,7 +271,8 @@ def structured_mcp_progress(item: Any, *, source: str) -> dict[str, Any]:
         if not isinstance(data, dict):
             continue
         has_progress = any(key in data for key in MCP_PROGRESS_KEYS) or data.get("source") in {
-            "spec_round_runner",
+            "steward_session",
+            "steward_session_validator",
             "local_git",
             "openspec_validator",
         }
@@ -542,6 +575,68 @@ def agent_status(agent: dict[str, Any]) -> str:
     return "unknown"
 
 
+def agent_template(agent: dict[str, Any]) -> str:
+    return str(agent.get("template") or agent.get("agentTemplate") or "")
+
+
+def agent_harness(agent: dict[str, Any]) -> str:
+    for key in ("harnessConfig", "harness_config", "harness", "default_harness_config"):
+        value = str(agent.get(key) or "").strip()
+        if value:
+            return value
+    return TEMPLATE_HARNESSES.get(agent_template(agent), "")
+
+
+def agent_role(agent: dict[str, Any]) -> str:
+    template = agent_template(agent)
+    if template in TEMPLATE_ROLES:
+        return TEMPLATE_ROLES[template]
+    name = str(agent.get("name") or agent.get("slug") or agent.get("agentId") or "").lower()
+    suffix_roles = (
+        ("spec-steward", "spec steward"),
+        ("implementation-steward", "implementation steward"),
+        ("spec-clarifier", "clarifier"),
+        ("spec-explorer", "explorer"),
+        ("spec-author", "author"),
+        ("spec-ops-review", "ops review"),
+        ("impl-codex", "implementer"),
+        ("impl-claude", "implementer"),
+        ("final-review", "final review"),
+    )
+    for suffix, role in suffix_roles:
+        if name.endswith(suffix) or f"-{suffix}-" in name:
+            return role
+    return ""
+
+
+def normalize_agent(agent: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(agent)
+    name = str(agent.get("name") or agent.get("slug") or agent.get("agentId") or agent.get("id") or "")
+    normalized["name"] = name
+    normalized["template"] = agent_template(agent)
+    normalized["role"] = agent_role(agent)
+    normalized["harness_config"] = agent_harness(agent)
+    normalized["status"] = agent_status(agent)
+    return normalized
+
+
+def agent_lookup(agents: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    lookup: dict[str, dict[str, Any]] = {}
+    for agent in agents:
+        for key in (
+            agent.get("name"),
+            agent.get("slug"),
+            agent.get("id"),
+            agent.get("agentId"),
+            f"agent:{agent.get('name')}" if agent.get("name") else "",
+            f"agent:{agent.get('slug')}" if agent.get("slug") else "",
+        ):
+            text = str(key or "").strip()
+            if text:
+                lookup[text] = agent
+    return lookup
+
+
 def source_stale(latest: str, now: datetime | None = None) -> bool:
     parsed = parse_time(latest)
     if not parsed:
@@ -640,17 +735,29 @@ def source_error_events(snapshot: dict[str, Any], *, cursor: str) -> list[dict[s
     return events
 
 
-def timeline_entry(event: dict[str, Any], *, round_id: str) -> dict[str, Any]:
+def timeline_entry(event: dict[str, Any], *, round_id: str, agents_by_actor: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
     item = event.get("message") or event.get("notification") or event.get("agent") or {}
     if not isinstance(item, dict):
         item = {}
     entry_type = str(event.get("type") or "event")
     source_id = stable_source_id(entry_type, item, round_id=round_id)
+    actor = str(item.get("agentId") or item.get("sender") or item.get("senderId") or item.get("name") or item.get("slug") or "")
+    lookup = agents_by_actor or {}
+    agent = lookup.get(actor) or lookup.get(actor.removeprefix("agent:")) or {}
+    if not agent and (item.get("template") or item.get("name") or item.get("slug")):
+        agent = normalize_agent(item)
     return {
         "id": source_id,
         "source_id": source_id,
         "type": entry_type,
         "time": event_time(item),
+        "actor": actor,
+        "agent_name": agent.get("name") or actor,
+        "role": agent.get("role") or "",
+        "template": agent.get("template") or "",
+        "harness_config": agent.get("harness_config") or "",
+        "phase": item.get("phase") or agent.get("phase") or "",
+        "activity": item.get("activity") or agent.get("activity") or "",
         "summary": short_text(item.get("msg") or item.get("message") or item.get("summary") or item.get("taskSummary") or item.get("activity"), 360),
         "raw": item,
     }
@@ -818,6 +925,7 @@ def merge_live_events(state: dict[str, Any], events: list[dict[str, Any]]) -> di
             if entry_id and any(existing.get("id") == entry_id for existing in timeline if isinstance(existing, dict)):
                 continue
             timeline.append(data["entry"])
+            timeline.sort(key=lambda item: item.get("time") or "", reverse=True)
         elif event_type == "source.error":
             state.setdefault("source_errors", {})[data.get("source", event.get("source"))] = data
         elif event_type == "heartbeat":
@@ -1065,6 +1173,7 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
         round_id = extract_round_id(agent.get("name"), agent.get("slug"), agent.get("taskSummary"))
         if not round_id:
             continue
+        agent = normalize_agent(agent)
         row = ensure(round_id)
         row["agents"].append(agent)
         for branch in structured_branch_refs(agent):
@@ -1162,6 +1271,8 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
             row["visible_status"] = row["status"]
         phases = [str(agent.get("phase") or "") for agent in row["agents"] if agent.get("phase")]
         row["phase"] = Counter(phases).most_common(1)[0][0] if phases else row["phase"]
+        row["harnesses"] = sorted({agent.get("harness_config") for agent in row["agents"] if agent.get("harness_config")})
+        row["roles"] = sorted({agent.get("role") for agent in row["agents"] if agent.get("role")})
         summaries = [str(agent.get("taskSummary") or "") for agent in row["agents"] if agent.get("taskSummary")]
         terminal = next((summary for summary in summaries if "complete:" in summary.lower() or "blocked" in summary.lower()), "")
         row["outcome"] = (
@@ -1311,7 +1422,13 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
     final_reviews: list[dict[str, Any]] = []
     mcp_holder: dict[str, Any] = {"mcp": {}}
     merge_mcp_progress(mcp_holder, structured_mcp_progress(status, source="round_status"))
-    detail_agents = status.get("agents", []) if isinstance(status.get("agents"), list) else []
+    detail_agents = [
+        normalize_agent(agent)
+        for agent in status.get("agents", [])
+        if isinstance(agent, dict)
+    ] if isinstance(status.get("agents"), list) else []
+    agents_by_actor = agent_lookup(detail_agents)
+    status = {**status, "agents": detail_agents}
     for agent in detail_agents:
         for branch in structured_branch_refs(agent):
             add_unique(structured_branches, branch)
@@ -1340,7 +1457,7 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
                 review = final_review_from_item(item, source=str(event.get("type") or "event"))
                 if review:
                     final_reviews.append(review)
-            timeline.append(timeline_entry(event, round_id=round_id))
+            timeline.append(timeline_entry(event, round_id=round_id, agents_by_actor=agents_by_actor))
     artifacts: dict[str, Any] = {}
     try:
         artifacts = provider.round_artifacts(round_id)
@@ -1368,7 +1485,9 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
             if validation:
                 mcp["validation"] = validation
                 mcp["validation_status"] = "passed" if validation.get("ok") else "failed"
-    transcript = status.get("consensus_transcript") if isinstance(status.get("consensus_transcript"), dict) else {}
+    transcript = status.get("status_transcript") if isinstance(status.get("status_transcript"), dict) else {}
+    if not transcript and isinstance(status.get("consensus_transcript"), dict):
+        transcript = status.get("consensus_transcript")
     runner_output, runner_output_error = transcript_display(transcript)
     final_reviews.sort(key=lambda item: item.get("time") or "")
     branches = structured_branches if structured_branches else fallback_branches
@@ -1383,7 +1502,7 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
         "round_id": round_id,
         "status": status,
         "events": events,
-        "timeline": sorted(timeline, key=lambda item: item.get("time") or ""),
+        "timeline": sorted(timeline, key=lambda item: item.get("time") or "", reverse=True),
         "runner_output": runner_output,
         "runner_output_error": runner_output_error,
         "outcome": outcome,
@@ -1427,6 +1546,11 @@ INDEX_HTML = r"""<!doctype html>
     .unavailable .dot, .blocked .dot, .error .dot, .changes-requested .dot, .failed .dot { background:var(--bad); }
     .running .dot { background:var(--info); }
     .muted { color:var(--muted); }
+    .meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+    .pill { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line); border-radius:999px; padding:2px 7px; background:#f8f9fa; font-size:12px; max-width:100%; }
+    .agent-grid { display:grid; gap:8px; }
+    .agent-card { display:grid; gap:6px; border:1px solid var(--line); border-radius:8px; padding:10px; background:#fff; }
+    .agent-head { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; }
     table { width:100%; border-collapse:collapse; }
     th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
     th { color:var(--muted); font-size:12px; font-weight:650; }
@@ -1452,7 +1576,7 @@ INDEX_HTML = r"""<!doctype html>
     </nav>
   </header>
   <main>
-    <div class="bar live-bar"><div id="refresh-state" class="live-state">Loading...</div><button id="refresh" class="secondary" title="Troubleshooting snapshot refresh">Refresh snapshot</button></div>
+    <div class="bar live-bar"><div id="refresh-state" class="live-state">Loading...</div></div>
     <section id="overview"></section>
     <section id="rounds" class="hidden"></section>
     <section id="round-detail" class="hidden"></section>
@@ -1481,6 +1605,7 @@ INDEX_HTML = r"""<!doctype html>
       return `<span class="status ${esc(cls)}"><span class="dot"></span>${esc(label)}</span>`;
     };
     const field = (label, value) => value !== undefined && value !== null && String(value) !== "" ? `<div><strong>${esc(label)}</strong><div class="mono">${esc(value)}</div></div>` : "";
+    const meta = (label, value) => value !== undefined && value !== null && String(value) !== "" ? `<span class="pill"><span class="muted">${esc(label)}</span> ${esc(value)}</span>` : "";
     const listBlock = (label, values, kind = "") => values?.length ? `<h3>${esc(label)}</h3>${values.map(value => `<div class="${kind || "muted"}">${esc(value)}</div>`).join("")}` : "";
     const mcpBlock = mcp => !mcp ? "" : `
       <h3>MCP State</h3>
@@ -1579,8 +1704,7 @@ INDEX_HTML = r"""<!doctype html>
         updateLiveState({ state: "stale", error: "automatic updates are stale" });
       }
     }
-    async function refresh({ manual = false } = {}) {
-      if (manual) updateLiveState({ state: "reconnecting", source: "snapshot", error: "manual troubleshooting refresh" });
+    async function refresh() {
       try {
         const scroll = captureScroll();
         state.snapshot = mergeSnapshot(await getJson("/api/snapshot"));
@@ -1594,9 +1718,17 @@ INDEX_HTML = r"""<!doctype html>
     const timelineKey = item => [item.type, item.time, item.summary, item.raw?.id || item.raw?.agentId || item.raw?.sender || ""].map(value => String(value || "")).join("|");
     const eventToTimeline = event => {
       const item = event.message || event.notification || event.agent || {};
+      const actor = item.agentId || item.sender || item.senderId || item.name || item.slug || "";
       return {
         type: event.type || "event",
         time: item.createdAt || item.created || item.updatedAt || item.updated || item.timestamp || item.time || "",
+        actor,
+        agent_name: item.name || item.slug || actor,
+        role: item.role || "",
+        template: item.template || "",
+        harness_config: item.harness_config || item.harnessConfig || item.harness || "",
+        phase: item.phase || "",
+        activity: item.activity || "",
         summary: item.msg || item.message || item.summary || item.taskSummary || item.activity || "",
         raw: item
       };
@@ -1619,7 +1751,7 @@ INDEX_HTML = r"""<!doctype html>
         detail.timeline.push(item);
         changed = true;
       }
-      detail.timeline.sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+      detail.timeline.sort((a, b) => String(b.time || "").localeCompare(String(a.time || "")));
       if (eventsPayload.cursor) state.cursors[roundId] = eventsPayload.cursor;
       return changed;
     }
@@ -1657,7 +1789,7 @@ INDEX_HTML = r"""<!doctype html>
         if (!state.timelineKeys[data.round_id].has(key)) {
           state.timelineKeys[data.round_id].add(key);
           detail.timeline.push(data.entry);
-          detail.timeline.sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+          detail.timeline.sort((a, b) => String(b.time || "").localeCompare(String(a.time || "")));
           if (state.selectedRound === data.round_id) renderRoundDetail();
         }
         markStreamOk("round-timeline");
@@ -1740,7 +1872,7 @@ INDEX_HTML = r"""<!doctype html>
       document.getElementById("rounds").innerHTML = rows.length ? `
         ${warnings}
         <div class="table-wrap"><table><thead><tr><th>Round</th><th>Status</th><th>Phase</th><th>Agents</th><th>Latest update</th><th>Outcome</th><th>Branches</th><th>MCP</th></tr></thead><tbody>
-        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}</td><td>${esc(row.phase)}</td><td>${row.agent_count}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.outcome || "")}${row.mcp?.blockers?.length ? `<div class="error-box">${esc(row.mcp.blockers.join("; "))}</div>` : ""}</td><td>${(row.branches || []).map(branch => `<div class="mono">${esc(branch)}</div>`).join("")}${row.branch_source ? `<div class="muted">${esc(row.branch_source)}</div>` : ""}</td><td>${field("Expected", row.mcp?.expected_branch)}${field("PR-ready", row.mcp?.pr_ready_branch)}${field("Validation", row.mcp?.validation_status)}${field("Remote SHA", row.mcp?.remote_branch_sha)}</td></tr>`).join("")}
+        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}</td><td>${esc(row.phase)}</td><td>${row.agent_count}<div class="meta">${(row.harnesses || []).map(value => meta("harness", value)).join("")}${(row.roles || []).slice(0, 3).map(value => meta("role", value)).join("")}</div></td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.outcome || "")}${row.mcp?.blockers?.length ? `<div class="error-box">${esc(row.mcp.blockers.join("; "))}</div>` : ""}</td><td>${(row.branches || []).map(branch => `<div class="mono">${esc(branch)}</div>`).join("")}${row.branch_source ? `<div class="muted">${esc(row.branch_source)}</div>` : ""}</td><td>${field("Expected", row.mcp?.expected_branch)}${field("PR-ready", row.mcp?.pr_ready_branch)}${field("Validation", row.mcp?.validation_status)}${field("Remote SHA", row.mcp?.remote_branch_sha)}</td></tr>`).join("")}
         </tbody></table></div>` : `${warnings}<div class="card"><strong>No rounds found</strong><div class="muted">Hub returned no round-identifiable agents, messages, or notifications.</div></div>`;
       document.querySelectorAll("[data-round]").forEach(row => row.onclick = () => openRound(row.dataset.round));
     }
@@ -1785,14 +1917,15 @@ INDEX_HTML = r"""<!doctype html>
       if (!detail) return;
       const agents = detail.status.agents || [];
       const review = detail.final_review || {};
+      const timelineItem = item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div><div class="meta">${meta("agent", item.agent_name || item.actor)}${meta("role", item.role)}${meta("template", item.template)}${meta("harness", item.harness_config)}${meta("phase", item.phase)}${meta("activity", item.activity)}</div></div>`;
+      const agentCard = agent => `<div class="agent-card"><div class="agent-head"><strong>${esc(agent.name || agent.slug)}</strong>${status(agent.status || agent.phase || "unknown")}</div><div class="meta">${meta("role", agent.role)}${meta("template", agent.template)}${meta("harness", agent.harness_config)}${meta("phase", agent.phase)}${meta("activity", agent.activity)}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`;
       document.getElementById("round-detail").innerHTML = `
-        <div class="bar"><button id="back-rounds">Back to rounds</button><button id="refresh-round" class="secondary" title="Troubleshooting detail refresh">Refresh timeline snapshot</button></div>
+        <div class="bar"><button id="back-rounds">Back to rounds</button></div>
         <div class="split">
-          <div class="detail"><h2 class="mono">${esc(roundId)}</h2><div>${status(detail.visible_status || detail.status.status || "unknown")}</div><h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div></div>`).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
-          <div class="detail"><h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}${mcpBlock(detail.mcp)}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? agents.map(agent => `<div class="card"><strong>${esc(agent.name || agent.slug)}</strong><div>${status(agent.phase || "unknown")}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`).join("") : `<div class="muted">No agents found.</div>`}<h3>Runner Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No runner output available.")}</div>`}</div>
+          <div class="detail"><h2 class="mono">${esc(roundId)}</h2><div>${status(detail.visible_status || detail.status.status || "unknown")}</div><h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(timelineItem).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
+          <div class="detail"><h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}${mcpBlock(detail.mcp)}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? `<div class="agent-grid">${agents.map(agentCard).join("")}</div>` : `<div class="muted">No agents found.</div>`}<h3>Coordinator Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No coordinator output available.")}</div>`}</div>
         </div>`;
       document.getElementById("back-rounds").onclick = () => setView("rounds");
-      document.getElementById("refresh-round").onclick = () => openRound(roundId, { force: true });
     }
     function renderInbox() {
       const groups = state.snapshot.inbox;
@@ -1824,7 +1957,6 @@ INDEX_HTML = r"""<!doctype html>
       }
     }
     document.querySelectorAll("nav button").forEach(btn => btn.onclick = () => setView(btn.dataset.view));
-    document.getElementById("refresh").onclick = () => refresh({ manual: true });
     startLiveUpdates();
     state.poll.snapshot = setInterval(refresh, SNAPSHOT_POLL_MS);
     state.poll.stale = setInterval(checkStaleness, 5000);

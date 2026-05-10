@@ -1,0 +1,10 @@
+schema_version: "1"
+description: "Spec operations reviewer (Claude) - checks artifact quality and operational fit."
+default_harness_config: claude
+model: claude-sonnet-4-6
+command_args:
+  - --print
+system_prompt: system-prompt.md
+agent_instructions: agents.md
+max_turns: 40
+max_duration: 7m

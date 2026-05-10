@@ -129,14 +129,15 @@ They do not share the MCP checkout as a mutable workspace.
 ```bash
 task verify          # static, no cluster
 task test            # no-spend control-plane smoke
-task release:smoke   # subscription-backed release confidence
+task spec:steward    # steward-based OpenSpec change
+task spec:implement  # steward-based implementation from an approved change
 ```
 
 `task test` verifies kind, Hub health, broker registration, MCP tool surface,
 web app endpoint readiness, and no-auth Kubernetes agent dispatch.
 
-Use `task release:smoke` only before a release, after credential changes, or
-when diagnosing model-backed dispatch.
+Use the steward tasks before a release, after credential changes, or when
+diagnosing model-backed dispatch.
 
 ## Narrow Updates
 

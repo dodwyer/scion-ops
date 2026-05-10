@@ -61,13 +61,6 @@ PLACEHOLDER_SUMMARY_TOKENS = (
     "concrete_summary",
     "collection_recipient",
 )
-SPEC_CHILD_TEMPLATES = {
-    "spec-goal-clarifier",
-    "spec-repo-explorer",
-    "spec-author",
-    "spec-ops-reviewer",
-    "spec-finalizer",
-}
 OPENSPEC_REQUIRED_FILES = ("proposal.md", "design.md", "tasks.md")
 
 
@@ -1247,7 +1240,7 @@ def _round_outcome(snapshot: dict[str, Any]) -> dict[str, Any]:
             "final_review": final_review,
         }
 
-    terminal = _round_terminal_status_from_consensus(snapshot)
+    terminal = _round_terminal_status_from_coordinator(snapshot)
     if terminal:
         summary = str(terminal.get("taskSummary") or "")
         status = "completed"
@@ -1263,28 +1256,28 @@ def _round_outcome(snapshot: dict[str, Any]) -> dict[str, Any]:
             status = "unknown"
         return {
             "status": status,
-            "source": "consensus",
-            "consensus": terminal,
+            "source": "coordinator",
+            "coordinator": terminal,
         }
     return {}
 
 
-def _round_terminal_status_from_consensus(snapshot: dict[str, Any]) -> dict[str, Any] | None:
-    consensus = next(
+def _round_terminal_status_from_coordinator(snapshot: dict[str, Any]) -> dict[str, Any] | None:
+    coordinator = next(
         (
             item
             for item in snapshot["agents"]
-            if item.get("template") == "consensus-runner"
-            or (item.get("name") and str(item.get("name")).endswith("-consensus"))
+            if str(item.get("template") or "").endswith("steward")
+            or (item.get("name") and "steward" in str(item.get("name")))
         ),
         None,
     )
-    if not consensus:
+    if not coordinator:
         return None
-    summary = str(consensus.get("taskSummary") or "")
-    phase = str(consensus.get("phase") or "").lower()
-    activity = str(consensus.get("activity") or "").lower()
-    container_status = str(consensus.get("containerStatus") or "").lower()
+    summary = str(coordinator.get("taskSummary") or "")
+    phase = str(coordinator.get("phase") or "").lower()
+    activity = str(coordinator.get("activity") or "").lower()
+    container_status = str(coordinator.get("containerStatus") or "").lower()
     terminal_state = (
         phase in {"stopped", "deleted", "ended", "completed", "error", "failed"}
         or activity in {"completed", "limits_exceeded"}
@@ -1292,7 +1285,7 @@ def _round_terminal_status_from_consensus(snapshot: dict[str, Any]) -> dict[str,
     )
     if not terminal_state:
         return None
-    has_placeholder = _has_placeholder_summary(consensus)
+    has_placeholder = _has_placeholder_summary(coordinator)
     has_terminal_summary = (
         (" complete:" in summary or " escalated:" in summary or summary.startswith("spec ready:"))
         and not has_placeholder
@@ -1301,11 +1294,11 @@ def _round_terminal_status_from_consensus(snapshot: dict[str, Any]) -> dict[str,
         return None
     if activity == "completed" or has_terminal_summary or terminal_state:
         return {
-            "agent": consensus.get("name"),
-            "phase": consensus.get("phase"),
-            "activity": consensus.get("activity"),
-            "containerStatus": consensus.get("containerStatus"),
-            "taskSummary": consensus.get("taskSummary"),
+            "agent": coordinator.get("name"),
+            "phase": coordinator.get("phase"),
+            "activity": coordinator.get("activity"),
+            "containerStatus": coordinator.get("containerStatus"),
+            "taskSummary": coordinator.get("taskSummary"),
         }
     return None
 
@@ -1314,7 +1307,7 @@ def _round_terminal_status(snapshot: dict[str, Any]) -> dict[str, Any] | None:
     outcome = _round_outcome(snapshot)
     if outcome:
         return outcome
-    return _round_terminal_status_from_consensus(snapshot)
+    return _round_terminal_status_from_coordinator(snapshot)
 
 
 def _snapshot_outcome(snapshot: dict[str, Any]) -> dict[str, Any]:
@@ -1669,32 +1662,6 @@ def _parse_started_round_id(output: str, fallback: str = "") -> str:
     return fallback
 
 
-def _start_round_response(
-    result: dict[str, Any],
-    *,
-    target_root: Path,
-    parsed_round_id: str,
-    runner: str,
-    next_hints: dict[str, str],
-) -> dict[str, Any]:
-    event_cursor = ""
-    event_cursor_error: dict[str, Any] = {}
-    if parsed_round_id:
-        try:
-            event_cursor = _encode_cursor(_round_event_snapshot(parsed_round_id, str(target_root)))
-        except HubAPIError as exc:
-            event_cursor_error = _hub_error_payload(exc, "start_round_event_cursor")
-    return {
-        **_command_result(result),
-        "project_root": str(target_root),
-        "round_id": parsed_round_id,
-        "consensus_agent": runner,
-        "event_cursor": event_cursor,
-        "event_cursor_error": event_cursor_error,
-        "next": next_hints,
-    }
-
-
 def _start_steward_response(
     result: dict[str, Any],
     *,
@@ -1870,7 +1837,7 @@ def scion_ops_round_status(
     num_lines: int = 120,
     project_root: str = "",
 ) -> dict[str, Any]:
-    """Summarize a consensus round from Hub API state and optionally include the runner tail."""
+    """Summarize a Scion steward session from Hub API state and optionally include the coordinator tail."""
     if round_id:
         _clean_name(round_id, "round_id")
     num_lines = _clamp(num_lines, 20, 400)
@@ -1880,16 +1847,7 @@ def scion_ops_round_status(
     except HubAPIError as exc:
         return _hub_error_payload(exc, "round_status")
     summaries = [_agent_summary(agent) for agent in agents]
-    consensus = next(
-        (
-            item.get("name")
-            for item in summaries
-            if item.get("template") == "consensus-runner"
-            or (item.get("name") and str(item.get("name")).endswith("-consensus"))
-        ),
-        "",
-    )
-    status_agent = consensus or next(
+    coordinator = next(
         (
             item.get("name")
             for item in summaries
@@ -1898,6 +1856,7 @@ def scion_ops_round_status(
         ),
         "",
     )
+    status_agent = coordinator
     transcript: dict[str, Any] = {}
     if include_transcript and status_agent:
         transcript = scion_ops_look(status_agent, num_lines=num_lines, project_root=project_root)
@@ -1918,9 +1877,8 @@ def scion_ops_round_status(
         "progress": _round_agent_progress(summaries),
         "outcome": outcome,
         "terminal": _round_terminal_status(snapshot) or {},
-        "consensus_agent": consensus,
+        "coordinator_agent": coordinator,
         "status_agent": status_agent,
-        "consensus_transcript": transcript,
         "status_transcript": transcript,
     }
 
@@ -2048,54 +2006,6 @@ def scion_ops_watch_round_events(
         "notification_count": len(snapshot["notifications"]),
         "commands_ok": snapshot["commands_ok"],
     }
-
-
-@mcp.tool()
-def scion_ops_start_round(
-    prompt: str,
-    round_id: str = "",
-    max_minutes: int = 30,
-    max_review_rounds: int = 3,
-    base_branch: str = "",
-    final_reviewer: str = "",
-    project_root: str = "",
-) -> dict[str, Any]:
-    """Start a detached scion-ops consensus round via `task round`."""
-    prompt = prompt.strip()
-    if not prompt:
-        raise ValueError("prompt is required")
-    target_root = _project_root(project_root) if project_root else _repo_root()
-    env: dict[str, str] = {
-        **_target_round_env(target_root),
-        "MAX_MINUTES": str(_clamp(max_minutes, 1, 240)),
-        "MAX_REVIEW_ROUNDS": str(_clamp(max_review_rounds, 1, 10)),
-    }
-    if round_id:
-        env["ROUND_ID"] = _clean_name(round_id, "round_id")
-    if base_branch:
-        env["BASE_BRANCH"] = _clean_name(base_branch, "base_branch")
-    else:
-        env["BASE_BRANCH"] = _default_base_branch(str(target_root))
-    if final_reviewer:
-        final_reviewer = final_reviewer.strip().lower()
-        if final_reviewer not in {"gemini", "codex"}:
-            raise ValueError("final_reviewer must be 'gemini' or 'codex'")
-        env["FINAL_REVIEWER"] = final_reviewer
-
-    result = _run(["task", "round", "--", prompt], timeout=60, env=env)
-    parsed_round_id = _parse_started_round_id(result["output"], env.get("ROUND_ID", ""))
-    runner = f"round-{parsed_round_id.lower()}-consensus" if parsed_round_id else ""
-    return _start_round_response(
-        result,
-        target_root=target_root,
-        parsed_round_id=parsed_round_id,
-        runner=runner,
-        next_hints={
-            "watch_tool": "scion_ops_watch_round_events",
-            "events_tool": "scion_ops_round_events",
-            "abort_tool": "scion_ops_abort_round",
-        },
-    )
 
 
 @mcp.tool()
@@ -2241,8 +2151,8 @@ def scion_ops_prepare_github_repo(repo_url: str, checkout_root: str = "") -> dic
         "mcp_visible": project_root.exists(),
         "next": {
             "project_status_tool": "scion_ops_project_status",
-            "start_round_tool": "scion_ops_start_round",
-            "start_spec_round_tool": "scion_ops_start_spec_round",
+            "draft_spec_steward_tool": "scion_ops_start_spec_steward",
+            "start_implementation_tool": "scion_ops_start_impl_round",
         },
     }
 
@@ -2351,9 +2261,9 @@ def scion_ops_project_status(project_root: str) -> dict[str, Any]:
         "next": {
             "prepare_github_repo_tool": "scion_ops_prepare_github_repo",
             "bootstrap": "Run `task bootstrap -- <project_root>` from the scion-ops repo if grove_id is empty or preflight fails.",
-            "start_round_tool": "scion_ops_start_round",
             "spec_status_tool": "scion_ops_spec_status",
-            "start_spec_round_tool": "scion_ops_start_spec_round",
+            "draft_spec_steward_tool": "scion_ops_start_spec_steward",
+            "start_implementation_tool": "scion_ops_start_impl_round",
         },
     }
 
@@ -2419,7 +2329,6 @@ def scion_ops_spec_status(project_root: str, change: str = "") -> dict[str, Any]
         "openspec_status": openspec_status,
         "openspec_status_result": openspec_status_result,
         "next": {
-            "draft_spec_tool": "scion_ops_start_spec_round",
             "draft_spec_steward_tool": "scion_ops_start_spec_steward",
             "validate_tool": "scion_ops_validate_spec_change",
             "start_implementation_tool": "scion_ops_start_impl_round",
@@ -2446,46 +2355,6 @@ def scion_ops_archive_spec_change(project_root: str, change: str, confirm: bool 
             "status_tool": "scion_ops_spec_status",
         },
     }
-
-
-@mcp.tool()
-def scion_ops_start_spec_round(
-    goal: str,
-    project_root: str,
-    change: str = "",
-    round_id: str = "",
-    base_branch: str = "",
-) -> dict[str, Any]:
-    """Start an OpenSpec-only spec-building Scion round for a target project."""
-    goal = goal.strip()
-    if not goal:
-        raise ValueError("goal is required")
-    target_root = _project_root(project_root)
-    env: dict[str, str] = _target_round_env(target_root)
-    if change:
-        env["SCION_OPS_SPEC_CHANGE"] = _clean_name(change, "change")
-    if round_id:
-        env["ROUND_ID"] = _clean_name(round_id, "round_id")
-    if base_branch:
-        env["BASE_BRANCH"] = _clean_name(base_branch, "base_branch")
-    else:
-        env["BASE_BRANCH"] = _default_base_branch(str(target_root))
-    result = _run(["task", "spec:round", "--", goal], timeout=60, env=env)
-    parsed_round_id = _parse_started_round_id(result["output"], env.get("ROUND_ID", ""))
-    runner = f"round-{parsed_round_id.lower()}-spec-consensus" if parsed_round_id else ""
-    return _start_round_response(
-        result,
-        target_root=target_root,
-        parsed_round_id=parsed_round_id,
-        runner=runner,
-        next_hints={
-            "status_tool": "scion_ops_round_status",
-            "watch_tool": "scion_ops_watch_round_events",
-            "events_tool": "scion_ops_round_events",
-            "artifacts_tool": "scion_ops_round_artifacts",
-            "abort_tool": "scion_ops_abort_round",
-        },
-    )
 
 
 @mcp.tool()
@@ -2529,27 +2398,6 @@ def scion_ops_start_spec_steward(
     )
 
 
-def _compact_round_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    compact: list[dict[str, Any]] = []
-    for event in events:
-        item = event.get("agent") or event.get("message") or event.get("notification") or {}
-        compact.append({
-            "type": event.get("type"),
-            "name": (
-                item.get("name")
-                or item.get("slug")
-                or item.get("agentName")
-                or item.get("agent")
-                or item.get("sender")
-                or ""
-            ),
-            "phase": item.get("phase") or "",
-            "activity": item.get("activity") or "",
-            "summary": item.get("taskSummary") or item.get("summary") or item.get("message") or item.get("msg") or "",
-        })
-    return compact
-
-
 def _short_text(value: Any, limit: int = 220) -> str:
     text = " ".join(str(value or "").split())
     if len(text) <= limit:
@@ -2572,54 +2420,9 @@ def _round_agent_inactive(agent: dict[str, Any]) -> bool:
     )
 
 
-def _round_agents_inactive(agents: list[dict[str, Any]]) -> bool:
-    if not agents:
-        return False
-    return all(_round_agent_inactive(agent) for agent in agents)
-
-
 def _has_placeholder_summary(agent: dict[str, Any]) -> bool:
     summary = str(agent.get("taskSummary") or agent.get("summary") or "")
     return any(token in summary.lower() for token in PLACEHOLDER_SUMMARY_TOKENS)
-
-
-def _is_spec_consensus_agent(agent: dict[str, Any]) -> bool:
-    name = str(agent.get("name") or agent.get("slug") or "")
-    return agent.get("template") == "spec-consensus-runner" or name.endswith("-spec-consensus")
-
-
-def _is_spec_child_agent(agent: dict[str, Any]) -> bool:
-    name = str(agent.get("name") or agent.get("slug") or "")
-    return (
-        str(agent.get("template") or "") in SPEC_CHILD_TEMPLATES
-        or any(name.endswith(f"-{suffix}") for suffix in (
-            "spec-clarifier",
-            "spec-explorer",
-            "spec-author",
-            "spec-ops-review",
-            "spec-finalizer",
-        ))
-    )
-
-
-def _spec_agents_for_phase(agents: list[dict[str, Any]], *, template: str, name_suffix: str) -> list[dict[str, Any]]:
-    return [
-        agent
-        for agent in agents
-        if str(agent.get("template") or "") == template
-        or str(agent.get("name") or agent.get("slug") or "").endswith(name_suffix)
-    ]
-
-
-def _spec_phase_complete(agents: list[dict[str, Any]], *, template: str, name_suffix: str) -> bool:
-    return any(
-        _round_agent_inactive(agent)
-        for agent in _spec_agents_for_phase(
-            agents,
-            template=template,
-            name_suffix=name_suffix,
-        )
-    )
 
 
 def _agent_health(agent: dict[str, Any]) -> str:
@@ -2695,30 +2498,6 @@ def _parse_timestamp(value: Any) -> datetime | None:
     return parsed
 
 
-def _round_elapsed_seconds(agents: list[dict[str, Any]]) -> int | None:
-    created = [_parse_timestamp(agent.get("created")) for agent in agents]
-    timestamps = [item for item in created if item]
-    if not timestamps:
-        return None
-    return max(0, int((datetime.now(timezone.utc) - min(timestamps)).total_seconds()))
-
-
-def _latest_event_summaries(events: list[dict[str, Any]]) -> list[str]:
-    summaries: list[str] = []
-    for event in events:
-        event_type = str(event.get("type") or "event")
-        name = str(event.get("name") or "")
-        phase = str(event.get("phase") or "")
-        activity = str(event.get("activity") or "")
-        summary = _short_text(event.get("summary"), limit=180)
-        parts = [part for part in (phase, activity) if part]
-        label = name or event_type
-        suffix = f" ({', '.join(parts)})" if parts else ""
-        detail = f": {summary}" if summary else ""
-        summaries.append(_short_text(f"{event_type}: {label}{suffix}{detail}", limit=260))
-    return summaries
-
-
 def _agent_progress_line(agent: dict[str, Any]) -> str:
     name = str(agent.get("name") or agent.get("template") or "agent")
     health = str(agent.get("health") or "unknown")
@@ -2773,420 +2552,6 @@ def _snapshot_progress_lines(snapshot: dict[str, Any], round_id: str) -> list[st
     terminal = _round_terminal_status(snapshot)
     status = "completed" if terminal else "running" if progress["active_agents"] else "observed"
     return _round_progress_lines(round_id=round_id, status=status, progress=progress)
-
-
-def _spec_round_artifact_state(
-    *,
-    target_root: Path,
-    project_root: str,
-    round_id: str,
-    expected_branch: str,
-    base_branch: str,
-    change: str,
-    validate: bool,
-) -> dict[str, Any]:
-    base_sha, _ = _remote_branch_sha(target_root, base_branch)
-    artifacts = scion_ops_round_artifacts(round_id, project_root=project_root)
-    final_branch = next(
-        (
-            item
-            for item in artifacts.get("remote_branches", [])
-            if item.get("branch") == expected_branch
-        ),
-        {},
-    )
-    branch_sha = str(final_branch.get("sha") or "")
-    branch_changed = bool(branch_sha and branch_sha != base_sha)
-    validation: dict[str, Any] = {}
-    validation_status = "skipped" if not validate or not change else "pending"
-    if validate and change and branch_changed:
-        validation = _validate_remote_spec_change_result(target_root, _clean_name(change, "change"), expected_branch)
-        validation_status = "passed" if validation.get("ok") else "failed"
-    return {
-        "artifacts": artifacts,
-        "base_branch_sha": base_sha,
-        "remote_branch_sha": branch_sha,
-        "branch_changed": branch_changed,
-        "validation": validation,
-        "validation_status": validation_status,
-    }
-
-
-def _spec_round_next_args(
-    *,
-    project_root: str,
-    goal: str,
-    change: str,
-    round_id: str,
-    base_branch: str,
-    cursor: str,
-    watch_seconds: int,
-    poll_interval_seconds: int,
-    validate: bool,
-) -> dict[str, Any]:
-    return {
-        "project_root": project_root,
-        "goal": goal,
-        "change": change,
-        "round_id": round_id,
-        "base_branch": base_branch,
-        "cursor": cursor,
-        "watch_seconds": watch_seconds,
-        "poll_interval_seconds": poll_interval_seconds,
-        "validate": validate,
-        "wait_until_complete": False,
-    }
-
-
-def _spec_round_progress_response(
-    *,
-    target_root: Path,
-    project_root: str,
-    goal: str,
-    change: str,
-    round_id: str,
-    monitor_round_id: str,
-    base_branch: str,
-    expected_branch: str,
-    cursor: str,
-    watch_seconds: int,
-    poll_interval_seconds: int,
-    validate: bool,
-    started: dict[str, Any],
-    last_watch: dict[str, Any],
-    events_seen: list[dict[str, Any]],
-    round_timed_out: bool = False,
-) -> dict[str, Any]:
-    try:
-        agents, result = _list_agents(monitor_round_id, project_root)
-    except HubAPIError as exc:
-        return {
-            "ok": False,
-            "done": True,
-            "status": "blocked",
-            "source": "spec_round_runner",
-            "stage": "monitor",
-            "round_id": round_id,
-            **_hub_error_payload(exc, "run_spec_round"),
-        }
-    summaries = [_agent_summary(agent) for agent in agents]
-    progress = _round_agent_progress(summaries)
-    consensus_agent = next((agent for agent in summaries if _is_spec_consensus_agent(agent)), {})
-    child_agents = [agent for agent in summaries if _is_spec_child_agent(agent)]
-    ops_review_agents = _spec_agents_for_phase(
-        child_agents,
-        template="spec-ops-reviewer",
-        name_suffix="-spec-ops-review",
-    )
-    finalizer_agents = _spec_agents_for_phase(
-        child_agents,
-        template="spec-finalizer",
-        name_suffix="-spec-finalizer",
-    )
-    ops_review_complete = _spec_phase_complete(
-        child_agents,
-        template="spec-ops-reviewer",
-        name_suffix="-spec-ops-review",
-    )
-    finalizer_complete = _spec_phase_complete(
-        child_agents,
-        template="spec-finalizer",
-        name_suffix="-spec-finalizer",
-    )
-    placeholder_agents = [agent for agent in summaries if _has_placeholder_summary(agent)]
-    placeholder_summary = bool(placeholder_agents)
-    terminal = last_watch.get("terminal") or _round_terminal_status({
-        "agents": summaries,
-        "messages": [],
-        "notifications": [],
-    }) or {}
-    artifact_state = _spec_round_artifact_state(
-        target_root=target_root,
-        project_root=project_root,
-        round_id=round_id,
-        expected_branch=expected_branch,
-        base_branch=base_branch,
-        change=change,
-        validate=validate,
-    )
-
-    blockers: list[str] = []
-    warnings: list[str] = []
-    done = False
-    status = "running" if summaries else "starting"
-    round_finished = bool(terminal) or _round_agents_inactive(summaries)
-    integration_branch_valid = (
-        artifact_state["branch_changed"]
-        and artifact_state["validation_status"] in {"passed", "skipped"}
-    )
-    protocol_complete = integration_branch_valid and ops_review_complete and finalizer_complete
-    if protocol_complete:
-        done = True
-        status = "completed"
-    elif round_finished and placeholder_summary and not child_agents:
-        done = True
-        status = "blocked"
-        blockers.append("spec consensus runner exited with placeholder summary before spawning spec personas")
-    elif progress["unhealthy_agents"]:
-        done = True
-        status = "blocked"
-        blockers.append("one or more round agents are stalled or unhealthy")
-    elif artifact_state["validation_status"] == "failed":
-        if round_finished or round_timed_out:
-            done = True
-            status = "blocked"
-            blockers.append("OpenSpec validation failed on the remote branch")
-        else:
-            status = "running_degraded"
-            warnings.append("OpenSpec validation is currently failing on the remote branch")
-    elif round_timed_out:
-        done = True
-        status = "timed_out"
-        blockers.append("round did not finish before timeout")
-    elif round_finished:
-        done = True
-        status = "blocked"
-        if not artifact_state["remote_branch_sha"]:
-            blockers.append(f"expected branch was not found on origin: {expected_branch}")
-        elif not artifact_state["branch_changed"]:
-            blockers.append(f"expected branch did not move from base SHA: {expected_branch}")
-        elif integration_branch_valid:
-            if not ops_review_agents:
-                blockers.append("spec operations reviewer was not spawned")
-            elif not ops_review_complete:
-                blockers.append("spec operations reviewer did not complete")
-            if not finalizer_agents:
-                blockers.append("spec finalizer was not spawned")
-            elif not finalizer_complete:
-                blockers.append("spec finalizer did not complete")
-        if terminal and not blockers:
-            blockers.append("round reported terminal status before a valid spec branch was available")
-
-    if integration_branch_valid and not protocol_complete and status in {"starting", "running"}:
-        missing = []
-        if not ops_review_complete:
-            missing.append("spec operations review")
-        if not finalizer_complete:
-            missing.append("spec finalizer")
-        if missing:
-            warnings.append(f"integration branch validates; waiting for {', '.join(missing)}")
-
-    if progress["unhealthy_agents"] and status in {"starting", "running"}:
-        status = "running_degraded"
-
-    overall_health = "ok"
-    if status == "completed":
-        overall_health = "complete"
-    elif status in {"blocked", "timed_out"}:
-        overall_health = "blocked"
-    elif progress["unhealthy_agents"] or warnings:
-        overall_health = "degraded"
-    elif not summaries:
-        overall_health = "starting"
-
-    progress_lines = _round_progress_lines(
-        round_id=round_id,
-        status=status,
-        progress=progress,
-        validation_status=artifact_state["validation_status"],
-        pr_ready_branch=expected_branch if status == "completed" else "",
-        blockers=blockers,
-        warnings=warnings,
-    )
-    artifacts = artifact_state["artifacts"] if done else {
-        "source": artifact_state["artifacts"].get("source"),
-        "project_root": artifact_state["artifacts"].get("project_root"),
-        "remote_branches": artifact_state["artifacts"].get("remote_branches", []),
-    }
-    if done:
-        next_payload = {
-            "open_pr": f"Create a PR from {expected_branch} into the base branch." if status == "completed" else "",
-            "abort_tool": "scion_ops_abort_round",
-            "events_tool": "scion_ops_round_events",
-        }
-    else:
-        next_payload = {
-            "tool": "scion_ops_run_spec_round",
-            "args": _spec_round_next_args(
-                project_root=project_root,
-                goal=goal,
-                change=change,
-                round_id=round_id,
-                base_branch=base_branch,
-                cursor=cursor,
-                watch_seconds=watch_seconds,
-                poll_interval_seconds=poll_interval_seconds,
-                validate=validate,
-            ),
-            "message": "Call this tool again with next.args to continue monitoring.",
-            "abort_tool": "scion_ops_abort_round",
-        }
-
-    return {
-        "ok": status not in {"blocked", "timed_out"},
-        "done": done,
-        "status": status,
-        "health": overall_health,
-        "summary": progress_lines[0] if progress_lines else f"round {round_id} {status}",
-        "progress_lines": progress_lines,
-        "source": "spec_round_runner",
-        "project_root": project_root,
-        "round_id": round_id,
-        "monitor_round_id": monitor_round_id,
-        "change": change,
-        "base_branch": base_branch,
-        "elapsed_seconds": _round_elapsed_seconds(summaries),
-        "expected_branch": expected_branch,
-        "pr_ready_branch": expected_branch if status == "completed" else "",
-        "remote_branch_sha": artifact_state["remote_branch_sha"],
-        "base_branch_sha": artifact_state["base_branch_sha"],
-        "branch_changed": artifact_state["branch_changed"],
-        "validation_status": artifact_state["validation_status"],
-        "validation": artifact_state["validation"],
-        "protocol": {
-            "integration_branch_valid": integration_branch_valid,
-            "ops_review_agent_count": len(ops_review_agents),
-            "ops_review_complete": ops_review_complete,
-            "finalizer_agent_count": len(finalizer_agents),
-            "finalizer_complete": finalizer_complete,
-            "complete": protocol_complete,
-        },
-        "blockers": blockers,
-        "warnings": warnings,
-        "terminal": terminal,
-        "placeholder_summary": placeholder_summary,
-        "placeholder_agents": [_agent_progress_item(agent) for agent in placeholder_agents],
-        "spawned_spec_agent_count": len(child_agents),
-        "spawned_spec_agents": [_agent_progress_item(agent) for agent in child_agents],
-        "consensus_agent": _agent_progress_item(consensus_agent) if consensus_agent else {},
-        "progress": progress,
-        "latest_events": events_seen[-20:],
-        "latest_event_summaries": _latest_event_summaries(events_seen[-10:]),
-        "cursor": cursor,
-        "watch": {
-            "changed": bool(last_watch.get("changed")),
-            "timed_out": bool(last_watch.get("timed_out")),
-            "agent_count": last_watch.get("agent_count", len(summaries)),
-            "message_count": last_watch.get("message_count"),
-            "notification_count": last_watch.get("notification_count"),
-            "commands_ok": last_watch.get("commands_ok", result.get("commands_ok", {})),
-        },
-        "start": started,
-        "artifacts": artifacts,
-        "next": next_payload,
-    }
-
-
-@mcp.tool()
-def scion_ops_run_spec_round(
-    goal: str,
-    project_root: str,
-    change: str = "",
-    round_id: str = "",
-    base_branch: str = "",
-    timeout_minutes: int = 45,
-    watch_seconds: int = 30,
-    poll_interval_seconds: int = 3,
-    cursor: str = "",
-    validate: bool = True,
-    wait_until_complete: bool = False,
-) -> dict[str, Any]:
-    """Start or resume an OpenSpec-only spec round and return a progress snapshot.
-
-    This is the compact default workflow for external agents: call it with
-    project_root, goal, and optional change. By default it watches briefly and
-    returns progress plus next.args for the next call. Set wait_until_complete
-    for automation that should block until the PR-ready branch or a blocker.
-    """
-    goal = goal.strip()
-    if change:
-        change = _clean_name(change, "change")
-    target_root = _project_root(project_root)
-    project_root = str(target_root)
-    base_branch = _clean_name(base_branch, "base_branch") if base_branch else _default_base_branch(project_root)
-    watch_seconds = _clamp(watch_seconds, 1, 120)
-    timeout_minutes = _clamp(timeout_minutes, 1, 240)
-    poll_interval_seconds = _clamp(poll_interval_seconds, 1, 30)
-
-    started: dict[str, Any] = {}
-    if round_id:
-        parsed_round_id = _clean_name(round_id, "round_id")
-    else:
-        if not goal:
-            raise ValueError("goal is required when starting a spec round")
-        started = scion_ops_start_spec_round(
-            goal=goal,
-            project_root=project_root,
-            change=change,
-            round_id=round_id,
-            base_branch=base_branch,
-        )
-        parsed_round_id = str(started.get("round_id") or "")
-        cursor = str(started.get("event_cursor") or cursor)
-        if not started.get("ok") or not parsed_round_id:
-            return {
-                "ok": False,
-                "done": True,
-                "status": "blocked",
-                "source": "spec_round_runner",
-                "stage": "start",
-                "start": started,
-                "error": "failed to start spec round",
-            }
-
-    expected_branch = f"round-{parsed_round_id}-spec-integration"
-    monitor_round_id = parsed_round_id.lower()
-    if monitor_round_id != parsed_round_id and cursor:
-        cursor = ""
-    deadline = time.monotonic() + (timeout_minutes * 60)
-    events_seen: list[dict[str, Any]] = []
-    last_watch: dict[str, Any] = {}
-
-    while True:
-        remaining = max(1, int(deadline - time.monotonic())) if wait_until_complete else watch_seconds
-        watch_window = min(watch_seconds, remaining)
-        last_watch = scion_ops_watch_round_events(
-            round_id=monitor_round_id,
-            cursor=cursor,
-            timeout_seconds=watch_window,
-            poll_interval_seconds=poll_interval_seconds,
-            include_existing=False,
-            project_root=project_root,
-        )
-        cursor = str(last_watch.get("cursor") or cursor)
-        events_seen.extend(_compact_round_events(last_watch.get("events", []))[-25:])
-        if not last_watch.get("ok", True):
-            return {
-                "ok": False,
-                "done": True,
-                "status": "blocked",
-                "source": "spec_round_runner",
-                "stage": "monitor",
-                "round_id": parsed_round_id,
-                "monitor_round_id": monitor_round_id,
-                "watch": last_watch,
-                "blockers": [str(last_watch.get("error") or "failed to watch round events")],
-            }
-        response = _spec_round_progress_response(
-            target_root=target_root,
-            project_root=project_root,
-            goal=goal,
-            change=change,
-            round_id=parsed_round_id,
-            monitor_round_id=monitor_round_id,
-            base_branch=base_branch,
-            expected_branch=expected_branch,
-            cursor=cursor,
-            watch_seconds=watch_seconds,
-            poll_interval_seconds=poll_interval_seconds,
-            validate=validate,
-            started=started,
-            last_watch=last_watch,
-            events_seen=events_seen,
-            round_timed_out=wait_until_complete and time.monotonic() >= deadline,
-        )
-        if not wait_until_complete or response.get("done"):
-            return response
 
 
 def _start_implementation_steward_session(
@@ -3312,6 +2677,7 @@ def scion_ops_validate_steward_session(
     base_branch: str = "",
     require_ready: bool = True,
     require_pr: bool = False,
+    require_multi_harness: bool = False,
 ) -> dict[str, Any]:
     """Validate durable state for a Scion OpenSpec steward session."""
     target_root = _project_root(project_root)
@@ -3343,6 +2709,8 @@ def scion_ops_validate_steward_session(
         args.append("--require-ready")
     if require_pr:
         args.append("--require-pr")
+    if require_multi_harness:
+        args.append("--require-multi-harness")
 
     result = _run(args, timeout=30, cwd=_repo_root())
     payload = _parse_json_result(result)

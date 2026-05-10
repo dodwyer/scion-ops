@@ -1,19 +1,10 @@
 #!/usr/bin/env bash
-# Validate that the kind Hub has the state needed for a consensus round.
+# Validate that the kind Hub has the state needed for steward sessions.
 set -euo pipefail
 
 die() {
   printf '\033[31m%s\033[0m\n' "$*" >&2
   exit 1
-}
-
-assert_template_absent() {
-  local file="$1"
-  local forbidden="$2"
-  [[ -f "$file" ]] || die "template prompt is missing: $file"
-  if grep -Fq "$forbidden" "$file"; then
-    die "template prompt contains forbidden placeholder status text: $forbidden"
-  fi
 }
 
 json_field() {
@@ -70,29 +61,30 @@ for secret in "${required_secrets[@]}"; do
 done
 
 required_templates=(
-  consensus-runner
   impl-claude
   impl-codex
   reviewer-claude
   reviewer-codex
   final-reviewer-gemini
   final-reviewer-codex
-  spec-consensus-runner
   spec-goal-clarifier
+  spec-goal-clarifier-claude
   spec-repo-explorer
   spec-author
   spec-ops-reviewer
+  spec-ops-reviewer-claude
   spec-finalizer
   spec-steward
   implementation-steward
 )
 
 declare -A expected_template_harness=(
-  [spec-consensus-runner]=codex-exec
   [spec-goal-clarifier]=codex-exec
+  [spec-goal-clarifier-claude]=claude
   [spec-repo-explorer]=codex-exec
   [spec-author]=codex-exec
   [spec-ops-reviewer]=codex-exec
+  [spec-ops-reviewer-claude]=claude
   [spec-finalizer]=codex-exec
   [spec-steward]=codex-exec
   [implementation-steward]=codex-exec
@@ -127,8 +119,3 @@ if [[ "${SCION_OPS_SKIP_TEMPLATE_HARNESS_PREFLIGHT:-0}" != "1" ]]; then
     python3 "${SCION_OPS_ROOT}/scripts/hub-managed-templates.py" verify \
     >/dev/null || die "Hub managed template records are not ready; run task bootstrap"
 fi
-
-spec_consensus_prompt="${SCION_OPS_ROOT}/.scion/templates/spec-consensus-runner/system-prompt.md"
-assert_template_absent "$spec_consensus_prompt" 'sciontool status blocked "Waiting for <agent names>"'
-assert_template_absent "$spec_consensus_prompt" 'sciontool status blocked "<question or blocker>"'
-assert_template_absent "$spec_consensus_prompt" 'sciontool status task_completed "round <round_id> spec complete: <branch>"'

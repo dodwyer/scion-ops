@@ -36,6 +36,23 @@ SPEC_REQUIRED_AGENT_MARKERS = {
     "author": ("spec-author",),
     "ops_review": ("spec-ops-review", "spec-ops-reviewer"),
 }
+KNOWN_TEMPLATE_HARNESSES = {
+    "spec-goal-clarifier": "codex-exec",
+    "spec-goal-clarifier-claude": "claude",
+    "spec-repo-explorer": "codex-exec",
+    "spec-author": "codex-exec",
+    "spec-ops-reviewer": "codex-exec",
+    "spec-ops-reviewer-claude": "claude",
+    "spec-finalizer": "codex-exec",
+    "spec-steward": "codex-exec",
+    "implementation-steward": "codex-exec",
+    "impl-codex": "codex-exec",
+    "impl-claude": "claude",
+    "reviewer-codex": "codex-exec",
+    "reviewer-claude": "claude",
+    "final-reviewer-codex": "codex-exec",
+    "final-reviewer-gemini": "gemini",
+}
 IMPLEMENTATION_REQUIRED_AGENT_MARKERS = {
     "implementer": ("impl-codex", "impl-claude"),
     "final_review": ("final-review", "final-reviewer"),
@@ -240,6 +257,28 @@ def _agent_entries(state: dict[str, Any]) -> list[tuple[str, Any]]:
     return list(agents.items())
 
 
+def _agent_harness(payload: Any) -> str:
+    if not isinstance(payload, dict):
+        return ""
+
+    for key in ("harness_config", "harnessConfig", "harness", "default_harness_config"):
+        value = _text(payload.get(key)).strip()
+        if value:
+            return value
+
+    template = _text(payload.get("template")).strip()
+    return KNOWN_TEMPLATE_HARNESSES.get(template, "")
+
+
+def _agent_harness_records(state: dict[str, Any]) -> dict[str, str]:
+    records: dict[str, str] = {}
+    for name, payload in _agent_entries(state):
+        harness = _agent_harness(payload)
+        if harness:
+            records[name] = harness
+    return records
+
+
 def _agent_matches(name: str, payload: Any, markers: tuple[str, ...]) -> bool:
     text = name.lower()
     if isinstance(payload, dict):
@@ -418,6 +457,7 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
 
     openspec_validation: dict[str, Any] | None = None
     openspec_validation_source = ""
+    agent_harnesses = _agent_harness_records(state) if state else {}
     if expected_change and project_root.exists() and project_root.is_dir():
         openspec_validation, openspec_validation_source = _openspec_validation_from_worktree_or_branch(
             project_root,
@@ -481,6 +521,15 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
                             f"ready spec sessions must record this specialist agent with a successful completion status ({reason})",
                         )
                     )
+            if args.require_multi_harness:
+                unique_harnesses = sorted(set(agent_harnesses.values()))
+                if len(unique_harnesses) < 2:
+                    errors.append(
+                        Finding(
+                            "state.agents.harness_config",
+                            "ready spec sessions must record specialist consensus across at least two harness configs",
+                        )
+                    )
             review_verdict = _normalize_status(_get_path(state, "review.verdict"))
             if review_verdict not in ACCEPT_VERDICTS:
                 errors.append(Finding("state.review.verdict", "spec sessions require an accepting ops-review verdict"))
@@ -531,6 +580,7 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
         "state_path": str(state_file),
         "state_source": state_source,
         "state": state,
+        "agent_harnesses": agent_harnesses,
         "openspec_validation": openspec_validation,
         "openspec_validation_source": openspec_validation_source,
         "branch": branch_info,
@@ -551,6 +601,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--state-branch", default="")
     parser.add_argument("--require-ready", action="store_true")
     parser.add_argument("--require-pr", action="store_true")
+    parser.add_argument("--require-multi-harness", action="store_true")
     parser.add_argument("--json", action="store_true")
     return parser
 

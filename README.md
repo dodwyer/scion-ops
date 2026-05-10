@@ -99,12 +99,8 @@ starting rounds:
 task bootstrap -- /home/david/workspace/github/example/project
 ```
 
-From shell tasks:
-
-```bash
-SCION_OPS_PROJECT_ROOT=/home/david/workspace/github/example/project \
-task round -- "Make the requested change, verify it, push the branch, and report the branch name."
-```
+From shell tasks, start with the steward-based OpenSpec flow below. New work
+enters through a spec steward session, then an implementation steward session.
 
 From MCP/Zed, pass the same path as `project_root`. If the repo is not already
 checked out under the mounted workspace, call `scion_ops_prepare_github_repo`
@@ -190,11 +186,9 @@ create a cluster.
 Use `task test` for the regular no-spend control-plane smoke. It checks kind,
 Hub, broker, MCP, and Kubernetes no-auth agent dispatch.
 
-Use `task release:smoke` only for release confidence or credential changes. It
-uses subscription-backed model credentials and starts a bounded Claude/Codex
-round. The default final reviewer is Gemini; set
-`SCION_OPS_RELEASE_SMOKE_FINAL_REVIEWER=codex` when Gemini is not part of the
-check.
+Release confidence uses the same steward paths as regular work: create or reuse
+a small OpenSpec change with `task spec:steward`, then run
+`task spec:implement` from the approved change.
 
 ## State And Destruction
 

@@ -72,7 +72,14 @@ class FixtureProvider:
             "round_id": round_id,
             "cursor": "cursor-1",
             "events": [
-                {"type": "message", "message": {"createdAt": "2026-05-09T06:35:00+00:00", "msg": f"round {round_id} update"}}
+                {
+                    "type": "message",
+                    "message": {
+                        "createdAt": "2026-05-09T06:35:00+00:00",
+                        "sender": f"round-{round_id}-spec-clarifier",
+                        "msg": f"round {round_id} update",
+                    },
+                }
             ],
         }
 
@@ -94,20 +101,32 @@ def healthy_hub():
         "providers": [{"id": "provider-1"}],
         "agents": [
             {
-                "name": "round-20260509t063201z-6c02-consensus",
-                "template": "consensus-runner",
+                "name": "round-20260509t063201z-6c02-spec-steward",
+                "template": "spec-steward",
+                "harnessConfig": "codex-exec",
                 "phase": "running",
                 "activity": "active",
-                "taskSummary": "dispatching child agents",
+                "taskSummary": "coordinating spec steward session",
                 "created": "2026-05-09T06:32:01+00:00",
                 "updated": "2026-05-09T06:36:01+00:00",
             },
             {
-                "name": "round-20260509t063201z-6c02-codex",
-                "template": "codex",
+                "name": "round-20260509t063201z-6c02-spec-clarifier",
+                "template": "spec-goal-clarifier-claude",
+                "harnessConfig": "claude",
                 "phase": "completed",
                 "activity": "completed",
-                "taskSummary": "complete: round-20260509t063201z-6c02-impl-codex",
+                "taskSummary": "clarified scope",
+                "created": "2026-05-09T06:33:01+00:00",
+                "updated": "2026-05-09T06:37:01+00:00",
+            },
+            {
+                "name": "round-20260509t063201z-6c02-spec-explorer",
+                "template": "spec-repo-explorer",
+                "harnessConfig": "codex-exec",
+                "phase": "completed",
+                "activity": "completed",
+                "taskSummary": "explored repo",
                 "created": "2026-05-09T06:33:01+00:00",
                 "updated": "2026-05-09T06:37:01+00:00",
             },
@@ -122,7 +141,7 @@ def healthy_messages():
         "items": [
             {
                 "id": "msg-1",
-                "sender": "round-20260509t063201z-6c02-codex",
+                "sender": "round-20260509t063201z-6c02-spec-clarifier",
                 "msg": "round 20260509t063201z-6c02 task_completed",
                 "createdAt": "2026-05-09T06:38:01+00:00",
             }
@@ -137,7 +156,7 @@ def healthy_notifications():
         "items": [
             {
                 "id": "note-1",
-                "agentId": "round-20260509t063201z-6c02-codex",
+                "agentId": "round-20260509t063201z-6c02-spec-explorer",
                 "summary": "final outcome accepted",
                 "createdAt": "2026-05-09T06:39:01+00:00",
             }
@@ -239,6 +258,24 @@ def test_healthy_snapshot_is_ready():
     assert snapshot["rounds"][0]["round_id"] == "20260509t063201z-6c02"
     assert snapshot["inbox"][0]["round_id"] == "20260509t063201z-6c02"
     assert "mcp" in web_app_hub.BROWSER_JSON_CONTRACT["round"]
+    row = snapshot["rounds"][0]
+    assert row["harnesses"] == ["claude", "codex-exec"]
+    assert "clarifier" in row["roles"]
+    assert "spec steward" in row["roles"]
+
+
+def test_round_detail_timeline_and_agents_expose_multi_llm_context():
+    detail = web_app_hub.build_round_detail(FixtureProvider(), "20260509t063201z-6c02")
+    agents = detail["status"]["agents"]
+    assert {agent["harness_config"] for agent in agents} == {"claude", "codex-exec"}
+    assert any(agent["role"] == "clarifier" and agent["template"] == "spec-goal-clarifier-claude" for agent in agents)
+    message_entry = next(item for item in detail["timeline"] if item["type"] == "message")
+    assert message_entry["role"] == "clarifier"
+    assert message_entry["template"] == "spec-goal-clarifier-claude"
+    assert message_entry["harness_config"] == "claude"
+    assert "harness_config" in web_app_hub.BROWSER_JSON_CONTRACT["round"]["agents"]
+    assert "harness" in web_app_hub.INDEX_HTML
+    assert "agentCard" in web_app_hub.INDEX_HTML
 
 
 def test_empty_snapshot_distinguishes_no_rounds_from_source_failure():
@@ -492,10 +529,10 @@ def test_outcome_only_final_review_visible_in_rounds_list():
     assert row["visible_status"] == "accepted"
 
 
-def test_spec_round_progress_fields_are_preserved_from_structured_payloads():
+def test_steward_progress_fields_are_preserved_from_structured_payloads():
     progress = {
         "ok": False,
-        "source": "spec_round_runner",
+        "source": "steward_session",
         "status": "blocked",
         "health": "blocked",
         "summary": "round 20260509t063201z-6c02 blocked agents=3 active=0 complete=3 unhealthy=0 validation=failed",
@@ -520,7 +557,7 @@ def test_spec_round_progress_fields_are_preserved_from_structured_payloads():
         "items": [
             {
                 "id": "spec-progress",
-                "sender": "round-20260509t063201z-6c02-consensus",
+                "sender": "round-20260509t063201z-6c02-spec-steward",
                 "msg": json.dumps(progress),
                 "createdAt": "2026-05-09T06:42:01+00:00",
             }
@@ -562,7 +599,7 @@ def test_round_artifacts_remote_branches_are_exposed_in_row_and_detail():
 
 def test_round_detail_loads_openspec_status_when_progress_identifies_change():
     outcome = {
-        "source": "spec_round_runner",
+        "source": "steward_session",
         "status": "running",
         "project_root": "/workspace/example",
         "change": "update-web-app",
@@ -762,8 +799,9 @@ def test_frontend_live_update_contract_markers_are_present():
     assert "markStreamOk" in html
     assert "checkStaleness" in html
     assert "fallback polling" in html
-    assert "Refresh snapshot" in html
-    assert "Troubleshooting snapshot refresh" in html
+    assert "Refresh snapshot" not in html
+    assert "Troubleshooting snapshot refresh" not in html
+    assert "Refresh timeline snapshot" not in html
 
 
 def test_frontend_automatic_update_fetches_are_read_only_no_spend_paths():

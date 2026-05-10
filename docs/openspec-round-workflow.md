@@ -49,7 +49,7 @@ workflow state and must not decide readiness.
 
 ## Artifact Contract
 
-A spec round writes only:
+A spec steward session writes only:
 
 ```text
 openspec/changes/<change>/proposal.md
@@ -200,7 +200,7 @@ For Zed and other MCP clients, keep the request small:
 ```text
 Use scion-ops on project_root=/path/to/project.
 
-Run a spec round for change=add-widget:
+Run a spec steward session for change=add-widget:
 "Specify the widget behavior."
 ```
 

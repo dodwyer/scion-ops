@@ -13,11 +13,12 @@ from typing import Any
 
 
 EXPECTED_HARNESS = {
-    "spec-consensus-runner": "codex-exec",
     "spec-goal-clarifier": "codex-exec",
+    "spec-goal-clarifier-claude": "claude",
     "spec-repo-explorer": "codex-exec",
     "spec-author": "codex-exec",
     "spec-ops-reviewer": "codex-exec",
+    "spec-ops-reviewer-claude": "claude",
     "spec-finalizer": "codex-exec",
     "spec-steward": "codex-exec",
     "implementation-steward": "codex-exec",
