@@ -1,0 +1,72 @@
+{
+  "artifact": ".scion-ops/sessions/20260510t191636z-1566/findings/clarifier.md",
+  "artifact_json": null,
+  "artifact_text": "# Clarifier Findings: holly-ops-branding\n\n**Session:** 20260510t191636z-1566  \n**Change:** holly-ops-branding  \n**Date:** 2026-05-10\n\n---\n\n## Understood Intent\n\nRename the user-facing product experience from **scion-ops** to **Holly Ops**, with:\n- The web UI (browser hub) renamed to **Holly Ops Drive** (abbreviated **HHD**)\n- The operator-facing coordinator/bot persona renamed to **Holly**\n- Underlying Scion runtime primitives (Hub, broker, agents, MCP, templates, steward sessions) left unchanged\n- A low-risk, user-facing-first approach: Kubernetes resource names, MCP tool names, and `.scion-ops/` session state paths **preserved** unless a migration plan is explicitly specified\n\n---\n\n## What Exists Today\n\nThe codebase uses `scion-ops` consistently as a lowercase product name across:\n\n| Layer | Current Name | Rename Target |\n|---|---|---|\n| README.md title | `# scion-ops` | `# Holly Ops` |\n| Web UI display text (web_app_hub.py) | \"scion-ops\" labels | \"Holly Ops Drive\" |\n| Python MCP server init name | `\"scion-ops\"` (FastMCP) | \"holly-ops\" or \"holly\"? |\n| Zed context server label | `\"scion-ops\"` | \"holly-ops\"? |\n| Kind cluster name | `scion-ops` | preserve (infra) |\n| Kind context name | `kind-scion-ops` | preserve (infra) |\n| K8s resource names | `scion-ops-mcp`, `scion-ops-web-app` | preserve (per spec) |\n| K8s label `part-of` | `scion-control-plane` | preserve |\n| MCP tool names | `scion_ops_*` | preserve (per spec) |\n| Docker image dir | `image-build/scion-ops-mcp/` | preserve or rename? |\n| `.scion-ops/` session paths | `.scion-ops/sessions/\u2026` | preserve (per spec) |\n| Docs referencing \"scion-ops web UI\" | multiple | update to \"Holly Ops Drive\" |\n\nThere is no existing \"Holly\" or \"Holly Ops\" branding anywhere in the codebase.\n\n---\n\n## Scope Boundaries (Proposed)\n\n### In scope (user-facing, low-risk)\n- `README.md` \u2014 title and product description prose\n- `scripts/web_app_hub.py` \u2014 all display text, page titles, section headings visible in the browser UI\n- `docs/` \u2014 any mention of \"scion-ops\" used as a product/UI label (not runtime path references)\n- `openspec/changes/*/proposal.md` \u2014 product-name references in specs\n\n### Out of scope (preserved, per spec)\n- All Kubernetes resource names and labels (`scion-ops-mcp`, `scion-ops-web-app`, `scion-hub`, `scion-broker`)\n- All MCP tool function names (`scion_ops_*`)\n- `.scion-ops/` directory structure and session state paths\n- Kind cluster/context names (`scion-ops`, `kind-scion-ops`)\n- Scion runtime primitives (Hub, broker, agents, templates, steward)\n\n### Unclear / needs decision (see questions below)\n- Docker image directory `image-build/scion-ops-mcp/` and Dockerfile labels\n- Zed context server name in `.zed/settings.json`\n- FastMCP server `name=` parameter in `mcp_servers/scion_ops.py`\n- Python file and module name `mcp_servers/scion_ops.py`\n\n---\n\n## Operator-Facing Acceptance Questions\n\n**Q1 \u2014 Abbreviation discrepancy:** The spec names the web UI \"Holly Ops Drive\" but abbreviates it **HHD**. \"Holly Ops Drive\" would naturally abbreviate to **HOD**. Is HHD intentional (e.g. does it stand for something else, like \"Holly Hub Drive\"), or should the abbreviation be HOD?\n\n**Q2 \u2014 \"Holly\" persona scope:** The spec says Holly is \"the operator-facing bot/coordinator that conducts actions.\" In the current codebase the coordinator role is played by the MCP server (`scion_ops.py`) and steward agents. Should \"Holly\" be:\n  - (a) A display-name-only rebrand of the existing MCP/steward layer (no code restructuring), or\n  - (b) A new named persona/agent in the UI that wraps or presents the steward session?\n\n**Q3 \u2014 MCP server identity:** The FastMCP server is initialized with `name=\"scion-ops\"`. This name may appear in MCP client discovery and Claude's tool descriptions. Should this be renamed to `\"holly\"` or `\"holly-ops\"`, or is it preserved as a runtime primitive name (like the tool names)?\n\n**Q4 \u2014 Docker image directory:** `image-build/scion-ops-mcp/` contains the Dockerfile for the MCP server image. This is a code-path name, not directly user-visible. Should it be renamed (accepting a small migration cost) or preserved alongside the K8s resource names?\n\n**Q5 \u2014 Zed editor context server:** `.zed/settings.json` labels the context server `\"scion-ops\"`. This is developer-tooling UX. Is it in scope for the Holly rebrand, or is it considered an internal/dev-facing label?\n\n**Q6 \u2014 Migration plan trigger:** The spec defers Kubernetes resource renaming and MCP tool renaming to a future explicit migration plan. Should that plan be defined as a follow-on OpenSpec change (separate `change` entry), or will it be scoped into this same session once the user-facing pass is reviewed?\n\n---\n\n## Non-Goals (Confirmed)\n\n- No changes to Scion runtime internals (Hub protocol, broker, agent SDK, template format)\n- No Kubernetes resource renaming in this pass\n- No MCP tool renaming in this pass\n- No changes to `.scion-ops/` session directory structure\n- No changes to the kind cluster or context names\n\n---\n\n## Risk Notes\n\n- The web UI (`web_app_hub.py`) references `CONTROL_PLANE_NAMES` as a set of Kubernetes service names (`scion-ops-web-app`, `scion-ops-mcp`, etc.). These names are **functional** \u2014 they drive service discovery. Any rename here must keep those values as Kubernetes names, only changing what is displayed to the operator.\n- If Q3 is answered \"rename MCP server name,\" MCP clients (Claude Desktop, Zed) will need their config updated; this is a small but non-zero coordination cost.\n",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:17:50.711160Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:18:06.123057Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:18:21.531823Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:18:36.913290Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:18:52.315152Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:19:07.698713Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:19:23.089001Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:19:38.484260Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:19:53.891750Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": true,
+      "branch_head": "a62393e1711c5fb14d74995f97683ef4971c6bf5",
+      "checked_at": "2026-05-10T19:20:09.340265Z",
+      "fetch_ok": true
+    }
+  ],
+  "branch": "round-20260510t191636z-1566-spec-clarifier",
+  "branch_head": "a62393e1711c5fb14d74995f97683ef4971c6bf5",
+  "completed_at": "2026-05-10T19:20:09.931418Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

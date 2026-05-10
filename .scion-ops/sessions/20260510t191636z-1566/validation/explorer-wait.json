@@ -1,0 +1,48 @@
+{
+  "artifact": ".scion-ops/sessions/20260510t191636z-1566/findings/explorer.md",
+  "artifact_json": null,
+  "artifact_text": "# Explorer Findings: holly-ops-branding\n\n## Scope Read\n\nThe repository currently keeps OpenSpec material under active change folders in `openspec/changes/`. There is no top-level `openspec/specs/` baseline in this checkout yet; `scripts/archive-openspec-change.py` creates or appends accepted baseline specs when a change is archived. The local OpenSpec validator requires each new change to include:\n\n- `proposal.md`\n- `design.md`\n- `tasks.md` with checkbox tasks\n- at least one `specs/**/spec.md` file with `## ADDED Requirements`, `## MODIFIED Requirements`, or `## REMOVED Requirements`, plus at least one requirement and scenario\n\nLowest-risk OpenSpec target:\n\n- Add a new focused change at `openspec/changes/holly-ops-branding/`.\n- Put the primary delta in `openspec/changes/holly-ops-branding/specs/web-app-hub/spec.md`.\n- Use `MODIFIED Requirements` for existing web app requirements that mention the product surface, and `ADDED Requirements` for an explicit naming/terminology requirement if needed.\n\n## Existing Product Surface\n\nThe web app spec history is concentrated in these existing changes:\n\n- `openspec/changes/build-web-app-hub/specs/web-app-hub/spec.md`\n- `openspec/changes/update-web-app/specs/web-app-hub/spec.md`\n- `openspec/changes/autorefresh-web-app/specs/web-app-hub/spec.md`\n- `openspec/changes/web-ui-theme/specs/web-app-hub/spec.md`\n\nRelevant existing constraints from those specs:\n\n- The web app is a read-only operator interface.\n- It derives displayed state from existing Hub, MCP, Kubernetes, and normalized helper output.\n- Structured MCP/Hub fields are authoritative over fallback text.\n- The browser UI must keep blocked, degraded, stale, changes-requested, and unknown states visible.\n- The theme should stay restrained and operational, not marketing-oriented.\n- Automatic updates and smoke checks must remain no-spend and must not start, abort, retry, archive, or mutate rounds, Kubernetes resources, Hub runtime records, git refs, or OpenSpec files.\n\n## Branding Rename Boundaries\n\nUser-facing rename intent:\n\n- Product experience: `Holly Ops`\n- Web UI: `Holly Ops Drive`\n- Short web UI name: `HHD`\n- Operator-facing bot/coordinator that conducts actions: `Holly`\n\nCompatibility boundaries to preserve:\n\n- Keep real Scion runtime terminology where it identifies actual primitives: `Hub`, `Runtime Broker`/`broker`, `agents`, `MCP`, `templates`, `harnesses`, `steward sessions`, and Kubernetes.\n- Keep Kubernetes resource names compatible unless a migration plan is specified. Existing names include `scion-ops-mcp`, `scion-ops-web-app`, `scion-hub`, `scion-broker`, cluster `scion-ops`, context `kind-scion-ops`, namespace `scion-agents`, PVCs, RBAC, service accounts, image names, and in-cluster service URLs.\n- Keep MCP tool names compatible unless a migration plan is specified. Existing operator tools use `scion_ops_*` names.\n- Keep durable session paths compatible. `.scion-ops/sessions/<session_id>/` is used by steward state, validation, and session handoff.\n- Keep Scion template names and agent role identifiers compatible unless a migration plan is specified. Current code/specs rely on names such as `spec-steward`, `implementation-steward`, `spec-repo-explorer`, `spec-author`, `impl-codex`, and `final-reviewer-codex`.\n\n## Lowest-Risk Spec Shape\n\nRecommended new `web-app-hub` delta:\n\n```markdown\n## ADDED Requirements\n\n### Requirement: Holly Ops Branding\n\nThe system SHALL present the operator-facing product experience as Holly Ops and the browser UI as Holly Ops Drive, abbreviated HHD, while preserving existing Scion runtime, MCP, Kubernetes, template, and steward-session identifiers where those identifiers are compatibility contracts.\n\n#### Scenario: Operator opens the web UI\n- GIVEN an operator opens the web UI\n- WHEN the app renders navigation, document title, page header, empty states, and read-only service messages\n- THEN the interface identifies itself as Holly Ops Drive\n- AND compact labels may use HHD when space is constrained\n- AND it does not present the browser UI as scion-ops hub or Web App Hub.\n\n#### Scenario: Runtime identifiers remain precise\n- GIVEN the app displays Hub, broker, MCP, agent, template, harness, Kubernetes, branch, or steward-session data from backing sources\n- WHEN that data is rendered\n- THEN actual Scion primitive names and compatibility identifiers remain unchanged\n- AND the UI may add Holly/Holly Ops framing only as display copy, not by rewriting source identifiers.\n\n#### Scenario: Coordinator display copy uses Holly\n- GIVEN operator-facing copy refers to the bot or coordinator conducting actions\n- WHEN that copy is rendered in the UI or documentation\n- THEN it uses Holly as the display name\n- AND existing steward, agent, and coordinator identifiers from backing runtime state remain visible when they are the source-of-truth value.\n```\n\nPotential `MODIFIED Requirements` candidates:\n\n- `Operator Overview`: change \"summarizes scion-ops readiness\" to \"summarizes Holly Ops readiness\" while still listing Hub, broker, MCP, web app, and Kubernetes checks.\n- `Operational Theme`: change \"web UI\" wording to \"Holly Ops Drive\" where it is clearly product copy.\n- `Source Of Truth Preservation`: keep `scion-ops` references only where they identify existing helper output, state paths, or MCP contracts.\n- `MCP Contract Compatibility`: do not rename `scion_ops_*` tools in the requirement unless the change includes explicit compatibility aliases and migration work.\n\n## Implementation Risk Notes\n\nLikely low-risk implementation files after the spec is approved:\n\n- `scripts/web_app_hub.py`: document title, `<h1>`, read-only error message, server log/argparse description, possibly the module docstring if treated as user-facing.\n- `scripts/test-web-app-hub.py`: assertions for document title/header/read-only message if tests are added or updated.\n- `README.md` and web app docs: user-facing headings and descriptions can say Holly Ops/Holly Ops Drive, while default cluster/context/MCP examples should keep existing identifiers unless a migration is specified.\n\nHigher-risk or out-of-scope without migration:\n\n- `mcp_servers/scion_ops.py` function names and MCP tool names.\n- `.scion-ops` session paths and steward validators.\n- `deploy/kind/**` resource names, service names, PVCs, service accounts, environment variable names, and image names.\n- `Taskfile.yml` command names and deployment workflow identifiers.\n- Scion template names, branch naming conventions, and agent role detection.\n\n## Constraints To Carry Forward\n\n- This is a display/terminology spec first, not a resource migration.\n- Do not replace \"Scion\" when referring to upstream Scion or real Scion primitives.\n- Do not rewrite source-of-truth runtime values in the browser to look branded; display them exactly when they are identifiers, branch names, tool names, Kubernetes names, template names, agent names, or session paths.\n- If a later phase wants Kubernetes resources, MCP tools, environment variables, image names, cluster names, or `.scion-ops` paths renamed, it should be a separate migration spec with compatibility aliases, rollout/rollback behavior, and state migration rules.\n",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:17:50.725318Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:18:06.118569Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:18:21.520054Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:18:36.901262Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:18:52.295629Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": true,
+      "branch_head": "95b180a308b7a463eb97778aaa50be568245cdef",
+      "checked_at": "2026-05-10T19:19:07.681001Z",
+      "fetch_ok": true
+    }
+  ],
+  "branch": "round-20260510t191636z-1566-spec-explorer",
+  "branch_head": "95b180a308b7a463eb97778aaa50be568245cdef",
+  "completed_at": "2026-05-10T19:19:08.222038Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
