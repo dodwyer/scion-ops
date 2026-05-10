@@ -182,6 +182,21 @@ def healthy_round_artifacts():
     }
 
 
+def test_health_response_is_runtime_independent():
+    original = web_app_hub.utc_now
+    try:
+        web_app_hub.utc_now = lambda: "2026-05-09T06:39:30+00:00"
+        payload = web_app_hub.build_health()
+    finally:
+        web_app_hub.utc_now = original
+    assert payload == {
+        "ok": True,
+        "status": "healthy",
+        "service": "scion-ops-web-app",
+        "generated_at": "2026-05-09T06:39:30+00:00",
+    }
+
+
 def test_healthy_snapshot_is_ready():
     original = web_app_hub.utc_now
     try:

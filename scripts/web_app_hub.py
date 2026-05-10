@@ -910,6 +910,15 @@ def readiness_status(sources: dict[str, dict[str, Any]]) -> str:
     return "unavailable"
 
 
+def build_health() -> dict[str, Any]:
+    return {
+        "ok": True,
+        "status": "healthy",
+        "service": "scion-ops-web-app",
+        "generated_at": utc_now(),
+    }
+
+
 def build_snapshot(provider: RuntimeProvider | Any) -> dict[str, Any]:
     generated_at = utc_now()
     hub = normalize_hub(provider.hub_status())
@@ -1236,6 +1245,8 @@ class HubRequestHandler(BaseHTTPRequestHandler):
         try:
             if path == "/":
                 self.respond_html(INDEX_HTML)
+            elif path in {"/healthz", "/api/healthz"}:
+                self.respond_json(build_health())
             elif path == "/api/snapshot":
                 self.respond_json(build_snapshot(self.provider))
             elif path == "/api/contract":
