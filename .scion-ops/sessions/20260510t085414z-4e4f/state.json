@@ -5,8 +5,8 @@
   "kind": "implementation",
   "change": "autorefresh-web-app",
   "base_branch": "main",
-  "status": "running",
-  "phase": "implementing",
+  "status": "blocked",
+  "phase": "blocked",
   "branches": {
     "steward": "round-20260510t085414z-4e4f-implementation-steward",
     "implementer": "round-20260510t085414z-4e4f-impl-codex",
@@ -26,20 +26,22 @@
       "role": "implementation",
       "branch": "round-20260510t085414z-4e4f-impl-codex-live",
       "scope": "Narrow replacement for Group A Web App Live Update Implementation",
-      "status": "unresponsive",
-      "blocker": "Branch stayed at base and runtime broker failed direct message with broken pipe while agent reported idle."
+      "status": "completed_empty",
+      "blocker": "Branch stayed at base; runtime broker failed direct message with broken pipe; agent later reported Succeeded (Completed) without branch movement."
     },
     "round-20260510t085414z-4e4f-impl-claude-live": {
       "role": "implementation",
       "branch": "round-20260510t085414z-4e4f-impl-claude-live",
       "scope": "Narrow non-Codex replacement for Group A Web App Live Update Implementation",
-      "status": "running"
+      "status": "empty_branch",
+      "blocker": "Branch stayed at base while agent reported idle after polling window."
     },
     "round-20260510t085414z-4e4f-impl-claude": {
       "role": "implementation",
       "branch": "round-20260510t085414z-4e4f-impl-claude",
       "scope": "Group B Fixture, Reconnect, Smoke, and No-Spend Verification",
-      "status": "running"
+      "status": "empty_branch",
+      "blocker": "Branch stayed at base after direct message was delivered and after an executing-to-idle polling window."
     }
   },
   "implementation": {
@@ -50,12 +52,18 @@
   "reviews": [],
   "final_review": {},
   "verification": {
-    "status": "pending"
+    "status": "not_run",
+    "reason": "No non-empty implementer branch was produced; integration branch was not created."
   },
-  "blockers": [],
+  "blockers": [
+    "No implementer produced a non-empty branch from main.",
+    "round-20260510t085414z-4e4f-impl-codex stayed at base and direct message failed through the runtime broker with broken pipe.",
+    "round-20260510t085414z-4e4f-impl-codex-live stayed at base, direct message failed through the runtime broker with broken pipe, and the agent completed without branch movement.",
+    "round-20260510t085414z-4e4f-impl-claude and round-20260510t085414z-4e4f-impl-claude-live stayed at base after polling; the verification branch accepted direct messages but still did not push changes.",
+    "Per playbook, product implementation was not performed in the steward checkout."
+  ],
   "next_actions": [
-    "Wait for bounded implementer agents to push branches",
-    "Integrate the accepted implementation branch",
-    "Run verification and final review"
+    "Repair runtime broker or harness delivery for implementer agents",
+    "Restart bounded implementer branches from main after broker repair"
   ]
 }
