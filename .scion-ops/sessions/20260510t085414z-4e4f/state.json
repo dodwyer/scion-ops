@@ -6,7 +6,7 @@
   "change": "autorefresh-web-app",
   "base_branch": "main",
   "status": "running",
-  "phase": "starting",
+  "phase": "implementing",
   "branches": {
     "steward": "round-20260510t085414z-4e4f-implementation-steward",
     "implementer": "round-20260510t085414z-4e4f-impl-codex",
@@ -14,7 +14,20 @@
     "final_review": "round-20260510t085414z-4e4f-final-review",
     "integration": "round-20260510t085414z-4e4f-integration"
   },
-  "agents": {},
+  "agents": {
+    "round-20260510t085414z-4e4f-impl-codex": {
+      "role": "implementation",
+      "branch": "round-20260510t085414z-4e4f-impl-codex",
+      "scope": "Group A Web App Live Update Implementation",
+      "status": "running"
+    },
+    "round-20260510t085414z-4e4f-impl-claude": {
+      "role": "implementation",
+      "branch": "round-20260510t085414z-4e4f-impl-claude",
+      "scope": "Group B Fixture, Reconnect, Smoke, and No-Spend Verification",
+      "status": "running"
+    }
+  },
   "implementation": {
     "branch": "",
     "base_branch": "main",
@@ -27,8 +40,7 @@
   },
   "blockers": [],
   "next_actions": [
-    "Write implementation brief and bounded task groups",
-    "Start bounded implementer agents",
+    "Wait for bounded implementer agents to push branches",
     "Integrate the accepted implementation branch",
     "Run verification and final review"
   ]
