@@ -261,14 +261,20 @@ def _kubectl_agent_logs(agent_name: str, num_lines: int) -> dict[str, Any]:
 def _looks_like_missing_terminal_output(result: dict[str, Any]) -> bool:
     output = str(result.get("output") or "").lower()
     error = str(result.get("error") or "").lower()
+    text = f"{output}\n{error}"
     return (
         not result.get("ok")
         and (
             (
-                "failed to capture terminal output" in output
-                and ("not_found" in output or "resource not found" in output)
+                "failed to capture terminal output" in text
+                and (
+                    "not_found" in text
+                    or "action not found" in text
+                    or "resource not found" in text
+                    or "status: 404" in text
+                )
             )
-            or "no such file or directory" in error
+            or "no such file or directory" in text
         )
     )
 

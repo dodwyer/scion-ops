@@ -532,7 +532,7 @@ class RuntimeProvider:
             return scion_ops._hub_error_payload(exc, "web_app_notifications")
 
     def round_status(self, round_id: str) -> dict[str, Any]:
-        return scion_ops.scion_ops_round_status(round_id=round_id, include_transcript=True, num_lines=120)
+        return scion_ops.scion_ops_round_status(round_id=round_id, include_transcript=False, num_lines=120)
 
     def round_events(self, round_id: str, cursor: str = "", include_existing: bool = False) -> dict[str, Any]:
         return scion_ops.scion_ops_round_events(round_id=round_id, cursor=cursor, include_existing=include_existing)
@@ -910,6 +910,28 @@ def readiness_status(sources: dict[str, dict[str, Any]]) -> str:
     return "unavailable"
 
 
+def transcript_display(transcript: dict[str, Any]) -> tuple[str, str]:
+    if not transcript:
+        return "", ""
+    if transcript.get("ok"):
+        return str(transcript.get("output") or ""), ""
+
+    output = str(transcript.get("output") or "")
+    error = str(transcript.get("error") or "")
+    text = f"{output}\n{error}".lower()
+    if (
+        "failed to capture terminal output" in text
+        and (
+            "not_found" in text
+            or "action not found" in text
+            or "resource not found" in text
+            or "status: 404" in text
+        )
+    ):
+        return "", "Terminal output unavailable from Hub for this agent."
+    return "", short_text(error or output, 500)
+
+
 def build_health() -> dict[str, Any]:
     return {
         "ok": True,
@@ -1038,6 +1060,7 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
                 mcp["validation"] = validation
                 mcp["validation_status"] = "passed" if validation.get("ok") else "failed"
     transcript = status.get("consensus_transcript") if isinstance(status.get("consensus_transcript"), dict) else {}
+    runner_output, runner_output_error = transcript_display(transcript)
     final_reviews.sort(key=lambda item: item.get("time") or "")
     branches = structured_branches if structured_branches else fallback_branches
     final_review = final_reviews[-1] if final_reviews else {}
@@ -1052,8 +1075,8 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
         "status": status,
         "events": events,
         "timeline": sorted(timeline, key=lambda item: item.get("time") or ""),
-        "runner_output": transcript.get("output", "") if transcript.get("ok") else "",
-        "runner_output_error": "" if transcript.get("ok") or not transcript else transcript.get("error") or transcript.get("output", ""),
+        "runner_output": runner_output,
+        "runner_output_error": runner_output_error,
         "outcome": outcome,
         "final_review": final_review,
         "visible_status": visible_status,

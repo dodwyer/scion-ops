@@ -80,6 +80,15 @@ def main() -> int:
     assert complete_lines[0] == "round test completed agents=3 active=0 complete=1 unhealthy=0 validation=passed"
     assert complete_lines[-1] == "round test complete branch round-test-spec-integration"
 
+    missing_terminal = {
+        "ok": False,
+        "output": "failed to capture terminal output: not_found: Action not found (status: 404)",
+    }
+    assert module._looks_like_missing_terminal_output(missing_terminal)
+
+    auth_failure = {"ok": False, "output": "failed to capture terminal output: unauthorized"}
+    assert not module._looks_like_missing_terminal_output(auth_failure)
+
     return 0
 
 

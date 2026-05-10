@@ -197,6 +197,36 @@ def test_health_response_is_runtime_independent():
     }
 
 
+def test_runtime_provider_round_status_uses_structured_state_without_transcript():
+    original = web_app_hub.scion_ops.scion_ops_round_status
+    calls = []
+    try:
+        def fake_round_status(**kwargs):
+            calls.append(kwargs)
+            return {"ok": True, "agents": []}
+
+        web_app_hub.scion_ops.scion_ops_round_status = fake_round_status
+        payload = web_app_hub.RuntimeProvider().round_status("20260509t063201z-6c02")
+    finally:
+        web_app_hub.scion_ops.scion_ops_round_status = original
+    assert payload["ok"] is True
+    assert calls[0]["include_transcript"] is False
+
+
+def test_transcript_display_suppresses_hub_terminal_capture_404():
+    raw = (
+        "Using hub: http://scion-hub:8090\n"
+        "Error: failed to capture terminal output for agent "
+        "'round-20260510t084647z-0b23-implementation-steward': "
+        "not_found: Action not found (status: 404)\n"
+        "Usage: scion look <agent> [flags]"
+    )
+    output, error = web_app_hub.transcript_display({"ok": False, "output": raw})
+    assert output == ""
+    assert error == "Terminal output unavailable from Hub for this agent."
+    assert "Usage: scion look" not in error
+
+
 def test_healthy_snapshot_is_ready():
     original = web_app_hub.utc_now
     try:
