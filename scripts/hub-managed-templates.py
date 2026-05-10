@@ -27,6 +27,11 @@ EXPECTED_HARNESS = {
     "final-reviewer-codex": "codex-exec",
 }
 
+DEPRECATED_TEMPLATE_NAMES = {
+    "consensus-runner",
+    "spec-consensus-runner",
+}
+
 
 def die(message: str) -> None:
     print(message, file=sys.stderr)
@@ -116,6 +121,14 @@ def managed_templates() -> list[dict[str, Any]]:
     ]
 
 
+def deprecated_templates() -> list[dict[str, Any]]:
+    return [
+        template
+        for template in list_templates()
+        if is_active(template) and name(template) in DEPRECATED_TEMPLATE_NAMES
+    ]
+
+
 def delete_template(template: dict[str, Any], reason: str) -> None:
     tid = template_id(template)
     if not tid:
@@ -128,6 +141,9 @@ def delete_template(template: dict[str, Any], reason: str) -> None:
 
 
 def repair_before_sync() -> None:
+    for template in deprecated_templates():
+        delete_template(template, "deprecated steward-only orchestration path")
+
     for template in managed_templates():
         want = EXPECTED_HARNESS[name(template)]
         actual = harness(template)
@@ -179,6 +195,12 @@ def verify() -> None:
     templates = managed_templates()
     globals_by_name = canonical_globals(templates)
     errors: list[str] = []
+
+    for template in deprecated_templates():
+        errors.append(
+            f"{name(template)}: {scope(template) or '<unknown-scope>'} template "
+            "is deprecated and must not remain active"
+        )
 
     for template_name, want in EXPECTED_HARNESS.items():
         canonical = globals_by_name.get(template_name)

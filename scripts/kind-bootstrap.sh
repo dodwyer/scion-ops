@@ -554,7 +554,7 @@ sync_templates() {
   [[ -d "${REPO_ROOT}/.scion/templates" ]] || die "template directory not found: ${REPO_ROOT}/.scion/templates"
 
   log "copy checked-in templates into Hub pod global template directory"
-  run_in_hub "$pod" "mkdir -p /home/scion/.scion/templates"
+  run_in_hub "$pod" "rm -rf /home/scion/.scion/templates && mkdir -p /home/scion/.scion/templates"
   tar -C "${REPO_ROOT}/.scion/templates" -cf - . |
     kubectl_ctx -n "$NAMESPACE" exec -i "$pod" -c hub -- \
       tar -C /home/scion/.scion/templates -xf -
@@ -577,10 +577,12 @@ sync_templates() {
   SCION_DEV_TOKEN="$SCION_DEV_TOKEN" SCION_HUB_ENDPOINT="$HUB_PUBLIC" \
     python3 "${REPO_ROOT}/scripts/hub-managed-templates.py" verify
 
+  run_in_hub "$pod" "rm -rf /home/scion/.scion/storage/templates/global/consensus-runner /home/scion/.scion/storage/templates/global/spec-consensus-runner"
+
   log "copy synced template storage into broker pod"
   local broker
   broker="$(broker_pod)"
-  run_in_broker "$broker" "mkdir -p /home/scion/.scion/storage/templates"
+  run_in_broker "$broker" "rm -rf /home/scion/.scion/storage/templates && mkdir -p /home/scion/.scion/storage/templates"
   kubectl_ctx -n "$NAMESPACE" exec "$pod" -c hub -- \
     tar -C /home/scion/.scion/storage/templates -cf - . |
     kubectl_ctx -n "$NAMESPACE" exec -i "$broker" -c broker -- \
