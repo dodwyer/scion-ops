@@ -19,7 +19,7 @@
       "role": "implementer",
       "branch": "round-20260510t132823z-77aa-impl-codex",
       "scope": "Backend live update contract and stream endpoint",
-      "status": "running"
+      "status": "completed_branch_moved"
     },
     "round-20260510t132823z-77aa-impl-claude": {
       "role": "secondary_implementer",
@@ -31,11 +31,17 @@
       "role": "replacement_implementer",
       "branch": "round-20260510t132823z-77aa-impl-frontend-codex",
       "scope": "Narrow frontend live-update wiring and UI tests",
+      "status": "completed_branch_moved"
+    },
+    "round-20260510t132823z-77aa-final-review": {
+      "role": "final_review",
+      "branch": "round-20260510t132823z-77aa-final-review",
+      "scope": "Review integration branch against approved OpenSpec artifacts",
       "status": "running"
     }
   },
   "implementation": {
-    "branch": "",
+    "branch": "round-20260510t132823z-77aa-integration",
     "base_branch": "main",
     "integration_branch": "round-20260510t132823z-77aa-integration"
   },
