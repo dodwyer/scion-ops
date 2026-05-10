@@ -1,0 +1,187 @@
+{
+  "base": "main",
+  "base_commit": "be30cc56be1847e41ef6c11f4609d6da433adf6a",
+  "change": "web-ui-theme",
+  "created": true,
+  "draft": false,
+  "gh": {
+    "create": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "create",
+        "--base",
+        "main",
+        "--head",
+        "round-20260510t163543z-1a44-spec-integration",
+        "--title",
+        "OpenSpec: web-ui-theme",
+        "--body",
+        "Created by scion-ops after successful spec steward validation.\n\n- Session: `20260510t163543z-1a44`\n- Change: `web-ui-theme`\n- Head: `round-20260510t163543z-1a44-spec-integration` (`a72064966bc8`)\n- Base: `main` (`be30cc56be18`)\n- Steward validation: passed\n- OpenSpec review: `accept`"
+      ],
+      "ok": true,
+      "output": "Warning: 2 uncommitted changes\nhttps://github.com/dodwyer/scion-ops/pull/135\n",
+      "returncode": 0
+    },
+    "list": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "list",
+        "--head",
+        "round-20260510t163543z-1a44-spec-integration",
+        "--base",
+        "main",
+        "--state",
+        "all",
+        "--json",
+        "number,url,state,title,baseRefName,headRefName",
+        "--limit",
+        "1"
+      ],
+      "ok": true,
+      "output": "[]\n",
+      "returncode": 0
+    }
+  },
+  "head": "round-20260510t163543z-1a44-spec-integration",
+  "head_commit": "a72064966bc8e83036554c872df4240e69c69d35",
+  "kind": "spec",
+  "ok": true,
+  "pr": {
+    "base": "main",
+    "head": "round-20260510t163543z-1a44-spec-integration",
+    "title": "OpenSpec: web-ui-theme",
+    "url": "https://github.com/dodwyer/scion-ops/pull/135"
+  },
+  "pr_url": "https://github.com/dodwyer/scion-ops/pull/135",
+  "project_root": "/workspace",
+  "session_id": "20260510t163543z-1a44",
+  "source": "steward_pr_finalizer",
+  "state_recording": {
+    "pr_path": "/workspace/.scion-ops/sessions/20260510t163543z-1a44/pr.json",
+    "state_path": "/workspace/.scion-ops/sessions/20260510t163543z-1a44/state.json"
+  },
+  "validation": {
+    "agent_harnesses": {
+      "author": "codex-exec",
+      "clarifier": "claude",
+      "explorer": "codex-exec",
+      "ops_review": "claude"
+    },
+    "branch": {
+      "base_branch": "main",
+      "base_commit": "be30cc56be1847e41ef6c11f4609d6da433adf6a",
+      "base_resolved_ref": "origin/main",
+      "branch": "round-20260510t163543z-1a44-spec-integration",
+      "commit": "a72064966bc8e83036554c872df4240e69c69d35",
+      "resolved_ref": "origin/round-20260510t163543z-1a44-spec-integration"
+    },
+    "change": "web-ui-theme",
+    "errors": [],
+    "kind": "spec",
+    "ok": true,
+    "openspec_validation": {
+      "change": "web-ui-theme",
+      "change_path": "openspec/changes/web-ui-theme",
+      "errors": [],
+      "ok": true,
+      "project_root": "/tmp/tmp5w8v5yn3",
+      "required_files": {
+        "design.md": "openspec/changes/web-ui-theme/design.md",
+        "proposal.md": "openspec/changes/web-ui-theme/proposal.md",
+        "tasks.md": "openspec/changes/web-ui-theme/tasks.md"
+      },
+      "source_ref": "origin/round-20260510t163543z-1a44-spec-integration",
+      "spec_files": [
+        "openspec/changes/web-ui-theme/specs/web-app-hub/spec.md"
+      ],
+      "warnings": []
+    },
+    "openspec_validation_source": "origin/round-20260510t163543z-1a44-spec-integration",
+    "project_root": "/workspace",
+    "session_id": "20260510t163543z-1a44",
+    "state": {
+      "agents": {
+        "author": {
+          "branch": "round-20260510t163543z-1a44-spec-author",
+          "harness_config": "codex-exec",
+          "name": "round-20260510t163543z-1a44-spec-author",
+          "status": "completed",
+          "template": "spec-author"
+        },
+        "clarifier": {
+          "branch": "round-20260510t163543z-1a44-spec-clarifier",
+          "harness_config": "claude",
+          "name": "round-20260510t163543z-1a44-spec-clarifier",
+          "status": "completed",
+          "template": "spec-goal-clarifier-claude"
+        },
+        "explorer": {
+          "branch": "round-20260510t163543z-1a44-spec-explorer",
+          "harness_config": "codex-exec",
+          "name": "round-20260510t163543z-1a44-spec-explorer",
+          "status": "completed",
+          "template": "spec-repo-explorer"
+        },
+        "ops_review": {
+          "branch": "round-20260510t163543z-1a44-spec-ops-review",
+          "harness_config": "claude",
+          "name": "round-20260510t163543z-1a44-spec-ops-review",
+          "status": "completed",
+          "template": "spec-ops-reviewer-claude"
+        }
+      },
+      "base_branch": "main",
+      "blockers": [],
+      "branches": {
+        "author": "round-20260510t163543z-1a44-spec-author",
+        "clarifier": "round-20260510t163543z-1a44-spec-clarifier",
+        "explorer": "round-20260510t163543z-1a44-spec-explorer",
+        "integration": "round-20260510t163543z-1a44-spec-integration",
+        "review": "round-20260510t163543z-1a44-spec-ops-review",
+        "steward": "round-20260510t163543z-1a44-spec-steward"
+      },
+      "change": "web-ui-theme",
+      "consensus": {
+        "harnesses": {
+          "author": "codex-exec",
+          "clarifier": "claude",
+          "explorer": "codex-exec",
+          "ops_review": "claude"
+        },
+        "mode": "multi_harness",
+        "required_multi_harness": true,
+        "templates": {
+          "author": "spec-author",
+          "clarifier": "spec-goal-clarifier-claude",
+          "explorer": "spec-repo-explorer",
+          "ops_review": "spec-ops-reviewer-claude"
+        }
+      },
+      "kind": "spec",
+      "next_actions": [
+        "Create or verify the pull request for round-20260510t163543z-1a44-spec-integration"
+      ],
+      "phase": "complete",
+      "review": {
+        "agent": "round-20260510t163543z-1a44-spec-ops-review",
+        "summary": "The OpenSpec artifacts are well-formed, appropriately scoped, and internally consistent; accepted with minor non-blocking recommendations.",
+        "verdict": "accept"
+      },
+      "round_id": "20260510t163543z-1a44",
+      "session_id": "20260510t163543z-1a44",
+      "status": "ready",
+      "validation": {
+        "command": "python3 scripts/validate-openspec-change.py --project-root . --change web-ui-theme",
+        "integration_branch": "round-20260510t163543z-1a44-spec-integration",
+        "review_agent": "round-20260510t163543z-1a44-spec-ops-review",
+        "status": "passed"
+      },
+      "version": 1
+    },
+    "state_path": "/workspace/.scion-ops/sessions/20260510t163543z-1a44/state.json",
+    "state_source": "/workspace/.scion-ops/sessions/20260510t163543z-1a44/state.json",
+    "warnings": []
+  }
+}
