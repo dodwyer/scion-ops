@@ -1,0 +1,42 @@
+{
+  "review_type": "final",
+  "scores": {
+    "correctness": 2,
+    "completeness": 2,
+    "style": 3
+  },
+  "verdict": "request_changes",
+  "blocking_issues": [
+    "Kind deployment is not runnable with the NiceGUI app. deploy/kind/control-plane/web-app-deployment.yaml still starts the reused MCP image with plain `python ${SCION_OPS_ROOT}/scripts/web_app_hub.py`, while image-build/scion-ops-mcp/Dockerfile installs only `mcp` and `PyYAML`. scripts/web_app_hub.py imports `nicegui` during app registration, so the in-cluster web-app process will fail with ModuleNotFoundError. This violates the Kind Kustomize Installation and NiceGUI application startup requirements.",
+    "The rendered NiceGUI pages do not implement live UI updates, reconnect, fallback polling, or selected-context preservation. The page handlers render `build_snapshot(...)` or `build_round_detail(...)` once, and only the JSON/SSE `/api/live` endpoint exists; there is no NiceGUI timer/client subscription wiring that updates overview, rounds, inbox, runtime, or selected round components in place. This violates the NiceGUI components preserve operator state during updates scenario."
+  ],
+  "final_failure_classification": "implementation_defect",
+  "final_failure_evidence": "Evidence: `python3 -c \"import nicegui\"` fails in the review environment with ModuleNotFoundError, matching the kind deployment's plain-python launch path. The MCP image Dockerfile only installs `mcp>=1.13,<2` and `PyYAML>=6,<7`, while the web-app deployment executes `python` rather than `uv run`. Code inspection also shows `/api/live` is implemented, but NiceGUI page renderers call `build_snapshot` once and have no live update subscription/timer path.",
+  "nits": [],
+  "spec": {
+    "change": "use-nicegui",
+    "conformance": 2,
+    "spec_completeness": 5,
+    "task_coverage": 2,
+    "operational_verification": 2,
+    "checked_artifacts": [
+      "openspec/changes/use-nicegui/proposal.md",
+      "openspec/changes/use-nicegui/design.md",
+      "openspec/changes/use-nicegui/specs/web-app-hub/spec.md",
+      "openspec/changes/use-nicegui/tasks.md",
+      "scripts/web_app_hub.py",
+      "scripts/test-web-app-hub.py",
+      "deploy/kind/control-plane/web-app-deployment.yaml",
+      "image-build/scion-ops-mcp/Dockerfile",
+      "docs/kind-control-plane.md",
+      ".scion-ops/sessions/20260510t203256z-7ac9/findings/round-20260510t203256z-7ac9-impl-codex.json",
+      ".scion-ops/sessions/20260510t203256z-7ac9/findings/round-20260510t203256z-7ac9-impl-deploy-fix.json"
+    ],
+    "unresolved_questions": [],
+    "gaps": [
+      "No verification of the kind web-app container with NiceGUI installed on the actual plain-python deployment path.",
+      "No browser-level or NiceGUI component test proves live updates, reconnect/fallback feedback, selected round preservation, or responsive rendering."
+    ]
+  },
+  "summary": "Final review rejects round-20260510t203256z-7ac9-integration for PR readiness. The adapter tests and OpenSpec validation pass, but the approved change requires the NiceGUI app to run in kind and update the visible UI during live/reconnect/fallback paths. The integrated branch leaves the kind container without the NiceGUI dependency on its actual launch path and exposes live update APIs without wiring the rendered NiceGUI views to consume them."
+}
