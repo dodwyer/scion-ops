@@ -83,9 +83,17 @@ eval "$(task kind:hub:auth-export)"
 task kind:mcp:smoke
 ```
 
-Open the web app in a browser at the configured web app URL (default
-`http://192.168.122.103:8808`). The web app reads operational state from Hub and
-MCP using the same in-cluster credentials as the MCP server.
+Open the NiceGUI operator console in a browser at the configured web app URL
+(default `http://192.168.122.103:8808`). The web app entry point is
+`scripts/web_app_hub.py`; it reads operational state from Hub and MCP using the
+same in-cluster credentials as the MCP server.
+
+For local development outside kind, run the same NiceGUI entry point from the
+repository:
+
+```bash
+uv run scripts/web_app_hub.py
+```
 
 The MCP pod reads Hub through the in-cluster `scion-hub` Service and uses the
 `scion-hub-dev-auth` Secret restored by `task bootstrap`.
@@ -153,7 +161,8 @@ task load:image -- localhost/scion-codex:latest
 task dev:test
 ```
 
-The web app reuses the `scion-ops-mcp` image. `task update:web-app` reloads
+The NiceGUI web app reuses the `scion-ops-mcp` image and starts
+`scripts/web_app_hub.py` inside the deployment. `task update:web-app` reloads
 that image and restarts the web app deployment.
 
 Use `task storage:status` before full image rebuilds. If Docker is using `vfs`,
@@ -166,8 +175,8 @@ task kind:web-app:status    # rollout status and service info
 task kind:web-app:logs      # streaming logs
 ```
 
-The web app reads Hub dev auth from the `scion-hub-dev-auth` Secret. If Hub
-credentials have changed, run `task bootstrap` to restore the Secret, then
+The NiceGUI web app reads Hub dev auth from the `scion-hub-dev-auth` Secret. If
+Hub credentials have changed, run `task bootstrap` to restore the Secret, then
 `task update:web-app` to pick it up.
 
 If the web app port is unreachable, verify the kind cluster has the web app port
