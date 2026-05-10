@@ -1,0 +1,81 @@
+{
+  "artifact": ".scion-ops/sessions/20260510t203256z-7ac9/findings/round-20260510t203256z-7ac9-impl-deploy-fix.json",
+  "artifact_json": {
+    "agent": "round-20260510t203256z-7ac9-impl-deploy-fix",
+    "blockers": [],
+    "branch": "round-20260510t203256z-7ac9-impl-deploy-fix",
+    "changed_files": [
+      "docs/kind-control-plane.md",
+      "openspec/changes/use-nicegui/tasks.md"
+    ],
+    "head_sha": "9442efb9b07907e6a2975f310b0b8c69a32efac9",
+    "status": "completed",
+    "summary": "Updated kind control-plane docs to describe the NiceGUI operator console, identify scripts/web_app_hub.py as the web app entry point, and document the local uv run scripts/web_app_hub.py command. Verified the existing kind manifest renders with the preserved service identity, probes, ports, auth Secret, Hub/MCP env vars, workspace mount, grove id setup, and read-only RBAC. Marked only OpenSpec task 1.9 complete.",
+    "tasks_completed": [
+      "1.9"
+    ],
+    "tests_run": [
+      "uv run scripts/validate-openspec-change.py use-nicegui",
+      "kubectl kustomize deploy/kind/control-plane",
+      "rg -n \"scripts/web_app\\\\.py|web_app\\\\.py\" deploy/kind/control-plane/web-app-deployment.yaml docs/kind-control-plane.md openspec/changes/use-nicegui/tasks.md openspec/changes/use-nicegui/specs/web-app-hub/spec.md",
+      "uv run scripts/test-web-app-hub.py",
+      "git diff --check"
+    ]
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:44:12.828004Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:44:33.228134Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:44:53.632888Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:45:14.057503Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "9442efb9b07907e6a2975f310b0b8c69a32efac9",
+      "checked_at": "2026-05-10T20:45:34.492572Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "ed6ab63256592aaae52dcea255307ee978e211d0",
+      "checked_at": "2026-05-10T20:45:55.038670Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260510t203256z-7ac9-impl-deploy-fix",
+  "branch_head": "ed6ab63256592aaae52dcea255307ee978e211d0",
+  "completed_at": "2026-05-10T20:45:55.589257Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
