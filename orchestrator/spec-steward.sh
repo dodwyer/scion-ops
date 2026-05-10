@@ -155,279 +155,34 @@ required_multi_harness: $SPEC_REQUIRE_MULTI_HARNESS_ENABLED
 original_goal:
 $GOAL
 
-required_first_actions:
-1. Before detailed repository inspection or any OpenSpec authoring, create
-   $SESSION_STATE_ROOT/state.json on the steward branch by running this exact
-   inline command, then commit and push that state to $STEWARD_BRANCH:
+branch_names:
+  steward: $STEWARD_BRANCH
+  clarifier: $CLARIFIER_NAME
+  explorer: $EXPLORER_NAME
+  author: $AUTHOR_NAME
+  review: $OPS_REVIEW_NAME
+  integration: $FINAL_BRANCH
 
-python3 - <<'PY'
-import json
-from pathlib import Path
+required_commands:
+  init_state: python3 "$AGENT_SCION_OPS_ROOT/scripts/steward-state.py" spec-init --project-root "$AGENT_PROJECT_ROOT" --session-id "$SESSION_ID" --change "$CHANGE" --base-branch "$BASE_BRANCH"
+  spec_validate: python3 "$AGENT_SCION_OPS_ROOT/scripts/validate-openspec-change.py" --project-root "$AGENT_PROJECT_ROOT" --change "$CHANGE"
+  wait_review: python3 "$AGENT_SCION_OPS_ROOT/scripts/wait-for-review-artifact.py" --project-root "$AGENT_PROJECT_ROOT" --branch "$OPS_REVIEW_NAME" --artifact "$SESSION_STATE_ROOT/findings/ops-review.json" --agent "$OPS_REVIEW_NAME" --scion-profile "$SCION_PROFILE" --timeout-seconds "$SPEC_OPS_REVIEW_WAIT_SECONDS" --poll-interval-seconds "$SPEC_OPS_REVIEW_POLL_SECONDS" --output "$SESSION_STATE_ROOT/validation/ops-review-wait.json"
+  ready_state: python3 "$AGENT_SCION_OPS_ROOT/scripts/steward-state.py" spec-ready --project-root "$AGENT_PROJECT_ROOT" --session-id "$SESSION_ID" --change "$CHANGE" --base-branch "$BASE_BRANCH" --integration-branch "$FINAL_BRANCH" --validation-command "python3 scripts/validate-openspec-change.py --project-root . --change $CHANGE" --review-summary "<accepted ops review summary>"
+  blocked_state: python3 "$AGENT_SCION_OPS_ROOT/scripts/steward-state.py" spec-blocked --project-root "$AGENT_PROJECT_ROOT" --session-id "$SESSION_ID" --change "$CHANGE" --base-branch "$BASE_BRANCH" --phase review --blocker "<blocker summary>" --next-action "<next action>"
+  finalize_pr: python3 "$AGENT_SCION_OPS_ROOT/scripts/finalize-steward-pr.py" --project-root "$AGENT_PROJECT_ROOT" --session-id "$SESSION_ID" --kind spec --change "$CHANGE" --branch "$FINAL_BRANCH" --state-branch "$STEWARD_BRANCH" --base-branch "$BASE_BRANCH" --record-state --json > "$SESSION_STATE_ROOT/pr.json"
+  validate_ready: python3 "$AGENT_SCION_OPS_ROOT/scripts/validate-steward-session.py" --project-root "$AGENT_PROJECT_ROOT" --session-id "$SESSION_ID" --kind spec --change "$CHANGE" --base-branch "$BASE_BRANCH" --branch "$FINAL_BRANCH" --state-branch "$STEWARD_BRANCH" --require-ready --require-pr$SPEC_REQUIRE_MULTI_HARNESS_FLAG
 
-session_id = "$SESSION_ID"
-state_root = Path("$SESSION_STATE_ROOT")
-specialist_templates = {
-    "clarifier": "$SPEC_CLARIFIER_TEMPLATE",
-    "explorer": "$SPEC_EXPLORER_TEMPLATE",
-    "author": "$SPEC_AUTHOR_TEMPLATE",
-    "ops_review": "$SPEC_OPS_REVIEW_TEMPLATE",
-}
-specialist_harnesses = {
-    "clarifier": "$SPEC_CLARIFIER_HARNESS",
-    "explorer": "$SPEC_EXPLORER_HARNESS",
-    "author": "$SPEC_AUTHOR_HARNESS",
-    "ops_review": "$SPEC_OPS_REVIEW_HARNESS",
-}
-state = {
-    "version": 1,
-    "session_id": session_id,
-    "round_id": session_id,
-    "kind": "spec",
-    "change": "$CHANGE",
-    "base_branch": "$BASE_BRANCH",
-    "status": "running",
-    "phase": "clarifying",
-    "branches": {
-        "steward": "$STEWARD_BRANCH",
-        "clarifier": "$CLARIFIER_NAME",
-        "explorer": "$EXPLORER_NAME",
-        "author": "$AUTHOR_NAME",
-        "review": "$OPS_REVIEW_NAME",
-        "integration": "$FINAL_BRANCH",
-    },
-    "consensus": {
-        "mode": "multi_harness" if len(set(specialist_harnesses.values())) > 1 else "single_harness",
-        "templates": specialist_templates,
-        "harnesses": specialist_harnesses,
-        "required_multi_harness": bool(int("$SPEC_REQUIRE_MULTI_HARNESS_ENABLED")),
-    },
-    "agents": {},
-    "review": {},
-    "validation": {"status": "pending"},
-    "blockers": [],
-    "next_actions": [
-        "Start spec-goal-clarifier and spec-repo-explorer agents",
-        "Create OpenSpec artifacts on the author branch",
-        "Validate and review the integration branch",
-    ],
-}
-state_root.mkdir(parents=True, exist_ok=True)
-(state_root / "state.json").write_text(json.dumps(state, indent=2) + "\n")
-PY
-
-2. Start both required discovery agents with these exact commands from the
-   current Scion checkout:
-
-   scion --profile "$SCION_PROFILE" start "$CLARIFIER_NAME" --type "$SPEC_CLARIFIER_TEMPLATE" --branch "$CLARIFIER_NAME" --broker "$BROKER" --harness-config "$SPEC_CLARIFIER_HARNESS" --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
-change: $CHANGE
-base_branch: $BASE_BRANCH
-explicit_goal:
-$GOAL
-collection_recipient: $COLLECTION_RECIPIENT
-steward_agent: $STEWARD_NAME
-expected_branch: $CLARIFIER_NAME
-summary_file: $SESSION_STATE_ROOT/findings/clarifier.md
-artifact_boundary: only $SESSION_STATE_ROOT/findings/clarifier.md; clarify scope only
-expected_summary: goal clarification, assumptions, unresolved questions, and recommended change name
-
-Clarify the requested OpenSpec change. Do not edit product or OpenSpec files. Write, commit, and push $SESSION_STATE_ROOT/findings/clarifier.md, then send a concise completion summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT."
-
-   scion --profile "$SCION_PROFILE" start "$EXPLORER_NAME" --type "$SPEC_EXPLORER_TEMPLATE" --branch "$EXPLORER_NAME" --broker "$BROKER" --harness-config "$SPEC_EXPLORER_HARNESS" --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
-change: $CHANGE
-base_branch: $BASE_BRANCH
-explicit_goal:
-$GOAL
-collection_recipient: $COLLECTION_RECIPIENT
-steward_agent: $STEWARD_NAME
-expected_branch: $EXPLORER_NAME
-summary_file: $SESSION_STATE_ROOT/findings/explorer.md
-artifact_boundary: only $SESSION_STATE_ROOT/findings/explorer.md; inspect repo only
-expected_summary: existing web app, Kubernetes deploy/kind/kustomize state, expected files to spec, and risks
-
-Explore the repository for this OpenSpec change. Do not edit product or OpenSpec files. Write, commit, and push $SESSION_STATE_ROOT/findings/explorer.md, then send a concise completion summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT."
-
-3. If either command fails, update state as blocked and call
-   sciontool status task_completed with the blocker. Do not author the spec
-   yourself.
-4. Only after both discovery summaries are available, start the author with:
-
-   scion --profile "$SCION_PROFILE" start "$AUTHOR_NAME" --type "$SPEC_AUTHOR_TEMPLATE" --branch "$AUTHOR_NAME" --broker "$BROKER" --harness-config "$SPEC_AUTHOR_HARNESS" --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
-change: $CHANGE
-base_branch: $BASE_BRANCH
-explicit_goal:
-$GOAL
-collection_recipient: $COLLECTION_RECIPIENT
-steward_agent: $STEWARD_NAME
-expected_branch: $AUTHOR_NAME
-artifact_boundary: openspec/changes/$CHANGE only
-expected_summary: files changed, requirements added/modified, validation notes
-
-Write only OpenSpec artifacts for $CHANGE. Use the clarifier and explorer summaries. Validate the OpenSpec artifacts, commit only openspec/changes/$CHANGE, push with git push origin HEAD:refs/heads/$AUTHOR_NAME, verify the remote branch with git ls-remote --heads origin $AUTHOR_NAME, then send a concise completion summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT. Do not report completion until the branch has been pushed and verified."
-
-5. Review only the integration branch with:
-
-   scion --profile "$SCION_PROFILE" start "$OPS_REVIEW_NAME" --type "$SPEC_OPS_REVIEW_TEMPLATE" --branch "$OPS_REVIEW_NAME" --broker "$BROKER" --harness-config "$SPEC_OPS_REVIEW_HARNESS" --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
-change: $CHANGE
-base_branch: $BASE_BRANCH
-explicit_goal:
-$GOAL
-collection_recipient: $COLLECTION_RECIPIENT
-steward_agent: $STEWARD_NAME
-review_branch: $FINAL_BRANCH
-verdict_file: $SESSION_STATE_ROOT/findings/ops-review.json
-expected_summary: verdict accept/reject/blocked, blocking issues, recommendations, and test gaps
-
-Review the OpenSpec artifacts on $FINAL_BRANCH. Do not review the author branch. Write, commit, and push $SESSION_STATE_ROOT/findings/ops-review.json on your review branch, then send a concise verdict summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT."
-
-   Follow the spec-steward system prompt's Review Wait And Diagnostics policy:
-   wait up to $SPEC_OPS_REVIEW_WAIT_SECONDS seconds, polling every
-   $SPEC_OPS_REVIEW_POLL_SECONDS seconds, for
-   $SESSION_STATE_ROOT/findings/ops-review.json on $OPS_REVIEW_NAME. Write wait
-   diagnostics to $SESSION_STATE_ROOT/validation/ops-review-wait.json, commit
-   them on the steward branch if review times out, and do not stop or restart
-   the reviewer early just because Hub reports idle activity or the branch has
-   not moved after a short poll.
-
-6. After the integration branch validates and the ops review verdict is
-   accepted, run this exact inline command on the steward branch before the
-   readiness validator. You may replace the review summary string with the
-   actual accepted review summary:
-
-python3 - <<'PY'
-import json
-from pathlib import Path
-
-session_id = "$SESSION_ID"
-state_root = Path("$SESSION_STATE_ROOT")
-specialist_templates = {
-    "clarifier": "$SPEC_CLARIFIER_TEMPLATE",
-    "explorer": "$SPEC_EXPLORER_TEMPLATE",
-    "author": "$SPEC_AUTHOR_TEMPLATE",
-    "ops_review": "$SPEC_OPS_REVIEW_TEMPLATE",
-}
-specialist_harnesses = {
-    "clarifier": "$SPEC_CLARIFIER_HARNESS",
-    "explorer": "$SPEC_EXPLORER_HARNESS",
-    "author": "$SPEC_AUTHOR_HARNESS",
-    "ops_review": "$SPEC_OPS_REVIEW_HARNESS",
-}
-state = {
-    "version": 1,
-    "session_id": session_id,
-    "round_id": session_id,
-    "kind": "spec",
-    "change": "$CHANGE",
-    "base_branch": "$BASE_BRANCH",
-    "status": "ready",
-    "phase": "complete",
-    "branches": {
-        "steward": "$STEWARD_BRANCH",
-        "clarifier": "$CLARIFIER_NAME",
-        "explorer": "$EXPLORER_NAME",
-        "author": "$AUTHOR_NAME",
-        "review": "$OPS_REVIEW_NAME",
-        "integration": "$FINAL_BRANCH",
-    },
-    "consensus": {
-        "mode": "multi_harness" if len(set(specialist_harnesses.values())) > 1 else "single_harness",
-        "templates": specialist_templates,
-        "harnesses": specialist_harnesses,
-        "required_multi_harness": bool(int("$SPEC_REQUIRE_MULTI_HARNESS_ENABLED")),
-    },
-    "agents": {
-        "clarifier": {
-            "name": "$CLARIFIER_NAME",
-            "branch": "$CLARIFIER_NAME",
-            "template": "$SPEC_CLARIFIER_TEMPLATE",
-            "harness_config": "$SPEC_CLARIFIER_HARNESS",
-            "status": "completed",
-        },
-        "explorer": {
-            "name": "$EXPLORER_NAME",
-            "branch": "$EXPLORER_NAME",
-            "template": "$SPEC_EXPLORER_TEMPLATE",
-            "harness_config": "$SPEC_EXPLORER_HARNESS",
-            "status": "completed",
-        },
-        "author": {
-            "name": "$AUTHOR_NAME",
-            "branch": "$AUTHOR_NAME",
-            "template": "$SPEC_AUTHOR_TEMPLATE",
-            "harness_config": "$SPEC_AUTHOR_HARNESS",
-            "status": "completed",
-        },
-        "ops_review": {
-            "name": "$OPS_REVIEW_NAME",
-            "branch": "$OPS_REVIEW_NAME",
-            "template": "$SPEC_OPS_REVIEW_TEMPLATE",
-            "harness_config": "$SPEC_OPS_REVIEW_HARNESS",
-            "status": "completed",
-        },
-    },
-    "review": {
-        "verdict": "accept",
-        "agent": "$OPS_REVIEW_NAME",
-        "summary": "accepted by spec-ops-reviewer",
-    },
-    "validation": {
-        "status": "passed",
-        "command": "python3 scripts/validate-openspec-change.py --project-root . --change $CHANGE",
-        "integration_branch": "$FINAL_BRANCH",
-        "review_agent": "$OPS_REVIEW_NAME",
-    },
-    "blockers": [],
-    "next_actions": [
-        "Create or verify the pull request for $FINAL_BRANCH",
-    ],
-}
-state_root.mkdir(parents=True, exist_ok=True)
-(state_root / "state.json").write_text(json.dumps(state, indent=2) + "\n")
-PY
-
-7. Before reporting task_completed, create or return the GitHub pull request
-   for the ready integration branch. Run this exact command from the steward
-   checkout, then commit and push the updated session state back to
-   $STEWARD_BRANCH:
-
-   python3 "$AGENT_SCION_OPS_ROOT/scripts/finalize-steward-pr.py" \
-     --project-root "$AGENT_PROJECT_ROOT" \
-     --session-id "$SESSION_ID" \
-     --kind spec \
-     --change "$CHANGE" \
-     --branch "$FINAL_BRANCH" \
-     --state-branch "$STEWARD_BRANCH" \
-     --base-branch "$BASE_BRANCH" \
-     --record-state \
-     --json > "$SESSION_STATE_ROOT/pr.json"
-
-   git add "$SESSION_STATE_ROOT/state.json" "$SESSION_STATE_ROOT/pr.json"
-   if ! git diff --cached --quiet; then
-     git commit -m "Record spec steward PR for $SESSION_ID"
-     git push origin HEAD:refs/heads/$STEWARD_BRANCH
-   fi
-
-   If PR finalization fails, update $SESSION_STATE_ROOT/state.json as blocked
-   with the finalizer error and do not report the session as ready. A successful
-   session must end with a PR URL recorded in state.pull_request.pr_url. After
-   recording the PR, run the readiness validator with both --require-ready and
-   --require-pr; do not report task_completed unless it passes.
-
-   python3 "$AGENT_SCION_OPS_ROOT/scripts/validate-steward-session.py" \
-     --project-root "$AGENT_PROJECT_ROOT" \
-     --session-id "$SESSION_ID" \
-     --kind spec \
-     --change "$CHANGE" \
-     --base-branch "$BASE_BRANCH" \
-     --branch "$FINAL_BRANCH" \
-     --state-branch "$STEWARD_BRANCH" \
-     --require-ready \
-     --require-pr$SPEC_REQUIRE_MULTI_HARNESS_FLAG
-
-Start the OpenSpec steward playbook. Coordinate specialist agents, keep durable
-state under $SESSION_STATE_ROOT, validate the resulting OpenSpec artifacts, and
-finish ready only when $FINAL_BRANCH exists, the OpenSpec artifacts validate,
-ops review accepts, and a pull request exists for the integration branch. Do not
-implement product code.
+execution_notes:
+- Follow the spec-steward system prompt as the authoritative protocol.
+- Start clarifier and explorer before detailed repo inspection or authoring.
+- Child prompts must include the original goal, expected branch, artifact path,
+  steward agent, and collection recipient.
+- Create the integration branch from the author branch before review.
+- Run wait_review after starting ops review. Do not stop or restart the reviewer
+  early only because Hub reports idle activity or the branch has not moved after
+  a short poll.
+- Finish ready only after validation passes, ops review accepts, and finalize_pr
+  records a pull request. Otherwise write blocked state with diagnostics.
 EOF
 )
 

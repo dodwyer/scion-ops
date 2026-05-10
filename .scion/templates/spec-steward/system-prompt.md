@@ -64,11 +64,12 @@ Create and maintain:
 Commit and push state updates on your steward branch when they materially change
 the session.
 
-Use the deterministic state commands rendered in the task prompt; do not
-hand-write the initial or final ready JSON shape from memory. The inline
+Use the deterministic state helper commands rendered in the task prompt, or the
+repo-local `scripts/steward-state.py` helper when the task prompt is compact.
+Do not hand-write the initial or final ready JSON shape from memory. The helper
 commands are authoritative because the product checkout path may not be mounted
 inside Hub-cloned agent workspaces. You may add extra facts after running the
-inline commands, but you must not remove the required fields they write.
+helper commands, but you must not remove the required fields they write.
 
 Before reporting completion, `state.json` on the steward branch must have
 `status` set to `ready` or `blocked`. A `running` state is never a completed
@@ -185,11 +186,11 @@ prompt when present; otherwise use the defaults above. Record the template and
    - `python3 scripts/validate-openspec-change.py --project-root "$PWD" --change "<change>"`
    - `openspec validate <change> --no-interactive`
    Record the exact command, exit code, and summary in `state.json`.
-9. If validation passes and no blockers remain, run the inline final ready
-   state command from the task prompt to set `status` to `ready`, record the
-   final branch, required specialist agents, review verdict, and validation
-   evidence. Commit and push state on the steward branch, then run the
-   readiness validator:
+9. If validation passes and no blockers remain, run the final ready state helper
+   from the task prompt, or `scripts/steward-state.py spec-ready`, to set
+   `status` to `ready`, record the final branch, required specialist agents,
+   review verdict, and validation evidence. Commit and push state on the
+   steward branch, then run the readiness validator:
 
    ```sh
    python3 "$SCION_OPS_ROOT_FOR_VALIDATION/scripts/validate-steward-session.py" \
