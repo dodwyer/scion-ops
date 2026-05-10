@@ -1,0 +1,31 @@
+{
+  "review_type": "spec",
+  "scores": {
+    "correctness": 5,
+    "completeness": 5,
+    "style": 5
+  },
+  "verdict": "accept",
+  "blocking_issues": [],
+  "nits": [],
+  "spec": {
+    "change": "autorefresh-web-app",
+    "conformance": 5,
+    "spec_completeness": 5,
+    "task_coverage": 5,
+    "operational_verification": 5,
+    "checked_artifacts": [
+      "openspec/changes/autorefresh-web-app/proposal.md",
+      "openspec/changes/autorefresh-web-app/design.md",
+      "openspec/changes/autorefresh-web-app/tasks.md",
+      "openspec/changes/autorefresh-web-app/specs/web-app-hub/spec.md",
+      "scripts/validate-openspec-change.py --project-root /tmp/scion-ops-review-integration --change autorefresh-web-app --json"
+    ],
+    "unresolved_questions": [],
+    "gaps": [
+      "Implementation must still prove automatic updates across overview, rounds, round detail, inbox, and runtime views with fixture or local no-spend checks.",
+      "Implementation must still verify reconnect, stale-state, duplicate/replayed event, and fallback polling behavior without starting model-backed rounds or mutating Hub, MCP, Kubernetes, git, or OpenSpec state."
+    ]
+  },
+  "summary": "Accept. The integration branch adds a coherent OpenSpec change for replacing refresh-driven web app updates with automatic streaming or equivalent incremental delivery. The proposal, design, tasks, and web-app-hub delta spec cover the requested behavior, source-of-truth preservation, live/reconnecting/stale/failed states, idempotent timeline and inbox updates, safe fallback polling, and read-only no-spend verification. OpenSpec artifact validation passed with no errors."
+}
