@@ -273,7 +273,20 @@ def test_round_detail_timeline_and_agents_expose_multi_llm_context():
     assert message_entry["role"] == "clarifier"
     assert message_entry["template"] == "spec-goal-clarifier-claude"
     assert message_entry["harness_config"] == "claude"
+    flow = detail["decision_flow"]
+    assert [stage["role"] for stage in flow[:3]] == ["spec steward", "clarifier", "explorer"]
+    clarifier = next(stage for stage in flow if stage["role"] == "clarifier")
+    assert clarifier["harness_config"] == "claude"
+    assert any(event["label"] == "Started" for event in clarifier["events"])
+    assert any("round 20260509t063201z-6c02 update" in event["summary"] for event in clarifier["events"])
+    assert detail["consensus"]["mode"] == "multi_harness"
+    assert "claude" in {item["harness"] for item in detail["consensus"]["harnesses"]}
+    assert detail["terminal_summary"].startswith("Completed:")
     assert "harness_config" in web_app_hub.BROWSER_JSON_CONTRACT["round"]["agents"]
+    assert "decision_flow" in web_app_hub.BROWSER_JSON_CONTRACT["round"]
+    assert "terminal_summary" in web_app_hub.BROWSER_JSON_CONTRACT["round"]
+    assert "Decision Flow" in web_app_hub.INDEX_HTML
+    assert "Consensus" in web_app_hub.INDEX_HTML
     assert "harness" in web_app_hub.INDEX_HTML
     assert "agentCard" in web_app_hub.INDEX_HTML
 
@@ -572,9 +585,13 @@ def test_steward_progress_fields_are_preserved_from_structured_payloads():
     assert row["mcp"]["validation_status"] == "failed"
     assert row["mcp"]["blockers"] == ["OpenSpec validation failed on the remote branch"]
     assert row["mcp"]["pr_url"] == "https://github.com/example/project/pull/44"
+    assert row["terminal_summary"] == "Blocked: OpenSpec validation failed on the remote branch"
+    assert row["flow_summary"].startswith("Blocked:")
+    assert row["decision_flow"][0]["role"] == "spec steward"
     assert "expected_branch" in web_app_hub.INDEX_HTML
     assert "MCP State" in web_app_hub.INDEX_HTML
     assert "Pull request" in web_app_hub.INDEX_HTML
+    assert "Decision Flow" in web_app_hub.INDEX_HTML
 
 
 def test_round_artifacts_remote_branches_are_exposed_in_row_and_detail():

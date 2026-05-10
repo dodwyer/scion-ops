@@ -68,6 +68,9 @@ BROWSER_JSON_CONTRACT = {
         },
         "final_review": "structured final-review verdict, normalized verdict, display label, source, and blockers",
         "agents": "normalized agent records with role, template, harness_config, phase, activity, and status",
+        "decision_flow": "role-ordered outline of starts, reports, decisions, and terminal explanations with agent/template/harness provenance",
+        "consensus": "multi-harness role participation and review/steward summary",
+        "terminal_summary": "operator-facing current/terminal explanation, including blockers or stall context when available",
     },
     "live_updates": {
         "endpoint": "/api/live?cursor=<last_cursor>&round_id=<optional-round>",
@@ -124,6 +127,18 @@ TEMPLATE_ROLES = {
     "reviewer-claude": "peer review",
     "final-reviewer-codex": "final review",
     "final-reviewer-gemini": "final review",
+}
+ROLE_FLOW_ORDER = {
+    "spec steward": 0,
+    "clarifier": 10,
+    "explorer": 20,
+    "author": 30,
+    "ops review": 40,
+    "spec finalizer": 45,
+    "implementation steward": 50,
+    "implementer": 60,
+    "peer review": 70,
+    "final review": 80,
 }
 BRANCH_FIELD_NAMES = {
     "branch",
@@ -620,6 +635,227 @@ def normalize_agent(agent: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def role_rank(role: Any) -> int:
+    return ROLE_FLOW_ORDER.get(str(role or "").strip().lower(), 999)
+
+
+def flow_label(summary: Any, *, status: Any = "", event_type: Any = "") -> str:
+    text = " ".join([str(summary or ""), str(status or ""), str(event_type or "")]).lower()
+    if any(token in text for token in ("blocked", "failed", "failure", "error", "changes requested", "request_changes")):
+        return "Blocked"
+    if re.search(r"\baccept(?:ed)?\b|\bapproved\b|\bverdict[^a-z0-9]+accept\b", text):
+        return "Accepted"
+    if any(token in text for token in ("ready", "pr recorded", "pull request", "validated", "validation passed")):
+        return "Ready"
+    if any(token in text for token in ("complete", "completed", "task_completed", "succeeded")):
+        return "Completed"
+    if any(token in text for token in ("started", "starting", "created")):
+        return "Started"
+    if any(token in text for token in ("stalled", "idle", "waiting")):
+        return "Waiting"
+    if event_type:
+        return "Notified" if str(event_type) == "notification" else "Reported"
+    return "Reported"
+
+
+def flow_event(label: str, summary: Any, *, time_value: Any = "", source: str = "", event_type: str = "") -> dict[str, Any]:
+    return {
+        "label": label,
+        "summary": short_text(summary, 360),
+        "time": str(time_value or ""),
+        "source": source,
+        "type": event_type,
+    }
+
+
+def add_flow_event(stage: dict[str, Any], event: dict[str, Any]) -> None:
+    if not event.get("summary"):
+        return
+    identity = (event.get("label"), event.get("summary"), event.get("time"), event.get("source"))
+    existing = {
+        (item.get("label"), item.get("summary"), item.get("time"), item.get("source"))
+        for item in stage.get("events", [])
+        if isinstance(item, dict)
+    }
+    if identity not in existing:
+        stage.setdefault("events", []).append(event)
+
+
+def build_decision_flow(agents: list[dict[str, Any]], timeline: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    stages: list[dict[str, Any]] = []
+    by_agent: dict[str, dict[str, Any]] = {}
+    by_role: dict[str, dict[str, Any]] = {}
+
+    def stage_for(role: str, agent_name: str = "", agent: dict[str, Any] | None = None) -> dict[str, Any]:
+        role = role or "observed"
+        key = agent_name or f"role:{role}"
+        stage = by_agent.get(key) or by_role.get(role)
+        if stage is None:
+            stage = {
+                "id": f"{role}:{agent_name or stable_digest({'role': role, 'agent': agent_name})}",
+                "role": role,
+                "agent_name": agent_name,
+                "template": "",
+                "harness_config": "",
+                "status": "observed",
+                "phase": "",
+                "activity": "",
+                "started_at": "",
+                "updated_at": "",
+                "events": [],
+            }
+            stages.append(stage)
+        if agent:
+            stage["agent_name"] = stage.get("agent_name") or str(agent.get("name") or "")
+            stage["template"] = stage.get("template") or str(agent.get("template") or "")
+            stage["harness_config"] = stage.get("harness_config") or str(agent.get("harness_config") or "")
+            stage["status"] = str(agent.get("status") or stage.get("status") or "observed")
+            stage["phase"] = str(agent.get("phase") or stage.get("phase") or "")
+            stage["activity"] = str(agent.get("activity") or stage.get("activity") or "")
+            stage["started_at"] = str(agent.get("created") or stage.get("started_at") or "")
+            stage["updated_at"] = str(agent.get("updated") or stage.get("updated_at") or "")
+        if agent_name:
+            by_agent[agent_name] = stage
+        by_role[role] = stage
+        return stage
+
+    normalized_agents = [normalize_agent(agent) for agent in agents if isinstance(agent, dict)]
+    for agent in sorted(normalized_agents, key=lambda item: (role_rank(item.get("role")), str(item.get("created") or ""), str(item.get("name") or ""))):
+        role = str(agent.get("role") or "observed")
+        name = str(agent.get("name") or agent.get("slug") or "")
+        stage = stage_for(role, name, agent)
+        if agent.get("created"):
+            add_flow_event(stage, flow_event("Started", f"{role} started", time_value=agent.get("created"), source=name, event_type="agent"))
+        summary = agent.get("taskSummary") or agent.get("activity") or agent.get("phase")
+        if summary:
+            add_flow_event(
+                stage,
+                flow_event(
+                    flow_label(summary, status=agent.get("status")),
+                    summary,
+                    time_value=agent.get("updated") or agent.get("created"),
+                    source=name,
+                    event_type="agent",
+                ),
+            )
+
+    for item in sorted([entry for entry in timeline if isinstance(entry, dict)], key=lambda entry: str(entry.get("time") or "")):
+        role = str(item.get("role") or "")
+        agent_name = str(item.get("agent_name") or item.get("actor") or "")
+        agent = by_agent.get(agent_name) or by_agent.get(agent_name.removeprefix("agent:")) or {}
+        if not role and agent:
+            role = str(agent.get("role") or "")
+        stage = stage_for(role or "observed", str(agent.get("agent_name") or agent.get("name") or agent_name))
+        if item.get("template") and not stage.get("template"):
+            stage["template"] = str(item.get("template") or "")
+        if item.get("harness_config") and not stage.get("harness_config"):
+            stage["harness_config"] = str(item.get("harness_config") or "")
+        if item.get("phase") and not stage.get("phase"):
+            stage["phase"] = str(item.get("phase") or "")
+        if item.get("activity"):
+            stage["activity"] = str(item.get("activity") or stage.get("activity") or "")
+        summary = item.get("summary") or item.get("activity")
+        add_flow_event(
+            stage,
+            flow_event(
+                flow_label(summary, status=stage.get("status"), event_type=item.get("type")),
+                summary,
+                time_value=item.get("time"),
+                source=str(item.get("source_id") or item.get("actor") or ""),
+                event_type=str(item.get("type") or "event"),
+            ),
+        )
+
+    for stage in stages:
+        stage["events"] = sorted(stage.get("events", []), key=lambda item: str(item.get("time") or ""))
+        latest = stage["events"][-1] if stage["events"] else {}
+        stage["latest_event"] = latest
+        stage["summary"] = latest.get("summary") or ""
+
+    return sorted(stages, key=lambda item: (role_rank(item.get("role")), str(item.get("started_at") or item.get("updated_at") or ""), str(item.get("agent_name") or "")))
+
+
+def build_terminal_summary(
+    *,
+    visible_status: str,
+    mcp: dict[str, Any],
+    final_review: dict[str, Any],
+    agents: list[dict[str, Any]],
+    decision_flow: list[dict[str, Any]],
+    outcome: Any,
+) -> str:
+    blockers = as_string_list(mcp.get("blockers"))
+    if blockers:
+        return f"Blocked: {short_text('; '.join(blockers), 420)}"
+
+    review_text = short_text(final_review.get("summary") or "", 420) if final_review else ""
+    status_text = str(visible_status or "").lower()
+    if status_text in {"blocked", "failed", "changes requested", "request_changes"}:
+        return f"{visible_status.capitalize()}: {review_text or short_text(mcp.get('summary') or outcome, 420) or 'see the latest role events for details'}"
+
+    terminal = mcp.get("terminal") if isinstance(mcp.get("terminal"), dict) else {}
+    terminal_summary = short_text(terminal.get("summary") or terminal.get("message") or "", 420)
+    if terminal_summary:
+        return terminal_summary
+
+    latest_events = [
+        stage.get("latest_event")
+        for stage in decision_flow
+        if isinstance(stage.get("latest_event"), dict) and stage.get("latest_event", {}).get("summary")
+    ]
+    latest_events.sort(key=lambda item: str(item.get("time") or ""))
+    latest = latest_events[-1] if latest_events else {}
+
+    stalled = [
+        str(agent.get("role") or agent.get("name") or "")
+        for agent in agents
+        if "stall" in str(agent.get("activity") or "").lower() and agent_status(agent) != "completed"
+    ]
+    if stalled:
+        detail = latest.get("summary") or mcp.get("summary") or "no later explanation is available"
+        return f"Stalled: {', '.join(stalled)}. Last update: {short_text(detail, 360)}"
+
+    if status_text in {"completed", "accepted"}:
+        return f"Completed: {review_text or short_text(mcp.get('summary') or latest.get('summary') or outcome, 420)}"
+    if status_text in {"running", "waiting", "observed", "unknown"}:
+        if latest:
+            return f"Current: {short_text(latest.get('summary'), 420)}"
+        return "No role decision messages have been observed yet."
+    return short_text(review_text or mcp.get("summary") or latest.get("summary") or "", 420)
+
+
+def build_consensus_summary(agents: list[dict[str, Any]], decision_flow: list[dict[str, Any]], final_review: dict[str, Any], mcp: dict[str, Any]) -> dict[str, Any]:
+    harness_roles: dict[str, list[str]] = defaultdict(list)
+    for agent in agents:
+        role = str(agent.get("role") or "")
+        harness = str(agent.get("harness_config") or "")
+        if role and harness and role not in harness_roles[harness]:
+            harness_roles[harness].append(role)
+    harnesses = sorted(harness_roles)
+    review_display = str(final_review.get("display") or "")
+    review_summary = short_text(final_review.get("summary") or "", 260)
+    terminal_status = str((mcp.get("terminal") or {}).get("status") or mcp.get("status") or "")
+    parts = []
+    if len(harnesses) > 1:
+        parts.append(f"Multi-LLM flow across {', '.join(harnesses)}")
+    elif harnesses:
+        parts.append(f"Single-harness flow on {harnesses[0]}")
+    if review_display:
+        parts.append(f"review {review_display}")
+    if terminal_status:
+        parts.append(f"terminal {terminal_status}")
+    if not parts and decision_flow:
+        parts.append(f"{len(decision_flow)} role stages observed")
+    return {
+        "mode": "multi_harness" if len(harnesses) > 1 else ("single_harness" if harnesses else "unknown"),
+        "harnesses": [{"harness": harness, "roles": harness_roles[harness]} for harness in harnesses],
+        "stage_count": len(decision_flow),
+        "review": review_display,
+        "summary": "; ".join(parts),
+        "review_summary": review_summary,
+    }
+
+
 def agent_lookup(agents: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     lookup: dict[str, dict[str, Any]] = {}
     for agent in agents:
@@ -673,6 +909,9 @@ def snapshot_cursor(snapshot: dict[str, Any], detail: dict[str, Any] | None = No
                 "status": row.get("status"),
                 "visible_status": row.get("visible_status"),
                 "latest_update": row.get("latest_update"),
+                "flow_summary": row.get("flow_summary"),
+                "terminal_summary": row.get("terminal_summary"),
+                "decision_flow": row.get("decision_flow"),
                 "branches": row.get("branches"),
                 "mcp": row.get("mcp"),
                 "final_review": row.get("final_review"),
@@ -704,6 +943,9 @@ def snapshot_cursor(snapshot: dict[str, Any], detail: dict[str, Any] | None = No
             ],
             "mcp": detail.get("mcp"),
             "final_review": detail.get("final_review"),
+            "decision_flow": detail.get("decision_flow"),
+            "terminal_summary": detail.get("terminal_summary"),
+            "consensus": detail.get("consensus"),
         }
     return f"live:{stable_digest(payload)}"
 
@@ -1281,6 +1523,23 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
             or short_text("; ".join((row.get("mcp") or {}).get("blockers", [])), 260)
             or short_text(terminal)
         )
+        agents_by_actor = agent_lookup(row["agents"])
+        row_timeline: list[dict[str, Any]] = []
+        for message in row["messages"]:
+            row_timeline.append(timeline_entry({"type": "message", "message": message}, round_id=row["round_id"], agents_by_actor=agents_by_actor))
+        for notification in row["notifications"]:
+            row_timeline.append(timeline_entry({"type": "notification", "notification": notification}, round_id=row["round_id"], agents_by_actor=agents_by_actor))
+        row["decision_flow"] = build_decision_flow(row["agents"], row_timeline)
+        row["consensus"] = build_consensus_summary(row["agents"], row["decision_flow"], row["final_review"], row.get("mcp") or {})
+        row["terminal_summary"] = build_terminal_summary(
+            visible_status=row["visible_status"],
+            mcp=row.get("mcp") or {},
+            final_review=row["final_review"],
+            agents=row["agents"],
+            decision_flow=row["decision_flow"],
+            outcome=row["outcome"],
+        )
+        row["flow_summary"] = row["terminal_summary"] or row["outcome"] or row["latest_summary"]
         if row["_structured_branches"]:
             row["branches"] = row["_structured_branches"]
             row["branch_source"] = "structured"
@@ -1497,12 +1756,26 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
         visible_status = "blocked"
     elif mcp.get("status") and visible_status == "unknown":
         visible_status = str(mcp["status"])
+    sorted_timeline = sorted(timeline, key=lambda item: item.get("time") or "", reverse=True)
+    decision_flow = build_decision_flow(detail_agents, sorted_timeline)
+    consensus = build_consensus_summary(detail_agents, decision_flow, final_review, mcp)
+    terminal_summary = build_terminal_summary(
+        visible_status=visible_status,
+        mcp=mcp,
+        final_review=final_review,
+        agents=detail_agents,
+        decision_flow=decision_flow,
+        outcome=outcome,
+    )
     return {
         "ok": bool(status.get("ok")) or bool(events.get("ok")),
         "round_id": round_id,
         "status": status,
         "events": events,
-        "timeline": sorted(timeline, key=lambda item: item.get("time") or "", reverse=True),
+        "timeline": sorted_timeline,
+        "decision_flow": decision_flow,
+        "consensus": consensus,
+        "terminal_summary": terminal_summary,
         "runner_output": runner_output,
         "runner_output_error": runner_output_error,
         "outcome": outcome,
@@ -1560,6 +1833,17 @@ INDEX_HTML = r"""<!doctype html>
     .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; white-space:pre-wrap; overflow:auto; max-height:360px; background:#111820; color:#e9eef4; border-radius:6px; padding:10px; }
     .timeline { display:grid; gap:8px; }
     .timeline .item { border-left:3px solid var(--line); padding:5px 0 5px 10px; }
+    .flow { display:grid; gap:10px; }
+    .flow-stage { border:1px solid var(--line); border-radius:8px; padding:10px; background:#fff; }
+    .flow-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+    .flow-title { display:flex; flex-direction:column; gap:3px; }
+    .flow-events { display:grid; gap:6px; margin-top:8px; }
+    .flow-event { border-left:3px solid var(--info); padding-left:8px; }
+    .flow-event.blocked { border-left-color:var(--bad); }
+    .flow-event.accepted, .flow-event.ready, .flow-event.completed { border-left-color:var(--good); }
+    .flow-strip { display:flex; flex-wrap:wrap; gap:6px; }
+    .stage-pill { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line); border-radius:6px; padding:4px 6px; background:#fff; font-size:12px; }
+    .reason-box { border:1px solid #c9d7e6; background:#f4f8fc; color:#17324d; border-radius:6px; padding:10px; margin:8px 0; }
     .split { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr); gap:12px; }
     .error-box { border:1px solid #efb5b0; background:#fff7f6; color:#681a14; border-radius:6px; padding:10px; }
     @media (max-width: 800px) { header { align-items:flex-start; flex-direction:column; } .split { grid-template-columns:1fr; } th:nth-child(4), td:nth-child(4) { display:none; } }
@@ -1619,6 +1903,124 @@ INDEX_HTML = r"""<!doctype html>
       ${listBlock("Warnings", mcp.warnings)}
       ${mcp.protocol && Object.keys(mcp.protocol).length ? `<pre class="mono">${esc(JSON.stringify(mcp.protocol, null, 2))}</pre>` : ""}`;
     const fmt = value => value ? new Date(value).toLocaleString() : "unknown";
+    const FLOW_ROLE_ORDER = {
+      "spec steward": 0,
+      "clarifier": 10,
+      "explorer": 20,
+      "author": 30,
+      "ops review": 40,
+      "spec finalizer": 45,
+      "implementation steward": 50,
+      "implementer": 60,
+      "peer review": 70,
+      "final review": 80
+    };
+    const roleRank = role => FLOW_ROLE_ORDER[String(role || "").toLowerCase()] ?? 999;
+    const flowLabel = (summary, statusValue = "", type = "") => {
+      const text = [summary, statusValue, type].map(value => String(value || "").toLowerCase()).join(" ");
+      if (/(blocked|failed|failure|error|changes requested|request_changes)/.test(text)) return "Blocked";
+      if (/\baccept(ed)?\b|\bapproved\b|verdict[^a-z0-9]+accept/.test(text)) return "Accepted";
+      if (/(ready|pr recorded|pull request|validated|validation passed)/.test(text)) return "Ready";
+      if (/(complete|completed|task_completed|succeeded)/.test(text)) return "Completed";
+      if (/(started|starting|created)/.test(text)) return "Started";
+      if (/(stalled|idle|waiting)/.test(text)) return "Waiting";
+      return type === "notification" ? "Notified" : "Reported";
+    };
+    function addFlowEvent(stage, event) {
+      if (!event.summary) return;
+      const key = [event.label, event.summary, event.time, event.source].map(value => String(value || "")).join("|");
+      stage._seen ||= new Set();
+      if (stage._seen.has(key)) return;
+      stage._seen.add(key);
+      stage.events.push(event);
+    }
+    function buildDecisionFlow(detail) {
+      const stages = [];
+      const byAgent = new Map();
+      const byRole = new Map();
+      const stageFor = (role, agentName = "", agent = null) => {
+        role = role || "observed";
+        let stage = agentName ? byAgent.get(agentName) : null;
+        if (!stage) stage = byRole.get(role);
+        if (!stage) {
+          stage = { role, agent_name: agentName, template: "", harness_config: "", status: "observed", phase: "", activity: "", started_at: "", updated_at: "", events: [], _seen: new Set() };
+          stages.push(stage);
+        }
+        if (agent) {
+          stage.agent_name ||= agent.name || agent.slug || "";
+          stage.template ||= agent.template || "";
+          stage.harness_config ||= agent.harness_config || agent.harnessConfig || agent.harness || "";
+          stage.status = agent.status || agent.phase || stage.status || "observed";
+          stage.phase ||= agent.phase || "";
+          stage.activity ||= agent.activity || "";
+          stage.started_at ||= agent.created || "";
+          stage.updated_at ||= agent.updated || "";
+        }
+        if (agentName) byAgent.set(agentName, stage);
+        byRole.set(role, stage);
+        return stage;
+      };
+      const agents = [...(detail.status?.agents || [])].sort((a, b) =>
+        roleRank(a.role) - roleRank(b.role) || String(a.created || "").localeCompare(String(b.created || "")) || String(a.name || "").localeCompare(String(b.name || ""))
+      );
+      for (const agent of agents) {
+        const role = agent.role || "observed";
+        const name = agent.name || agent.slug || "";
+        const stage = stageFor(role, name, agent);
+        if (agent.created) addFlowEvent(stage, { label: "Started", summary: `${role} started`, time: agent.created, source: name, type: "agent" });
+        const summary = agent.taskSummary || agent.activity || agent.phase || "";
+        if (summary) addFlowEvent(stage, { label: flowLabel(summary, agent.status || agent.phase, "agent"), summary, time: agent.updated || agent.created || "", source: name, type: "agent" });
+      }
+      const timeline = [...(detail.timeline || [])].sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+      for (const item of timeline) {
+        const actor = item.agent_name || item.actor || "";
+        const known = byAgent.get(actor) || byAgent.get(String(actor).replace(/^agent:/, ""));
+        const role = item.role || known?.role || "observed";
+        const stage = stageFor(role, known?.agent_name || known?.name || actor);
+        stage.template ||= item.template || "";
+        stage.harness_config ||= item.harness_config || "";
+        stage.phase ||= item.phase || "";
+        stage.activity ||= item.activity || "";
+        const summary = item.summary || item.activity || "";
+        addFlowEvent(stage, { label: flowLabel(summary, stage.status, item.type), summary, time: item.time || "", source: item.source_id || item.actor || "", type: item.type || "event" });
+      }
+      for (const stage of stages) {
+        stage.events.sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+        stage.latest_event = stage.events[stage.events.length - 1] || {};
+        stage.summary = stage.latest_event.summary || "";
+        delete stage._seen;
+      }
+      return stages.sort((a, b) => roleRank(a.role) - roleRank(b.role) || String(a.started_at || a.updated_at || "").localeCompare(String(b.started_at || b.updated_at || "")));
+    }
+    const terminalSummary = (detail, flow) => {
+      if (detail.terminal_summary) return detail.terminal_summary;
+      const blockers = detail.mcp?.blockers || [];
+      if (blockers.length) return `Blocked: ${blockers.join("; ")}`;
+      const review = detail.final_review || {};
+      const statusText = String(detail.visible_status || detail.status?.status || "").toLowerCase();
+      if (["blocked", "failed", "changes requested"].includes(statusText)) return `${detail.visible_status}: ${review.summary || detail.mcp?.summary || "see the latest role event for details"}`;
+      const latest = flow.flatMap(stage => stage.latest_event?.summary ? [stage.latest_event] : []).sort((a, b) => String(a.time || "").localeCompare(String(b.time || ""))).pop();
+      if (["completed", "accepted"].includes(statusText)) return `Completed: ${review.summary || detail.mcp?.summary || latest?.summary || ""}`;
+      return latest?.summary ? `Current: ${latest.summary}` : "No role decision messages have been observed yet.";
+    };
+    const consensusSummary = (detail, flow) => {
+      const consensus = detail.consensus || {};
+      if (consensus.summary) return consensus;
+      const harnessRoles = new Map();
+      for (const stage of flow) {
+        if (!stage.harness_config || !stage.role) continue;
+        const roles = harnessRoles.get(stage.harness_config) || [];
+        if (!roles.includes(stage.role)) roles.push(stage.role);
+        harnessRoles.set(stage.harness_config, roles);
+      }
+      const harnesses = [...harnessRoles.entries()].map(([harness, roles]) => ({ harness, roles }));
+      const review = detail.final_review?.display || "";
+      return { mode: harnesses.length > 1 ? "multi_harness" : "single_harness", harnesses, review, summary: `${harnesses.length > 1 ? "Multi-LLM" : "Single-harness"} flow across ${harnesses.map(item => item.harness).join(", ") || "unknown harness"}` };
+    };
+    const renderFlowStrip = row => {
+      const flow = row.decision_flow || [];
+      return `<div class="flow-strip">${flow.map(stage => `<span class="stage-pill">${status(stage.status || "observed")}<span>${esc(stage.role || "role")}</span>${stage.harness_config ? `<span class="muted">${esc(stage.harness_config)}</span>` : ""}</span>`).join("")}</div><div class="muted">${esc(row.flow_summary || row.terminal_summary || row.latest_summary || "")}</div>`;
+    };
     const sourceErrorBanner = names => names
       .map(name => state.snapshot?.sources?.[name])
       .filter(source => source?.ok === false)
@@ -1716,19 +2118,21 @@ INDEX_HTML = r"""<!doctype html>
       }
     }
     const timelineKey = item => [item.type, item.time, item.summary, item.raw?.id || item.raw?.agentId || item.raw?.sender || ""].map(value => String(value || "")).join("|");
-    const eventToTimeline = event => {
+    const eventToTimeline = (event, roundId = "") => {
       const item = event.message || event.notification || event.agent || {};
       const actor = item.agentId || item.sender || item.senderId || item.name || item.slug || "";
+      const agents = state.roundDetails[roundId]?.status?.agents || [];
+      const agent = agents.find(candidate => [candidate.name, candidate.slug, candidate.id, `agent:${candidate.name}`, `agent:${candidate.slug}`].filter(Boolean).includes(actor)) || {};
       return {
         type: event.type || "event",
         time: item.createdAt || item.created || item.updatedAt || item.updated || item.timestamp || item.time || "",
         actor,
-        agent_name: item.name || item.slug || actor,
-        role: item.role || "",
-        template: item.template || "",
-        harness_config: item.harness_config || item.harnessConfig || item.harness || "",
-        phase: item.phase || "",
-        activity: item.activity || "",
+        agent_name: agent.name || item.name || item.slug || actor,
+        role: item.role || agent.role || "",
+        template: item.template || agent.template || "",
+        harness_config: item.harness_config || item.harnessConfig || item.harness || agent.harness_config || "",
+        phase: item.phase || agent.phase || "",
+        activity: item.activity || agent.activity || "",
         summary: item.msg || item.message || item.summary || item.taskSummary || item.activity || "",
         raw: item
       };
@@ -1744,7 +2148,7 @@ INDEX_HTML = r"""<!doctype html>
       seedTimelineKeys(roundId);
       let changed = false;
       for (const event of eventsPayload.events || []) {
-        const item = eventToTimeline(event);
+        const item = eventToTimeline(event, roundId);
         const key = timelineKey(item);
         if (state.timelineKeys[roundId].has(key)) continue;
         state.timelineKeys[roundId].add(key);
@@ -1871,8 +2275,8 @@ INDEX_HTML = r"""<!doctype html>
       const warnings = sourceErrorBanner(["messages", "notifications"]);
       document.getElementById("rounds").innerHTML = rows.length ? `
         ${warnings}
-        <div class="table-wrap"><table><thead><tr><th>Round</th><th>Status</th><th>Phase</th><th>Agents</th><th>Latest update</th><th>Outcome</th><th>Branches</th><th>MCP</th></tr></thead><tbody>
-        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}</td><td>${esc(row.phase)}</td><td>${row.agent_count}<div class="meta">${(row.harnesses || []).map(value => meta("harness", value)).join("")}${(row.roles || []).slice(0, 3).map(value => meta("role", value)).join("")}</div></td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.outcome || "")}${row.mcp?.blockers?.length ? `<div class="error-box">${esc(row.mcp.blockers.join("; "))}</div>` : ""}</td><td>${(row.branches || []).map(branch => `<div class="mono">${esc(branch)}</div>`).join("")}${row.branch_source ? `<div class="muted">${esc(row.branch_source)}</div>` : ""}</td><td>${field("Expected", row.mcp?.expected_branch)}${field("PR-ready", row.mcp?.pr_ready_branch)}${field("Validation", row.mcp?.validation_status)}${field("Remote SHA", row.mcp?.remote_branch_sha)}</td></tr>`).join("")}
+        <div class="table-wrap"><table><thead><tr><th>Round</th><th>Status</th><th>Decision Flow</th><th>Latest</th><th>Outcome</th></tr></thead><tbody>
+        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}</td><td>${renderFlowStrip(row)}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.terminal_summary || row.outcome || "")}${row.mcp?.blockers?.length ? `<div class="error-box">${esc(row.mcp.blockers.join("; "))}</div>` : ""}</td></tr>`).join("")}
         </tbody></table></div>` : `${warnings}<div class="card"><strong>No rounds found</strong><div class="muted">Hub returned no round-identifiable agents, messages, or notifications.</div></div>`;
       document.querySelectorAll("[data-round]").forEach(row => row.onclick = () => openRound(row.dataset.round));
     }
@@ -1911,6 +2315,38 @@ INDEX_HTML = r"""<!doctype html>
       if (state.poll.detail) clearInterval(state.poll.detail);
       state.poll.detail = setInterval(pollSelectedRoundEvents, ROUND_EVENT_POLL_MS);
     }
+    function renderConsensus(detail, flow) {
+      const consensus = consensusSummary(detail, flow);
+      const harnesses = consensus.harnesses || [];
+      return `
+        <h3>Consensus</h3>
+        <div class="reason-box">${esc(consensus.summary || "No consensus summary available yet.")}</div>
+        ${harnesses.length ? `<div class="meta">${harnesses.map(item => meta(item.harness, (item.roles || []).join(", "))).join("")}</div>` : ""}
+        ${consensus.review ? `<div class="muted">Review: ${esc(consensus.review)}</div>` : ""}
+        ${consensus.review_summary ? `<div class="muted">${esc(consensus.review_summary)}</div>` : ""}`;
+    }
+    function renderDecisionFlow(detail) {
+      const flow = buildDecisionFlow(detail);
+      const reason = terminalSummary(detail, flow);
+      const stageHtml = flow.map(stage => {
+        const events = (stage.events || []).slice(-4);
+        return `<div class="flow-stage">
+          <div class="flow-head">
+            <div class="flow-title">
+              <strong>${esc(stage.role || "observed")}</strong>
+              <span class="muted">${esc(stage.agent_name || "no agent name")}</span>
+            </div>
+            <div>${status(stage.status || "observed")}</div>
+          </div>
+          <div class="meta">${meta("template", stage.template)}${meta("harness", stage.harness_config)}${meta("phase", stage.phase)}${meta("activity", stage.activity)}</div>
+          <div class="flow-events">${events.length ? events.map(event => `<div class="flow-event ${esc(String(event.label || "").toLowerCase().replace(/\s+/g, "-"))}"><strong>${esc(event.label || "Event")}</strong><div class="muted">${fmt(event.time)} ${esc(event.type || "")}</div><div>${esc(event.summary || "")}</div></div>`).join("") : `<div class="muted">No role events observed yet.</div>`}</div>
+        </div>`;
+      }).join("");
+      return `
+        <h3>Decision Flow</h3>
+        <div class="reason-box">${esc(reason)}</div>
+        <div class="flow">${stageHtml || `<div class="muted">No role stages found for this round.</div>`}</div>`;
+    }
     function renderRoundDetail() {
       const roundId = state.selectedRound;
       const detail = state.roundDetails[roundId];
@@ -1919,11 +2355,12 @@ INDEX_HTML = r"""<!doctype html>
       const review = detail.final_review || {};
       const timelineItem = item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div><div class="meta">${meta("agent", item.agent_name || item.actor)}${meta("role", item.role)}${meta("template", item.template)}${meta("harness", item.harness_config)}${meta("phase", item.phase)}${meta("activity", item.activity)}</div></div>`;
       const agentCard = agent => `<div class="agent-card"><div class="agent-head"><strong>${esc(agent.name || agent.slug)}</strong>${status(agent.status || agent.phase || "unknown")}</div><div class="meta">${meta("role", agent.role)}${meta("template", agent.template)}${meta("harness", agent.harness_config)}${meta("phase", agent.phase)}${meta("activity", agent.activity)}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`;
+      const flow = buildDecisionFlow(detail);
       document.getElementById("round-detail").innerHTML = `
         <div class="bar"><button id="back-rounds">Back to rounds</button></div>
         <div class="split">
-          <div class="detail"><h2 class="mono">${esc(roundId)}</h2><div>${status(detail.visible_status || detail.status.status || "unknown")}</div><h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(timelineItem).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
-          <div class="detail"><h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}${mcpBlock(detail.mcp)}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? `<div class="agent-grid">${agents.map(agentCard).join("")}</div>` : `<div class="muted">No agents found.</div>`}<h3>Coordinator Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No coordinator output available.")}</div>`}</div>
+          <div class="detail"><h2 class="mono">${esc(roundId)}</h2><div>${status(detail.visible_status || detail.status.status || "unknown")}</div>${renderDecisionFlow(detail)}<h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(timelineItem).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
+          <div class="detail">${renderConsensus(detail, flow)}<h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}${mcpBlock(detail.mcp)}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? `<div class="agent-grid">${agents.map(agentCard).join("")}</div>` : `<div class="muted">No agents found.</div>`}<h3>Coordinator Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No coordinator output available.")}</div>`}</div>
         </div>`;
       document.getElementById("back-rounds").onclick = () => setView("rounds");
     }
