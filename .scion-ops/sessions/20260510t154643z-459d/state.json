@@ -74,6 +74,25 @@
   },
   "blockers": [],
   "next_actions": [
-    "Create or verify the pull request for round-20260510t154643z-459d-spec-integration"
-  ]
+    "Review pull request https://github.com/dodwyer/scion-ops/pull/134"
+  ],
+  "pull_request": {
+    "source": "steward_pr_finalizer",
+    "session_id": "20260510t154643z-459d",
+    "kind": "spec",
+    "change": "web-app-2",
+    "head": "round-20260510t154643z-459d-spec-integration",
+    "base": "main",
+    "head_commit": "78d6da7e7088b7b2e2066c1480627e92f676be79",
+    "base_commit": "f2456ace2ee807c51d5b9da5f021068f2304300a",
+    "created": true,
+    "draft": false,
+    "pr": {
+      "url": "https://github.com/dodwyer/scion-ops/pull/134",
+      "head": "round-20260510t154643z-459d-spec-integration",
+      "base": "main",
+      "title": "OpenSpec: web-app-2"
+    },
+    "pr_url": "https://github.com/dodwyer/scion-ops/pull/134"
+  }
 }
