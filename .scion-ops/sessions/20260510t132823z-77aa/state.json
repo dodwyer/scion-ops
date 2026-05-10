@@ -5,8 +5,8 @@
   "kind": "implementation",
   "change": "autorefresh-web-app",
   "base_branch": "main",
-  "status": "running",
-  "phase": "implementation",
+  "status": "ready",
+  "phase": "complete",
   "branches": {
     "steward": "round-20260510t132823z-77aa-implementation-steward",
     "implementer": "round-20260510t132823z-77aa-impl-codex",
@@ -50,7 +50,7 @@
       "role": "final_review_retry",
       "branch": "round-20260510t132823z-77aa-final-review-2",
       "scope": "Review repaired integration branch against approved OpenSpec artifacts",
-      "status": "running"
+      "status": "accepted"
     }
   },
   "implementation": {
@@ -63,21 +63,55 @@
       "branch": "round-20260510t132823z-77aa-final-review",
       "verdict": "request_changes",
       "classification": "implementation_defect"
+    },
+    {
+      "branch": "round-20260510t132823z-77aa-final-review-2",
+      "verdict": "accept",
+      "classification": "accepted"
     }
   ],
   "final_review": {
-    "branch": "round-20260510t132823z-77aa-final-review",
-    "verdict": "request_changes",
-    "blocking_issues": [
-      "Automatic refresh can clear previously visible rounds/inbox data when message or notification sources fail instead of preserving last-known data with a source-specific error."
-    ]
+    "branch": "round-20260510t132823z-77aa-final-review-2",
+    "verdict": "accept",
+    "verdict_file": ".scion-ops/sessions/20260510t132823z-77aa/reviews/final-review-2.json",
+    "blocking_issues": [],
+    "summary": "Final review accepts the repaired integration branch. The previous blocking issue is addressed by preserving previously visible rounds, inbox groups, and selected-round timeline data when message, notification, or round-event sources fail, while surfacing source-specific errors."
   },
   "verification": {
-    "status": "pending"
+    "status": "passed",
+    "integration_branch": "round-20260510t132823z-77aa-integration",
+    "integration_commit": "9e116d53643e9fafa27c02f1a7dd2eb810f0e5ca",
+    "commands": [
+      "uv run scripts/test-web-app-hub.py",
+      "python3 scripts/validate-openspec-change.py autorefresh-web-app",
+      "python3 -c \"import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in ('mcp_servers/scion_ops.py', 'scripts/hub-managed-templates.py', 'scripts/steward-state.py', 'scripts/kind-control-plane-smoke.py', 'scripts/smoke-mcp-server.py', 'scripts/validate-openspec-change.py', 'scripts/validate-steward-session.py', 'scripts/finalize-steward-pr.py', 'scripts/archive-openspec-change.py', 'scripts/final_review_repair.py', 'scripts/web_app_hub.py', 'scripts/test-openspec-change-validator.py', 'scripts/test-steward-session-validator.py', 'scripts/test-steward-pr-finalizer.py', 'scripts/test-openspec-archive.py', 'scripts/test-mcp-openspec-cli.py', 'scripts/test-mcp-progress-lines.py', 'scripts/test-mcp-base-branch.py', 'scripts/test-mcp-implementation-base-branch.py', 'scripts/test-web-app-hub.py', 'scripts/test-verdict-schema.py', 'scripts/test-final-review-repair.py')]\"",
+      "bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh scripts/release-smoke-round.sh scripts/scion-runtime-patches.sh scripts/storage-status.sh deploy/kind/control-plane/config/broker-entrypoint.sh orchestrator/lib/github-branches.sh orchestrator/run-round.sh orchestrator/round.sh orchestrator/spec-round.sh orchestrator/spec-steward.sh orchestrator/implementation-steward.sh orchestrator/abort.sh"
+    ],
+    "unavailable": [
+      "python3 -m pytest scripts/test-web-app-hub.py (pytest is not installed in this environment)"
+    ]
   },
   "blockers": [],
   "next_actions": [
-    "Integrate the accepted implementation branch",
-    "Run verification and final review"
-  ]
+    "Review pull request https://github.com/dodwyer/scion-ops/pull/132"
+  ],
+  "pull_request": {
+    "source": "steward_pr_finalizer",
+    "session_id": "20260510t132823z-77aa",
+    "kind": "implementation",
+    "change": "autorefresh-web-app",
+    "head": "round-20260510t132823z-77aa-integration",
+    "base": "main",
+    "head_commit": "9e116d53643e9fafa27c02f1a7dd2eb810f0e5ca",
+    "base_commit": "e519ff059d4a97c7d9c6259ed79ec7e4fe6fb869",
+    "created": true,
+    "draft": false,
+    "pr": {
+      "url": "https://github.com/dodwyer/scion-ops/pull/132",
+      "head": "round-20260510t132823z-77aa-integration",
+      "base": "main",
+      "title": "Implement OpenSpec: autorefresh-web-app"
+    },
+    "pr_url": "https://github.com/dodwyer/scion-ops/pull/132"
+  }
 }

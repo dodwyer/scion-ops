@@ -1,0 +1,199 @@
+{
+  "base": "main",
+  "base_commit": "e519ff059d4a97c7d9c6259ed79ec7e4fe6fb869",
+  "change": "autorefresh-web-app",
+  "created": true,
+  "draft": false,
+  "gh": {
+    "create": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "create",
+        "--base",
+        "main",
+        "--head",
+        "round-20260510t132823z-77aa-integration",
+        "--title",
+        "Implement OpenSpec: autorefresh-web-app",
+        "--body",
+        "Created by scion-ops after successful implementation steward validation.\n\n- Session: `20260510t132823z-77aa`\n- Change: `autorefresh-web-app`\n- Head: `round-20260510t132823z-77aa-integration` (`9e116d53643e`)\n- Base: `main` (`e519ff059d4a`)\n- Steward validation: passed\n- Final review: `accept`\n- Verification: `passed`\n\nVerification commands:\n- `uv run scripts/test-web-app-hub.py`\n- `python3 scripts/validate-openspec-change.py autorefresh-web-app`\n- `python3 -c \"import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in ('mcp_servers/scion_ops.py', 'scripts/hub-managed-templates.py', 'scripts/steward-state.py', 'scripts/kind-control-plane-smoke.py', 'scripts/smoke-mcp-server.py', 'scripts/validate-openspec-change.py', 'scripts/validate-steward-session.py', 'scripts/finalize-steward-pr.py', 'scripts/archive-openspec-change.py', 'scripts/final_review_repair.py', 'scripts/web_app_hub.py', 'scripts/test-openspec-change-validator.py', 'scripts/test-steward-session-validator.py', 'scripts/test-steward-pr-finalizer.py', 'scripts/test-openspec-archive.py', 'scripts/test-mcp-openspec-cli.py', 'scripts/test-mcp-progress-lines.py', 'scripts/test-mcp-base-branch.py', 'scripts/test-mcp-implementation-base-branch.py', 'scripts/test-web-app-hub.py', 'scripts/test-verdict-schema.py', 'scripts/test-final-review-repair.py')]\"`\n- `bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh scripts/release-smoke-round.sh scripts/scion-runtime-patches.sh scripts/storage-status.sh deploy/kind/control-plane/config/broker-entrypoint.sh orchestrator/lib/github-branches.sh orchestrator/run-round.sh orchestrator/round.sh orchestrator/spec-round.sh orchestrator/spec-steward.sh orchestrator/implementation-steward.sh orchestrator/abort.sh`"
+      ],
+      "ok": true,
+      "output": "Warning: 2 uncommitted changes\nhttps://github.com/dodwyer/scion-ops/pull/132\n",
+      "returncode": 0
+    },
+    "list": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "list",
+        "--head",
+        "round-20260510t132823z-77aa-integration",
+        "--base",
+        "main",
+        "--state",
+        "all",
+        "--json",
+        "number,url,state,title,baseRefName,headRefName",
+        "--limit",
+        "1"
+      ],
+      "ok": true,
+      "output": "[]\n",
+      "returncode": 0
+    }
+  },
+  "head": "round-20260510t132823z-77aa-integration",
+  "head_commit": "9e116d53643e9fafa27c02f1a7dd2eb810f0e5ca",
+  "kind": "implementation",
+  "ok": true,
+  "pr": {
+    "base": "main",
+    "head": "round-20260510t132823z-77aa-integration",
+    "title": "Implement OpenSpec: autorefresh-web-app",
+    "url": "https://github.com/dodwyer/scion-ops/pull/132"
+  },
+  "pr_url": "https://github.com/dodwyer/scion-ops/pull/132",
+  "project_root": "/workspace",
+  "session_id": "20260510t132823z-77aa",
+  "source": "steward_pr_finalizer",
+  "state_recording": {
+    "pr_path": "/workspace/.scion-ops/sessions/20260510t132823z-77aa/pr.json",
+    "state_path": "/workspace/.scion-ops/sessions/20260510t132823z-77aa/state.json"
+  },
+  "validation": {
+    "branch": {
+      "base_branch": "main",
+      "base_commit": "e519ff059d4a97c7d9c6259ed79ec7e4fe6fb869",
+      "base_resolved_ref": "origin/main",
+      "branch": "round-20260510t132823z-77aa-integration",
+      "commit": "9e116d53643e9fafa27c02f1a7dd2eb810f0e5ca",
+      "resolved_ref": "origin/round-20260510t132823z-77aa-integration"
+    },
+    "change": "autorefresh-web-app",
+    "errors": [],
+    "kind": "implementation",
+    "ok": true,
+    "openspec_validation": {
+      "change": "autorefresh-web-app",
+      "change_path": "openspec/changes/autorefresh-web-app",
+      "errors": [],
+      "ok": true,
+      "project_root": "/workspace",
+      "required_files": {
+        "design.md": "openspec/changes/autorefresh-web-app/design.md",
+        "proposal.md": "openspec/changes/autorefresh-web-app/proposal.md",
+        "tasks.md": "openspec/changes/autorefresh-web-app/tasks.md"
+      },
+      "spec_files": [
+        "openspec/changes/autorefresh-web-app/specs/web-app-hub/spec.md"
+      ],
+      "warnings": []
+    },
+    "openspec_validation_source": "worktree",
+    "project_root": "/workspace",
+    "session_id": "20260510t132823z-77aa",
+    "state": {
+      "agents": {
+        "round-20260510t132823z-77aa-final-review": {
+          "branch": "round-20260510t132823z-77aa-final-review",
+          "role": "final_review",
+          "scope": "Review integration branch against approved OpenSpec artifacts",
+          "status": "request_changes"
+        },
+        "round-20260510t132823z-77aa-final-review-2": {
+          "branch": "round-20260510t132823z-77aa-final-review-2",
+          "role": "final_review_retry",
+          "scope": "Review repaired integration branch against approved OpenSpec artifacts",
+          "status": "accepted"
+        },
+        "round-20260510t132823z-77aa-impl-claude": {
+          "branch": "round-20260510t132823z-77aa-impl-claude",
+          "role": "secondary_implementer",
+          "scope": "Frontend autorefresh behavior and smoke/install coverage",
+          "status": "stopped_after_stalled_no_branch_movement"
+        },
+        "round-20260510t132823z-77aa-impl-codex": {
+          "branch": "round-20260510t132823z-77aa-impl-codex",
+          "role": "implementer",
+          "scope": "Backend live update contract and stream endpoint",
+          "status": "completed_branch_moved"
+        },
+        "round-20260510t132823z-77aa-impl-frontend-codex": {
+          "branch": "round-20260510t132823z-77aa-impl-frontend-codex",
+          "role": "replacement_implementer",
+          "scope": "Narrow frontend live-update wiring and UI tests",
+          "status": "completed_branch_moved"
+        },
+        "round-20260510t132823z-77aa-impl-repair-codex": {
+          "branch": "round-20260510t132823z-77aa-impl-repair-codex",
+          "role": "repair_implementer",
+          "scope": "Final-review repair for source-specific failure preservation",
+          "status": "completed_branch_moved"
+        }
+      },
+      "base_branch": "main",
+      "blockers": [],
+      "branches": {
+        "final_review": "round-20260510t132823z-77aa-final-review",
+        "final_review_retry": "round-20260510t132823z-77aa-final-review-2",
+        "implementer": "round-20260510t132823z-77aa-impl-codex",
+        "integration": "round-20260510t132823z-77aa-integration",
+        "secondary_implementer": "round-20260510t132823z-77aa-impl-claude",
+        "steward": "round-20260510t132823z-77aa-implementation-steward"
+      },
+      "change": "autorefresh-web-app",
+      "final_review": {
+        "blocking_issues": [],
+        "branch": "round-20260510t132823z-77aa-final-review-2",
+        "summary": "Final review accepts the repaired integration branch. The previous blocking issue is addressed by preserving previously visible rounds, inbox groups, and selected-round timeline data when message, notification, or round-event sources fail, while surfacing source-specific errors.",
+        "verdict": "accept",
+        "verdict_file": ".scion-ops/sessions/20260510t132823z-77aa/reviews/final-review-2.json"
+      },
+      "implementation": {
+        "base_branch": "main",
+        "branch": "round-20260510t132823z-77aa-integration",
+        "integration_branch": "round-20260510t132823z-77aa-integration"
+      },
+      "kind": "implementation",
+      "next_actions": [
+        "Create or return pull request for round-20260510t132823z-77aa-integration"
+      ],
+      "phase": "complete",
+      "reviews": [
+        {
+          "branch": "round-20260510t132823z-77aa-final-review",
+          "classification": "implementation_defect",
+          "verdict": "request_changes"
+        },
+        {
+          "branch": "round-20260510t132823z-77aa-final-review-2",
+          "classification": "accepted",
+          "verdict": "accept"
+        }
+      ],
+      "round_id": "20260510t132823z-77aa",
+      "session_id": "20260510t132823z-77aa",
+      "status": "ready",
+      "verification": {
+        "commands": [
+          "uv run scripts/test-web-app-hub.py",
+          "python3 scripts/validate-openspec-change.py autorefresh-web-app",
+          "python3 -c \"import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in ('mcp_servers/scion_ops.py', 'scripts/hub-managed-templates.py', 'scripts/steward-state.py', 'scripts/kind-control-plane-smoke.py', 'scripts/smoke-mcp-server.py', 'scripts/validate-openspec-change.py', 'scripts/validate-steward-session.py', 'scripts/finalize-steward-pr.py', 'scripts/archive-openspec-change.py', 'scripts/final_review_repair.py', 'scripts/web_app_hub.py', 'scripts/test-openspec-change-validator.py', 'scripts/test-steward-session-validator.py', 'scripts/test-steward-pr-finalizer.py', 'scripts/test-openspec-archive.py', 'scripts/test-mcp-openspec-cli.py', 'scripts/test-mcp-progress-lines.py', 'scripts/test-mcp-base-branch.py', 'scripts/test-mcp-implementation-base-branch.py', 'scripts/test-web-app-hub.py', 'scripts/test-verdict-schema.py', 'scripts/test-final-review-repair.py')]\"",
+          "bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh scripts/release-smoke-round.sh scripts/scion-runtime-patches.sh scripts/storage-status.sh deploy/kind/control-plane/config/broker-entrypoint.sh orchestrator/lib/github-branches.sh orchestrator/run-round.sh orchestrator/round.sh orchestrator/spec-round.sh orchestrator/spec-steward.sh orchestrator/implementation-steward.sh orchestrator/abort.sh"
+        ],
+        "integration_branch": "round-20260510t132823z-77aa-integration",
+        "integration_commit": "9e116d53643e9fafa27c02f1a7dd2eb810f0e5ca",
+        "status": "passed",
+        "unavailable": [
+          "python3 -m pytest scripts/test-web-app-hub.py (pytest is not installed in this environment)"
+        ]
+      },
+      "version": 1
+    },
+    "state_path": "/workspace/.scion-ops/sessions/20260510t132823z-77aa/state.json",
+    "state_source": "/workspace/.scion-ops/sessions/20260510t132823z-77aa/state.json",
+    "warnings": []
+  }
+}
