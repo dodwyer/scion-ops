@@ -384,8 +384,8 @@ def _assert_fake_scion_covered(fake_log: Path, spec_session: str, implementation
     log = fake_log.read_text()
     assert f"round-{spec_session}-spec-steward" in log, log
     assert "--type spec-steward" in log, log
-    assert "wait-for-review-artifact.py" in log, log
-    assert '--timeout-seconds "420"' in log, log
+    assert "Review Wait And Diagnostics policy" in log, log
+    assert "wait up to 420 seconds" in log, log
     assert f"round-{spec_session}-spec-ops-review" in log, log
     assert f"round-{implementation_session}-implementation-steward" in log, log
     assert "--type implementation-steward" in log, log
