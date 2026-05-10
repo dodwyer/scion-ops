@@ -799,6 +799,7 @@ def test_live_update_path_is_read_only_and_does_not_validate_or_mutate():
 def test_frontend_live_update_contract_markers_are_present():
     contract = web_app_hub.BROWSER_JSON_CONTRACT["live_updates"]
     html = web_app_hub.INDEX_HTML
+    fragment = web_app_hub.nicegui_console_fragment()
     assert contract["round_events"].startswith("cursor-based read-only GET")
     assert contract["states"] == ["connected", "reconnecting", "stale", "fallback", "failed"]
     assert "SNAPSHOT_POLL_MS" in html
@@ -809,6 +810,12 @@ def test_frontend_live_update_contract_markers_are_present():
     assert "timelineKeys" in html
     assert "mergeTimelineEvents" in html
     assert "EventSource" in html
+    assert "new URLSearchParams" in html
+    assert 'params.set("cursor", state.live.cursor)' in html
+    assert 'params.set("round_id", state.selectedRound)' in html
+    assert "reconnectLiveUpdates" in html
+    assert "scheduleLiveReconnect" in html
+    assert "cursor resume" in html
     assert "/api/live" in html
     assert "/api/updates" not in html
     assert "mergeSnapshot" in html
@@ -819,6 +826,10 @@ def test_frontend_live_update_contract_markers_are_present():
     assert "Refresh snapshot" not in html
     assert "Troubleshooting snapshot refresh" not in html
     assert "Refresh timeline snapshot" not in html
+    assert 'data-framework="NiceGUI"' in fragment
+    assert 'data-live-source="/api/live"' in fragment
+    assert "/api/live" in fragment
+    assert "state.selectedRound" in fragment
 
 
 def test_frontend_automatic_update_fetches_are_read_only_no_spend_paths():
@@ -837,6 +848,28 @@ def test_frontend_automatic_update_fetches_are_read_only_no_spend_paths():
         "do_POST(",
     ):
         assert forbidden not in html
+
+
+def test_nicegui_entrypoint_preserves_json_route_contracts_as_fastapi_handlers():
+    source = (ROOT / "scripts" / "web_app_hub.py").read_text()
+    assert "from nicegui import app, ui" in source
+    assert "@ui.page(\"/\")" in source
+    assert "configure_api_routes(app, provider)" in source
+    assert "build_nicegui_console_components(ui)" in source
+    assert "ui.add_body_html(nicegui_console_fragment())" not in source
+    assert "ui.header()" in source
+    assert 'ui.element("section").props(\'id="round-detail"\')' in source
+    for route in (
+        '"/healthz"',
+        '"/api/healthz"',
+        '"/api/snapshot"',
+        '"/api/live"',
+        '"/api/rounds/{round_id}"',
+        '"/api/rounds/{round_id}/events"',
+    ):
+        assert route in source
+    assert "ui.run(" in source
+    assert "serve_legacy_http" in source
 
 
 if __name__ == "__main__":
