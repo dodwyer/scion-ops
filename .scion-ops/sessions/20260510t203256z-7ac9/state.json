@@ -6,12 +6,12 @@
   "change": "use-nicegui",
   "base_branch": "main",
   "status": "running",
-  "phase": "starting",
+  "phase": "final_review",
   "branches": {
     "steward": "round-20260510t203256z-7ac9-implementation-steward",
     "implementer": "round-20260510t203256z-7ac9-impl-codex",
     "secondary_implementer": "round-20260510t203256z-7ac9-impl-claude",
-    "final_review": "round-20260510t203256z-7ac9-final-review",
+    "final_review": "round-20260510t203256z-7ac9-final-review-2",
     "integration": "round-20260510t203256z-7ac9-integration"
   },
   "agents": {},
@@ -20,8 +20,17 @@
     "base_branch": "main",
     "integration_branch": "round-20260510t203256z-7ac9-integration"
   },
-  "reviews": [],
-  "final_review": {},
+  "reviews": [
+    {
+      "branch": "round-20260510t203256z-7ac9-final-review",
+      "verdict": "request_changes",
+      "source": ".scion-ops/sessions/20260510t203256z-7ac9/reviews/final-review.json",
+      "summary": "Initial final review rejected integration; targeted dependency/startup and live-update fixes were delegated."
+    }
+  ],
+  "final_review": {
+    "branch": "round-20260510t203256z-7ac9-final-review-2"
+  },
   "verification": {
     "status": "pending"
   },
