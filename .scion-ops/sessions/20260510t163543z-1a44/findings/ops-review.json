@@ -1,0 +1,66 @@
+{
+  "session_id": "20260510t163543z-1a44",
+  "change": "web-ui-theme",
+  "review_branch": "round-20260510t163543z-1a44-spec-integration",
+  "reviewed_at": "2026-05-10",
+  "reviewer": "round-20260510t163543z-1a44-spec-ops-review",
+  "verdict": "accept",
+  "summary": "The OpenSpec artifacts are well-formed, appropriately scoped, and internally consistent. The proposal, design, and spec.md align on goals, visual direction, and semantic state treatment. The BDD scenarios in spec.md are concrete and testable. Accept with recommendations to close a test-specification gap and make one status reclassification explicit in tasks.",
+  "blocking_issues": [],
+  "recommendations": [
+    {
+      "id": "R1",
+      "severity": "minor",
+      "location": "tasks.md / task 1.7",
+      "finding": "Test specification is underspecified. Task 1.7 calls for 'focused no-spend tests or fixtures' but does not reference the existing test file (scripts/test-web-app-hub.py), specify what assertions are required, or define pass criteria. An implementer may produce tests that are technically present but do not exercise the scenarios in spec.md.",
+      "recommendation": "Extend task 1.7 to reference the existing test file and name at least three required assertions: (a) status class-to-color mapping for all 17 states, (b) rendered HTML for at least one healthy and one degraded round, (c) a responsive layout check at desktop (>=1024px) and narrow (<480px) widths."
+    },
+    {
+      "id": "R2",
+      "severity": "minor",
+      "location": "tasks.md / task 1.4 vs design.md / semantic state treatment",
+      "finding": "The design doc reclassifies fallback-polling from healthy (green) to degraded (amber), which conflicts with the current implementation where .fallback-polling .dot maps to --good. This reclassification is implied by the design and spec.md but is not called out explicitly in any task. An implementer doing a minimal read of the checklist may leave the existing green treatment in place.",
+      "recommendation": "Add a note to task 1.4 explicitly stating: 'fallback-polling moves from the healthy/green category to the degraded/amber category, reversing the current .fallback-polling .dot assignment.'"
+    },
+    {
+      "id": "R3",
+      "severity": "minor",
+      "location": "design.md / accessibility section",
+      "finding": "The accessibility requirement says 'text and status accents should have sufficient contrast' but does not specify a WCAG level or how it will be verified. The existing --warn value (#a05a00 on white) is approximately 4.6:1, which passes AA for normal text but is borderline. Without a target the implementer has no clear pass/fail bar.",
+      "recommendation": "Specify WCAG AA (4.5:1 for normal text, 3:1 for large text) as the minimum target and note that automated contrast checking (e.g. axe, Playwright accessibility scan, or a simple computed-style assertion) satisfies the no-spend verification requirement."
+    },
+    {
+      "id": "R4",
+      "severity": "informational",
+      "location": "proposal.md / scope, design.md overview",
+      "finding": "The current web app already has a neutral light-mode palette (--bg: #f7f7f5, --panel: #ffffff), semantic CSS variables for all four state categories (--good, --warn, --bad, --info), system-ui font stack, monospace code blocks, and a responsive media query. The spec does not acknowledge this baseline, which may cause over-scoping. The actual implementation delta is likely refinement plus the fallback-polling reclassification, not a ground-up retheme.",
+      "recommendation": "Add a baseline note to the design doc or task 1.1 summarizing what already exists so the implementation round can scope work accurately and tests can focus on delta verification rather than full re-verification of already-correct behaviour."
+    }
+  ],
+  "test_gaps": [
+    {
+      "id": "TG1",
+      "description": "No test assertions specified for the 17 semantic status states mapping to their expected color categories. The spec defines which states are healthy/green, running/blue, degraded/amber, and blocked/red, but tasks.md does not require a test that enforces this mapping."
+    },
+    {
+      "id": "TG2",
+      "description": "Responsive layout verification is required by the spec (desktop and narrow viewport scenarios) but no specific breakpoints, viewport sizes, or assertion method are defined. Without this, the task can be marked complete without any responsive check having been run."
+    },
+    {
+      "id": "TG3",
+      "description": "No test coverage required for keyboard focus visibility. The spec.md has a 'Keyboard focus is visible' scenario but there is no corresponding task or test requirement to verify it."
+    }
+  ],
+  "artifacts_reviewed": [
+    "openspec/changes/web-ui-theme/proposal.md",
+    "openspec/changes/web-ui-theme/design.md",
+    "openspec/changes/web-ui-theme/tasks.md",
+    "openspec/changes/web-ui-theme/specs/web-app-hub/spec.md"
+  ],
+  "artifact_quality": {
+    "proposal": "well-formed — clear motivation, explicit in/out of scope, verifiable success criteria",
+    "design": "well-formed — covers palette, semantic states, layout density, typography, accessibility, and verification strategy; no hard colour values specified which is appropriate abstraction",
+    "tasks": "adequate — tasks are ordered and concrete but underspecify test requirements and omit the fallback-polling reclassification explicitly",
+    "spec_md": "well-formed — BDD scenarios are testable, cover all views and state categories, correct use of ADDED Requirements delta header"
+  }
+}
