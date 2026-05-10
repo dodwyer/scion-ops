@@ -39,7 +39,7 @@
       "type": "impl-claude",
       "branch": "round-20260510t135840z-5cd6-impl-claude-app",
       "scope": "Narrow app replacement: scripts/web_app_hub.py automatic updates and focused tests",
-      "status": "preparing"
+      "status": "running"
     }
   },
   "implementation": {
