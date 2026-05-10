@@ -1,0 +1,33 @@
+{
+  "review_type": "final",
+  "scores": {
+    "correctness": 5,
+    "completeness": 5,
+    "style": 4
+  },
+  "verdict": "accept",
+  "blocking_issues": [],
+  "nits": [],
+  "spec": {
+    "change": "use-nicegui",
+    "conformance": 5,
+    "spec_completeness": 5,
+    "task_coverage": 5,
+    "operational_verification": 4,
+    "checked_artifacts": [
+      "openspec/changes/use-nicegui/specs/web-app-hub/spec.md",
+      "openspec/changes/use-nicegui/tasks.md",
+      "openspec/changes/use-nicegui/design.md",
+      "scripts/web_app_hub.py",
+      "scripts/test-web-app-hub.py",
+      "deploy/kind/control-plane/web-app-deployment.yaml",
+      "image-build/scion-ops-mcp/Dockerfile",
+      "docs/kind-control-plane.md"
+    ],
+    "unresolved_questions": [],
+    "gaps": [
+      "No live kind cluster deployment was exercised in this review; deployment compatibility was reconfirmed by kustomize render plus manifest and image dependency inspection."
+    ]
+  },
+  "summary": "Verdict: accept. The repaired integration branch addresses the prior request_changes findings: the NiceGUI root page composes the operator console with NiceGUI components and no longer injects the legacy INDEX_HTML body through ui.add_body_html, while /api/live reconnect sends the current cursor and selected round_id, resumes with heartbeat-only cursor continuity when unchanged, preserves selected round context, and exposes fallback polling feedback. The kind web-app Deployment still runs from localhost/scion-ops-mcp:latest through scripts/web_app_hub.py, and that image installs nicegui in the venv that is first on PATH. Focused web app tests, OpenSpec validation, Python compile checks, kustomize render inspection, and direct live cursor smoke checks passed. PR readiness: ready."
+}
