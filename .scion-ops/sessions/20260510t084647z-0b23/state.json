@@ -6,7 +6,7 @@
   "change": "autorefresh-web-app",
   "base_branch": "main",
   "status": "running",
-  "phase": "starting",
+  "phase": "implementation",
   "branches": {
     "steward": "round-20260510t084647z-0b23-implementation-steward",
     "implementer": "round-20260510t084647z-0b23-impl-codex",
@@ -14,7 +14,18 @@
     "final_review": "round-20260510t084647z-0b23-final-review",
     "integration": "round-20260510t084647z-0b23-integration"
   },
-  "agents": {},
+  "agents": {
+    "round-20260510t084647z-0b23-impl-codex": {
+      "branch": "round-20260510t084647z-0b23-impl-codex",
+      "scope": "backend live delivery contract",
+      "phase": "running"
+    },
+    "round-20260510t084647z-0b23-impl-claude": {
+      "branch": "round-20260510t084647z-0b23-impl-claude",
+      "scope": "frontend auto-refresh experience and verification",
+      "phase": "running"
+    }
+  },
   "implementation": {
     "branch": "",
     "base_branch": "main",
@@ -27,9 +38,8 @@
   },
   "blockers": [],
   "next_actions": [
-    "Write implementation brief and bounded task groups",
-    "Start bounded implementer agents",
-    "Integrate the accepted implementation branch",
+    "Monitor implementer completion",
+    "Integrate pushed implementation branches",
     "Run verification and final review"
   ]
 }
