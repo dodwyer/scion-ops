@@ -208,6 +208,57 @@ def implementation_init(args: argparse.Namespace) -> None:
     write_state(state_path(root, args.session_id), state)
 
 
+def implementation_ready(args: argparse.Namespace) -> None:
+    root = Path(args.project_root).resolve()
+    branches = implementation_branch_names(args.session_id)
+    state = implementation_base_state(args, "ready", "complete")
+    agents = state["agents"] if isinstance(state.get("agents"), dict) else {}
+    implementer = agents.get(branches["implementer"])
+    if not isinstance(implementer, dict):
+        implementer = {}
+    agents[branches["implementer"]] = {
+        **implementer,
+        "role": "implementer",
+        "branch": branches["implementer"],
+        "template": "impl-codex",
+        "status": "completed",
+    }
+    final_review_agent = agents.get(branches["final_review"])
+    if not isinstance(final_review_agent, dict):
+        final_review_agent = {}
+    agents[branches["final_review"]] = {
+        **final_review_agent,
+        "role": "final_review",
+        "branch": branches["final_review"],
+        "template": "final-reviewer-codex",
+        "status": "completed",
+        "verdict": args.final_review_verdict,
+    }
+    state["agents"] = agents
+    state["implementation"] = {
+        "branch": args.integration_branch,
+        "base_branch": args.base_branch,
+        "integration_branch": args.integration_branch,
+    }
+    state["final_review"] = {
+        "verdict": args.final_review_verdict,
+        "agent": branches["final_review"],
+        "summary": args.final_review_summary,
+        "status": "completed",
+    }
+    state["verification"] = {
+        "status": "passed",
+        "command": args.verification_command,
+        "integration_branch": args.integration_branch,
+        "final_review_agent": branches["final_review"],
+    }
+    state["blockers"] = []
+    state["next_actions"] = [
+        f"Create or verify the pull request for {args.integration_branch}",
+    ]
+    write_state(state_path(root, args.session_id), state)
+
+
 def add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project-root", required=True)
     parser.add_argument("--session-id", required=True)
@@ -244,6 +295,14 @@ def build_parser() -> argparse.ArgumentParser:
     implementation_init_parser.add_argument("--integration-branch", required=True)
     implementation_init_parser.add_argument("--phase", default="starting")
     implementation_init_parser.set_defaults(func=implementation_init)
+
+    implementation_ready_parser = subparsers.add_parser("implementation-ready")
+    add_common(implementation_ready_parser)
+    implementation_ready_parser.add_argument("--integration-branch", required=True)
+    implementation_ready_parser.add_argument("--verification-command", required=True)
+    implementation_ready_parser.add_argument("--final-review-verdict", default="accept")
+    implementation_ready_parser.add_argument("--final-review-summary", default="")
+    implementation_ready_parser.set_defaults(func=implementation_ready)
 
     return parser
 
