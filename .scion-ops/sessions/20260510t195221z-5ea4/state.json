@@ -20,14 +20,16 @@
       "branch": "round-20260510t195221z-5ea4-impl-codex",
       "template": "impl-codex",
       "harness_config": "codex-exec",
-      "status": "running"
+      "status": "stopped_no_branch_movement",
+      "notes": "Started and directly messaged, but remained idle and remote branch stayed at origin/main."
     },
     "round-20260510t195221z-5ea4-impl-claude": {
       "role": "secondary_implementer",
       "branch": "round-20260510t195221z-5ea4-impl-claude",
       "template": "impl-claude",
       "harness_config": "claude",
-      "status": "running"
+      "status": "stopped_no_branch_movement",
+      "notes": "Started and directly messaged, but remained idle and remote branch stayed at origin/main."
     }
   },
   "implementation": {
