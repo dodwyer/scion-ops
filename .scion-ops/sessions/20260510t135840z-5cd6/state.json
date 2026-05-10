@@ -5,8 +5,8 @@
   "kind": "implementation",
   "change": "autorefresh-web-app",
   "base_branch": "main",
-  "status": "running",
-  "phase": "implementation",
+  "status": "blocked",
+  "phase": "blocked",
   "branches": {
     "steward": "round-20260510t135840z-5cd6-implementation-steward",
     "implementer": "round-20260510t135840z-5cd6-impl-codex",
@@ -26,7 +26,7 @@
       "type": "impl-claude",
       "branch": "round-20260510t135840z-5cd6-impl-claude",
       "scope": "Group B kind/smoke verification for automatic updates",
-      "status": "running"
+      "status": "completed_non_empty_partial"
     },
     "round-20260510t135840z-5cd6-impl-codex-app2": {
       "type": "impl-codex",
@@ -46,24 +46,64 @@
       "type": "impl-claude",
       "branch": "round-20260510t135840z-5cd6-impl-claude-app2",
       "scope": "Narrow app replacement with positional task prompt",
-      "status": "running"
+      "status": "stopped_no_branch_movement"
     },
     "round-20260510t135840z-5cd6-impl-codex-app3": {
       "type": "impl-codex",
       "branch": "round-20260510t135840z-5cd6-impl-codex-app3",
       "scope": "Final narrow app replacement with corrected positional task prompt",
-      "status": "running"
+      "status": "stopped_no_branch_movement"
     }
   },
   "implementation": {
     "branch": "",
     "base_branch": "main",
-    "integration_branch": "round-20260510t135840z-5cd6-integration"
+    "integration_branch": "round-20260510t135840z-5cd6-integration",
+    "accepted_branches": [
+      {
+        "branch": "round-20260510t135840z-5cd6-impl-claude",
+        "sha": "1ced54ac7a04e67c69da3c9ac02d7a109f366bcb",
+        "summary": "Non-empty branch with autorefresh fixture tests, smoke check, and narrow timeline dedupe hook only; not sufficient for approved app stream/frontend requirements."
+      }
+    ],
+    "rejected_or_unusable_branches": [
+      {
+        "branch": "round-20260510t135840z-5cd6-impl-codex",
+        "sha": "e519ff059d4a97c7d9c6259ed79ec7e4fe6fb869",
+        "reason": "Exited/completed with branch still at base SHA."
+      },
+      {
+        "branch": "round-20260510t135840z-5cd6-impl-codex-app2",
+        "sha": "e519ff059d4a97c7d9c6259ed79ec7e4fe6fb869",
+        "reason": "Stayed idle at base SHA and was stopped."
+      },
+      {
+        "branch": "round-20260510t135840z-5cd6-impl-claude-app",
+        "sha": "e519ff059d4a97c7d9c6259ed79ec7e4fe6fb869",
+        "reason": "Stayed idle at base SHA and was stopped."
+      },
+      {
+        "branch": "round-20260510t135840z-5cd6-impl-claude-app2",
+        "sha": "e519ff059d4a97c7d9c6259ed79ec7e4fe6fb869",
+        "reason": "Stayed idle/stalled at base SHA and was stopped."
+      },
+      {
+        "branch": "round-20260510t135840z-5cd6-impl-codex-app3",
+        "sha": "e519ff059d4a97c7d9c6259ed79ec7e4fe6fb869",
+        "reason": "Stayed idle at base SHA and was stopped."
+      }
+    ]
   },
   "reviews": [],
-  "final_review": {},
+  "final_review": {
+    "status": "not_started",
+    "reason": "No complete pushed integration branch exists to review."
+  },
   "verification": {
-    "status": "pending"
+    "status": "not_run_integration",
+    "reason": "Core app live update implementation did not land; integration branch remains at base and no ready verification was attempted.",
+    "base_sha": "e519ff059d4a97c7d9c6259ed79ec7e4fe6fb869",
+    "integration_sha": "e519ff059d4a97c7d9c6259ed79ec7e4fe6fb869"
   },
   "blockers": [
     {
@@ -80,12 +120,29 @@
       "agent": "round-20260510t135840z-5cd6-impl-claude-app",
       "status": "non_blocking_replaced",
       "detail": "App Claude replacement remained idle at base SHA; root cause appears to be missing positional scion start task prompt."
+    },
+    {
+      "category": "implementation",
+      "detail": "Multiple app-focused implementer replacement branches failed to produce non-base changes. The only non-empty branch implemented tests/smoke and a small dedupe hook, leaving tasks 1.1-1.7 and the core stream/frontend behavior incomplete. Steward checkout did not implement product changes per playbook constraint.",
+      "blocking_tasks": [
+        "1.1",
+        "1.2",
+        "1.3",
+        "1.4",
+        "1.5",
+        "1.6",
+        "1.7",
+        "1.10"
+      ]
     }
   ],
   "next_actions": [
-    "Monitor implementer completion",
-    "Integrate non-empty implementation branches",
-    "Run integration verification",
-    "Start final review"
-  ]
+    "Restart a fresh implementation round with a single app-focused implementer prompt passed as positional scion start task text.",
+    "Use the completed smoke branch as reference only after the app branch exists, or reassign smoke after app implementation lands.",
+    "Do not open PR until integration branch contains completed app implementation, passing verification, and accepting final review."
+  ],
+  "pull_request": {
+    "status": "not_created",
+    "reason": "Session blocked before ready integration."
+  }
 }
