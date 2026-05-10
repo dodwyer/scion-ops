@@ -43,6 +43,22 @@
     "status": "pending"
   },
   "blockers": [],
+  "guard_failures": [
+    {
+      "branches": [
+        "round-20260510t195221z-5ea4-impl-codex-nicegui",
+        "round-20260510t195221z-5ea4-impl-claude-kind"
+      ],
+      "reason": "Replacement branch guard failed before branch creation because zsh parsed the SHA/refspec incorrectly; no agents started for these branches."
+    },
+    {
+      "branches": [
+        "round-20260510t195221z-5ea4-impl-codex-nicegui2",
+        "round-20260510t195221z-5ea4-impl-claude-kind2"
+      ],
+      "reason": "Replacement branch guard failed before branch creation because the shallow steward checkout did not have the origin/main object locally; no agents started for these branches."
+    }
+  ],
   "next_actions": [
     "Write implementation brief and bounded task groups",
     "Monitor bounded implementer agents",
