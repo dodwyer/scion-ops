@@ -1,0 +1,32 @@
+{
+  "review_type": "final",
+  "scores": {
+    "correctness": 4,
+    "completeness": 4,
+    "style": 4
+  },
+  "verdict": "accept",
+  "blocking_issues": [],
+  "nits": [],
+  "spec": {
+    "change": "autorefresh-web-app",
+    "conformance": 4,
+    "spec_completeness": 5,
+    "task_coverage": 5,
+    "operational_verification": 4,
+    "checked_artifacts": [
+      "openspec/changes/autorefresh-web-app/proposal.md",
+      "openspec/changes/autorefresh-web-app/design.md",
+      "openspec/changes/autorefresh-web-app/tasks.md",
+      "openspec/changes/autorefresh-web-app/specs/web-app-hub/spec.md",
+      "scripts/web_app_hub.py",
+      "scripts/test-web-app-hub.py",
+      ".scion-ops/sessions/20260510t132823z-77aa/reviews/final-review.json"
+    ],
+    "unresolved_questions": [],
+    "gaps": [
+      "No browser-level smoke test exercises EventSource delivery, fallback polling, scroll preservation, or live source-error rendering in an actual DOM; current frontend verification is mostly static marker coverage plus backend/merge unit tests."
+    ]
+  },
+  "summary": "Final review accepts the repaired integration branch. The previous blocking issue is addressed by preserving previously visible rounds, inbox groups, and selected-round timeline data when message, notification, or round-event sources fail, while surfacing source-specific errors. The frontend now subscribes to the implemented /api/live SSE endpoint instead of the nonexistent /api/updates path. Verification passed with uv run scripts/test-web-app-hub.py, python3 scripts/validate-openspec-change.py autorefresh-web-app, and uv run python -m py_compile scripts/web_app_hub.py scripts/test-web-app-hub.py. PR is ready, with the remaining non-blocking gap that browser-level SSE/UI behavior is not covered by an end-to-end smoke."
+}
