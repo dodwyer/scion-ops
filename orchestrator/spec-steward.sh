@@ -294,17 +294,44 @@ state = {
     },
     "blockers": [],
     "next_actions": [
-        "Use $FINAL_BRANCH for OpenSpec review or implementation planning",
+        "Create or verify the pull request for $FINAL_BRANCH",
     ],
 }
 state_root.mkdir(parents=True, exist_ok=True)
 (state_root / "state.json").write_text(json.dumps(state, indent=2) + "\n")
 PY
 
+7. Before reporting task_completed, create or return the GitHub pull request
+   for the ready integration branch. Run this exact command from the steward
+   checkout, then commit and push the updated session state back to
+   $STEWARD_BRANCH:
+
+   python3 "$AGENT_SCION_OPS_ROOT/scripts/finalize-steward-pr.py" \
+     --project-root "$AGENT_PROJECT_ROOT" \
+     --session-id "$SESSION_ID" \
+     --kind spec \
+     --change "$CHANGE" \
+     --branch "$FINAL_BRANCH" \
+     --state-branch "$STEWARD_BRANCH" \
+     --base-branch "$BASE_BRANCH" \
+     --record-state \
+     --json > "$SESSION_STATE_ROOT/pr.json"
+
+   git add "$SESSION_STATE_ROOT/state.json" "$SESSION_STATE_ROOT/pr.json"
+   if ! git diff --cached --quiet; then
+     git commit -m "Record spec steward PR for $SESSION_ID"
+     git push origin HEAD:refs/heads/$STEWARD_BRANCH
+   fi
+
+   If PR finalization fails, update $SESSION_STATE_ROOT/state.json as blocked
+   with the finalizer error and do not report the session as ready. A successful
+   session must end with a PR URL recorded in state.pull_request.pr_url.
+
 Start the OpenSpec steward playbook. Coordinate specialist agents, keep durable
 state under $SESSION_STATE_ROOT, validate the resulting OpenSpec artifacts, and
-finish ready only when $FINAL_BRANCH exists and is pushed with a valid
-openspec/changes/<change>/ artifact set. Do not implement product code.
+finish ready only when $FINAL_BRANCH exists, the OpenSpec artifacts validate,
+ops review accepts, and a pull request exists for the integration branch. Do not
+implement product code.
 EOF
 )
 

@@ -321,10 +321,40 @@ expected_summary: verdict accept/reject/blocked, blocking issues, verification g
 
 Review only $FINAL_BRANCH against the approved OpenSpec artifacts. Do not edit product files. Write, commit, and push $SESSION_STATE_ROOT/reviews/final-review.json on your review branch, then send a concise verdict summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT."
 
+8. After verification passes and final review accepts, update
+   $SESSION_STATE_ROOT/state.json on the steward branch with status ready,
+   phase complete, the final integration branch, passing verification evidence,
+   the accepting final-review verdict, and no blockers. Then create or return
+   the GitHub pull request for the ready integration branch before reporting
+   task_completed:
+
+   python3 "$AGENT_SCION_OPS_ROOT/scripts/finalize-steward-pr.py" \
+     --project-root "$AGENT_PROJECT_ROOT" \
+     --session-id "$SESSION_ID" \
+     --kind implementation \
+     --change "$CHANGE" \
+     --branch "$FINAL_BRANCH" \
+     --state-branch "$STEWARD_BRANCH" \
+     --base-branch "$BASE_BRANCH" \
+     --record-state \
+     --json > "$SESSION_STATE_ROOT/pr.json"
+
+   git add "$SESSION_STATE_ROOT/state.json" "$SESSION_STATE_ROOT/pr.json"
+   if ! git diff --cached --quiet; then
+     git commit -m "Record implementation steward PR for $SESSION_ID"
+     git push origin HEAD:refs/heads/$STEWARD_BRANCH
+   fi
+
+   If PR finalization fails, update $SESSION_STATE_ROOT/state.json as blocked
+   with the finalizer error and do not report the session as ready. A successful
+   implementation session must end with a PR URL recorded in
+   state.pull_request.pr_url.
+
 Start the implementation steward playbook. Coordinate specialist implementers
 and reviewers, keep durable state under $SESSION_STATE_ROOT, use implementer
 agents for product changes, and finish ready only when $FINAL_BRANCH exists and
-is pushed with passing verification and an accepting final-review verdict.
+is pushed with passing verification, an accepting final-review verdict, and a
+pull request for the integration branch.
 EOF
 )
 

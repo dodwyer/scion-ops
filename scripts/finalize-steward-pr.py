@@ -177,6 +177,60 @@ def _existing_pr_payload(item: dict[str, Any], *, head: str, base: str) -> dict[
     }
 
 
+def _compact_pr_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    pr = payload.get("pr") if isinstance(payload.get("pr"), dict) else {}
+    return {
+        "source": payload.get("source"),
+        "session_id": payload.get("session_id"),
+        "kind": payload.get("kind"),
+        "change": payload.get("change"),
+        "head": payload.get("head"),
+        "base": payload.get("base"),
+        "head_commit": payload.get("head_commit"),
+        "base_commit": payload.get("base_commit"),
+        "created": payload.get("created"),
+        "draft": payload.get("draft"),
+        "pr": pr,
+        "pr_url": payload.get("pr_url") or pr.get("url"),
+    }
+
+
+def _record_state(args: argparse.Namespace, project_root: Path, payload: dict[str, Any]) -> dict[str, str]:
+    session_dir = project_root / ".scion-ops" / "sessions" / args.session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
+    state_path = session_dir / "state.json"
+    pr_path = session_dir / "pr.json"
+    compact = _compact_pr_payload(payload)
+    pr_path.write_text(json.dumps(compact, indent=2, sort_keys=True) + "\n")
+
+    state: dict[str, Any] = {}
+    if state_path.exists():
+        try:
+            loaded = json.loads(state_path.read_text())
+        except json.JSONDecodeError:
+            loaded = {}
+        if isinstance(loaded, dict):
+            state = loaded
+    state["pull_request"] = compact
+    pr_url = _text(compact.get("pr_url"))
+    if pr_url:
+        state["next_actions"] = [f"Review pull request {pr_url}"]
+    else:
+        state["next_actions"] = [f"Review pull request for {compact.get('head')} into {compact.get('base')}"]
+    state_path.write_text(json.dumps(state, indent=2, sort_keys=False) + "\n")
+    return {"state_path": str(state_path), "pr_path": str(pr_path)}
+
+
+def _with_state_recording(
+    args: argparse.Namespace,
+    project_root: Path,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    if args.record_state and payload.get("ok"):
+        payload["state_recording"] = _record_state(args, project_root, payload)
+    return payload
+
+
 def finalize(args: argparse.Namespace) -> dict[str, Any]:
     project_root = Path(args.project_root).expanduser().resolve()
     validation_result = _run(_validator_args(args, project_root), cwd=ROOT)
@@ -234,7 +288,7 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
         )
     if existing:
         pr = _existing_pr_payload(existing[0], head=head, base=base)
-        return {
+        return _with_state_recording(args, project_root, {
             "ok": True,
             "source": "steward_pr_finalizer",
             "project_root": str(project_root),
@@ -251,7 +305,7 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
             "pr_url": _text(pr.get("url")),
             "validation": validation,
             "gh": {"list": list_result},
-        }
+        })
 
     draft = bool(args.draft or _env_bool("SCION_OPS_PR_DRAFT"))
     title = args.title.strip() if args.title else _default_title(validation, args)
@@ -290,7 +344,7 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
 
     url_match = PR_URL_RE.search(str(create_result.get("output") or ""))
     pr_url = url_match.group(0) if url_match else ""
-    return {
+    return _with_state_recording(args, project_root, {
         "ok": True,
         "source": "steward_pr_finalizer",
         "project_root": str(project_root),
@@ -307,7 +361,7 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
         "pr_url": pr_url,
         "validation": validation,
         "gh": {"list": list_result, "create": create_result},
-    }
+    })
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -322,6 +376,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--title", default="")
     parser.add_argument("--body", default="")
     parser.add_argument("--draft", action="store_true")
+    parser.add_argument("--record-state", action="store_true")
     parser.add_argument("--json", action="store_true")
     return parser
 

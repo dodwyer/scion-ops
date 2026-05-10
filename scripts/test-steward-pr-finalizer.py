@@ -89,6 +89,29 @@ def _implementation_state(status: str = "ready", verdict: str = "accept") -> dic
     }
 
 
+def _spec_state(status: str = "ready", verdict: str = "accept") -> dict[str, object]:
+    return {
+        "version": 1,
+        "session_id": "s1",
+        "kind": "spec",
+        "change": "add-widget",
+        "base_branch": "main",
+        "status": status,
+        "phase": "complete",
+        "branches": {"integration": "round-s1-integration"},
+        "agents": {
+            "clarifier": {"template": "spec-goal-clarifier", "status": "completed"},
+            "explorer": {"template": "spec-repo-explorer", "status": "completed"},
+            "author": {"template": "spec-author", "status": "completed"},
+            "ops_review": {"template": "spec-ops-reviewer", "status": "completed"},
+        },
+        "review": {"verdict": verdict},
+        "validation": {"status": "passed"},
+        "blockers": [],
+        "next_actions": ["open PR"],
+    }
+
+
 def _fake_gh(bin_dir: Path) -> Path:
     script = bin_dir / "gh"
     script.write_text(
@@ -128,7 +151,12 @@ raise SystemExit(2)
     return script
 
 
-def _run_finalizer(root: Path, env: dict[str, str], *extra: str) -> tuple[int, dict[str, object]]:
+def _run_finalizer(
+    root: Path,
+    env: dict[str, str],
+    *extra: str,
+    kind: str = "implementation",
+) -> tuple[int, dict[str, object]]:
     result = subprocess.run(
         [
             "python3",
@@ -138,7 +166,7 @@ def _run_finalizer(root: Path, env: dict[str, str], *extra: str) -> tuple[int, d
             "--session-id",
             "s1",
             "--kind",
-            "implementation",
+            kind,
             "--change",
             "add-widget",
             "--json",
@@ -176,7 +204,7 @@ def main() -> int:
         }
 
         _write_state(project, _implementation_state())
-        code, payload = _run_finalizer(project, env, "--draft")
+        code, payload = _run_finalizer(project, env, "--draft", "--record-state")
         assert code == 0, payload
         assert payload["ok"] is True, payload
         assert payload["created"] is True, payload
@@ -184,11 +212,18 @@ def main() -> int:
         assert payload["head"] == "round-s1-integration", payload
         assert payload["base"] == "main", payload
         assert payload["pr_url"] == "https://github.com/example/project/pull/34", payload
+        assert payload["state_recording"]["state_path"].endswith("/.scion-ops/sessions/s1/state.json"), payload
         entries = _log_entries(log)
         assert entries[0][:2] == ["pr", "list"], entries
         assert entries[1][:2] == ["pr", "create"], entries
         assert "--draft" in entries[1], entries
         assert entries[1][entries[1].index("--head") + 1] == "round-s1-integration", entries
+        recorded_state = json.loads((project / ".scion-ops" / "sessions" / "s1" / "state.json").read_text())
+        assert recorded_state["pull_request"]["pr_url"] == "https://github.com/example/project/pull/34", recorded_state
+        assert recorded_state["next_actions"] == ["Review pull request https://github.com/example/project/pull/34"]
+        recorded_pr = json.loads((project / ".scion-ops" / "sessions" / "s1" / "pr.json").read_text())
+        assert "validation" not in recorded_pr, recorded_pr
+        assert recorded_pr["kind"] == "implementation", recorded_pr
 
         log.unlink()
         existing_env = {**env, "SCION_FAKE_GH_EXISTING": "https://github.com/example/project/pull/12"}
@@ -208,6 +243,18 @@ def main() -> int:
         assert payload["ok"] is False, payload
         assert payload["error"] == "steward session is not ready for a PR", payload
         assert _log_entries(log) == [], log.read_text() if log.exists() else ""
+
+        log.unlink(missing_ok=True)
+        _write_state(project, _spec_state())
+        code, payload = _run_finalizer(project, env, "--record-state", kind="spec")
+        assert code == 0, payload
+        assert payload["ok"] is True, payload
+        assert payload["kind"] == "spec", payload
+        assert payload["created"] is True, payload
+        assert payload["pr_url"] == "https://github.com/example/project/pull/34", payload
+        recorded_state = json.loads((project / ".scion-ops" / "sessions" / "s1" / "state.json").read_text())
+        assert recorded_state["pull_request"]["kind"] == "spec", recorded_state
+        assert recorded_state["pull_request"]["head"] == "round-s1-integration", recorded_state
 
     return 0
 
