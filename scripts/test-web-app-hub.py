@@ -676,6 +676,52 @@ def test_live_source_specific_errors_do_not_clear_healthy_sources():
     assert runtime["data"]["sources"]["mcp"]["error_kind"] == "runtime"
 
 
+def test_live_merge_preserves_last_known_rounds_and_inbox_when_message_sources_fail():
+    hub_without_agents = {**healthy_hub(), "agents": []}
+    initial = web_app_hub.build_live_update_batch(FixtureProvider(hub=hub_without_agents))
+    failed = web_app_hub.build_live_update_batch(
+        FixtureProvider(
+            hub=hub_without_agents,
+            messages={"ok": False, "error_kind": "hub_state", "error": "messages timeout"},
+            notifications={"ok": False, "error_kind": "hub_state", "error": "notifications timeout"},
+        ),
+        cursor=initial["cursor"],
+    )
+    state = web_app_hub.merge_live_events({}, initial["events"])
+    state = web_app_hub.merge_live_events(state, failed["events"])
+    assert state["snapshot"]["sources"]["messages"]["ok"] is False
+    assert state["snapshot"]["sources"]["notifications"]["ok"] is False
+    assert {event["source"] for event in failed["events"] if event["type"] == "source.error"} >= {"messages", "notifications"}
+    assert state["snapshot"]["rounds"][0]["round_id"] == "20260509t063201z-6c02"
+    assert state["snapshot"]["inbox"][0]["round_id"] == "20260509t063201z-6c02"
+    assert state["rounds"][0]["round_id"] == "20260509t063201z-6c02"
+    assert state["inbox"][0]["items"][0]["source_id"] in {"msg-1", "note-1"}
+
+
+def test_live_merge_preserves_last_known_timeline_when_round_events_fail():
+    round_id = "20260509t063201z-6c02"
+    initial = web_app_hub.build_live_update_batch(FixtureProvider(), round_id=round_id)
+    failed_events = {
+        "ok": False,
+        "round_id": round_id,
+        "cursor": "cursor-failed",
+        "error_kind": "hub_state",
+        "error": "round events unavailable",
+        "events": [],
+    }
+    failed = web_app_hub.build_live_update_batch(
+        FixtureProvider(round_events=failed_events),
+        cursor=initial["cursor"],
+        round_id=round_id,
+    )
+    state = web_app_hub.merge_live_events({}, initial["events"])
+    state = web_app_hub.merge_live_events(state, failed["events"])
+    detail = state["rounds_detail"][round_id]
+    assert detail["events"]["ok"] is False
+    assert detail["events"]["error"] == "round events unavailable"
+    assert [entry["summary"] for entry in detail["timeline"]] == [f"round {round_id} update"]
+
+
 def test_live_update_path_is_read_only_and_does_not_validate_or_mutate():
     class TrackingProvider(FixtureProvider):
         def __init__(self):
@@ -709,7 +755,10 @@ def test_frontend_live_update_contract_markers_are_present():
     assert "timelineKeys" in html
     assert "mergeTimelineEvents" in html
     assert "EventSource" in html
-    assert "/api/updates" in html
+    assert "/api/live" in html
+    assert "/api/updates" not in html
+    assert "mergeSnapshot" in html
+    assert "setRoundDetail" in html
     assert "markStreamOk" in html
     assert "checkStaleness" in html
     assert "fallback polling" in html

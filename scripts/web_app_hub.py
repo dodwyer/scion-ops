@@ -699,6 +699,85 @@ def build_live_update_batch(provider: RuntimeProvider | Any, *, cursor: str = ""
     }
 
 
+def snapshot_source_failed(snapshot: dict[str, Any], source: str) -> bool:
+    payload = (snapshot.get("sources") or {}).get(source)
+    return isinstance(payload, dict) and payload.get("ok") is False
+
+
+def merge_rows_by_key(previous: list[Any], current: list[Any], key: str) -> list[Any]:
+    merged: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for collection in (previous, current):
+        for item in collection:
+            if not isinstance(item, dict):
+                continue
+            item_key = str(item.get(key) or "")
+            if not item_key:
+                continue
+            if item_key not in merged:
+                order.append(item_key)
+            merged[item_key] = item
+    return [merged[item_key] for item_key in order]
+
+
+def merge_inbox_groups(previous: list[Any], current: list[Any]) -> list[dict[str, Any]]:
+    groups: dict[str, dict[str, Any]] = {}
+    for group in previous + current:
+        if not isinstance(group, dict):
+            continue
+        round_id = str(group.get("round_id") or "ungrouped")
+        target = groups.setdefault(round_id, {"round_id": round_id, "items": [], "latest_update": ""})
+        target["latest_update"] = max(str(target.get("latest_update") or ""), str(group.get("latest_update") or ""))
+        seen = {
+            (str(item.get("type") or ""), str(item.get("source_id") or ""), str(item.get("time") or ""), str(item.get("summary") or ""))
+            for item in target["items"]
+            if isinstance(item, dict)
+        }
+        for item in group.get("items", []) if isinstance(group.get("items"), list) else []:
+            if not isinstance(item, dict):
+                continue
+            item_key = (str(item.get("type") or ""), str(item.get("source_id") or ""), str(item.get("time") or ""), str(item.get("summary") or ""))
+            if item_key in seen:
+                continue
+            seen.add(item_key)
+            target["items"].append(item)
+            target["latest_update"] = max(str(target.get("latest_update") or ""), str(item.get("time") or ""))
+        target["items"].sort(key=lambda item: item.get("time") or "", reverse=True)
+    return sorted(groups.values(), key=lambda item: item.get("latest_update") or "", reverse=True)
+
+
+def merge_snapshot_preserving_source_failures(previous: dict[str, Any] | None, current: dict[str, Any]) -> dict[str, Any]:
+    if not previous:
+        return current
+    merged = dict(current)
+    item_source_failed = snapshot_source_failed(current, "messages") or snapshot_source_failed(current, "notifications")
+    if item_source_failed:
+        merged["rounds"] = sorted(
+            merge_rows_by_key(previous.get("rounds", []), current.get("rounds", []), "round_id"),
+            key=lambda item: item.get("latest_update") or "",
+            reverse=True,
+        )
+        merged["inbox"] = merge_inbox_groups(previous.get("inbox", []), current.get("inbox", []))
+        overview = dict(current.get("overview") or {})
+        rounds = merged.get("rounds") or []
+        overview["active_round_count"] = len([item for item in rounds if item.get("status") in {"running", "waiting", "blocked"}])
+        overview["recent_round_count"] = len(rounds)
+        overview["latest_update"] = max((str(item.get("latest_update") or "") for item in rounds), default=overview.get("latest_update") or current.get("generated_at"))
+        merged["overview"] = overview
+    return merged
+
+
+def merge_round_detail_preserving_source_failures(previous: dict[str, Any] | None, current: dict[str, Any]) -> dict[str, Any]:
+    if not previous:
+        return current
+    events = current.get("events") if isinstance(current.get("events"), dict) else {}
+    if events.get("ok", True) is not False:
+        return current
+    merged = dict(current)
+    merged["timeline"] = previous.get("timeline", [])
+    return merged
+
+
 def merge_live_events(state: dict[str, Any], events: list[dict[str, Any]]) -> dict[str, Any]:
     seen = state.setdefault("_seen_event_ids", set())
     if not isinstance(seen, set):
@@ -713,17 +792,25 @@ def merge_live_events(state: dict[str, Any], events: list[dict[str, Any]]) -> di
         data = event.get("data") if isinstance(event.get("data"), dict) else {}
         state["cursor"] = event.get("cursor") or state.get("cursor", "")
         if event_type in {"snapshot.initial", "snapshot.updated"} and isinstance(data.get("snapshot"), dict):
-            state["snapshot"] = data["snapshot"]
+            state["snapshot"] = merge_snapshot_preserving_source_failures(state.get("snapshot"), data["snapshot"])
         elif event_type == "overview.updated":
             state["overview"] = data
         elif event_type == "rounds.updated":
-            state["rounds"] = data.get("rounds", [])
+            if state.get("snapshot") and (snapshot_source_failed(state["snapshot"], "messages") or snapshot_source_failed(state["snapshot"], "notifications")):
+                state["rounds"] = state["snapshot"].get("rounds", [])
+            else:
+                state["rounds"] = data.get("rounds", [])
         elif event_type == "inbox.updated":
-            state["inbox"] = data.get("inbox", [])
+            if state.get("snapshot") and (snapshot_source_failed(state["snapshot"], "messages") or snapshot_source_failed(state["snapshot"], "notifications")):
+                state["inbox"] = state["snapshot"].get("inbox", [])
+            else:
+                state["inbox"] = data.get("inbox", [])
         elif event_type == "runtime.updated":
             state["sources"] = data.get("sources", {})
         elif event_type == "round.detail.updated" and isinstance(data.get("round"), dict):
-            state.setdefault("rounds_detail", {})[data["round"].get("round_id", "")] = data["round"]
+            details = state.setdefault("rounds_detail", {})
+            round_id = data["round"].get("round_id", "")
+            details[round_id] = merge_round_detail_preserving_source_failures(details.get(round_id), data["round"])
         elif event_type == "timeline.appended" and isinstance(data.get("entry"), dict):
             timelines = state.setdefault("timelines", {})
             timeline = timelines.setdefault(data.get("round_id", ""), [])
@@ -1407,6 +1494,11 @@ INDEX_HTML = r"""<!doctype html>
       ${listBlock("Warnings", mcp.warnings)}
       ${mcp.protocol && Object.keys(mcp.protocol).length ? `<pre class="mono">${esc(JSON.stringify(mcp.protocol, null, 2))}</pre>` : ""}`;
     const fmt = value => value ? new Date(value).toLocaleString() : "unknown";
+    const sourceErrorBanner = names => names
+      .map(name => state.snapshot?.sources?.[name])
+      .filter(source => source?.ok === false)
+      .map(source => `<div class="error-box">${esc(source.source || "source")}: ${esc(source.error_kind || "unavailable")} - ${esc(source.error || "source unavailable; showing last known data")}</div>`)
+      .join("");
     async function getJson(url) {
       const response = await fetch(url, { cache: "no-store" });
       if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
@@ -1430,6 +1522,56 @@ INDEX_HTML = r"""<!doctype html>
     function markLiveError(source, err) {
       updateLiveState({ state: state.live.lastOk ? "reconnecting" : "failed", source, error: err.message || String(err) });
     }
+    const snapshotSourceFailed = (snapshot, source) => snapshot?.sources?.[source]?.ok === false;
+    const itemSourcesFailed = snapshot => snapshotSourceFailed(snapshot, "messages") || snapshotSourceFailed(snapshot, "notifications");
+    function mergeRowsByKey(previous = [], current = [], key) {
+      const rows = new Map();
+      for (const item of [...previous, ...current]) {
+        if (!item || !item[key]) continue;
+        rows.set(String(item[key]), item);
+      }
+      return [...rows.values()].sort((a, b) => String(b.latest_update || "").localeCompare(String(a.latest_update || "")));
+    }
+    function mergeInboxGroups(previous = [], current = []) {
+      const groups = new Map();
+      for (const group of [...previous, ...current]) {
+        const roundId = String(group?.round_id || "ungrouped");
+        const target = groups.get(roundId) || { round_id: roundId, items: [], latest_update: "" };
+        const seen = new Set(target.items.map(item => [item.type, item.source_id, item.time, item.summary].map(value => String(value || "")).join("|")));
+        for (const item of group?.items || []) {
+          const key = [item.type, item.source_id, item.time, item.summary].map(value => String(value || "")).join("|");
+          if (seen.has(key)) continue;
+          seen.add(key);
+          target.items.push(item);
+          if (String(item.time || "") > String(target.latest_update || "")) target.latest_update = item.time || "";
+        }
+        if (String(group?.latest_update || "") > String(target.latest_update || "")) target.latest_update = group.latest_update;
+        target.items.sort((a, b) => String(b.time || "").localeCompare(String(a.time || "")));
+        groups.set(roundId, target);
+      }
+      return [...groups.values()].sort((a, b) => String(b.latest_update || "").localeCompare(String(a.latest_update || "")));
+    }
+    function mergeSnapshot(nextSnapshot) {
+      if (!state.snapshot || !itemSourcesFailed(nextSnapshot)) return nextSnapshot;
+      const merged = { ...nextSnapshot };
+      merged.rounds = mergeRowsByKey(state.snapshot.rounds || [], nextSnapshot.rounds || [], "round_id");
+      merged.inbox = mergeInboxGroups(state.snapshot.inbox || [], nextSnapshot.inbox || []);
+      merged.overview = { ...(nextSnapshot.overview || {}) };
+      merged.overview.active_round_count = merged.rounds.filter(item => ["running", "waiting", "blocked"].includes(item.status)).length;
+      merged.overview.recent_round_count = merged.rounds.length;
+      merged.overview.latest_update = merged.rounds.reduce((latest, item) => String(item.latest_update || "") > latest ? String(item.latest_update || "") : latest, merged.overview.latest_update || nextSnapshot.generated_at || "");
+      return merged;
+    }
+    function setRoundDetail(roundId, detail) {
+      const previous = state.roundDetails[roundId];
+      if (previous && detail?.events?.ok === false) {
+        detail = { ...detail, timeline: previous.timeline || [] };
+      }
+      state.roundDetails[roundId] = detail;
+      state.cursors[roundId] = detail.cursor || state.cursors[roundId] || "";
+      delete state.timelineKeys[roundId];
+      seedTimelineKeys(roundId);
+    }
     function checkStaleness() {
       if (!state.live.lastOk) return;
       const age = Date.now() - new Date(state.live.lastOk).getTime();
@@ -1441,7 +1583,7 @@ INDEX_HTML = r"""<!doctype html>
       if (manual) updateLiveState({ state: "reconnecting", source: "snapshot", error: "manual troubleshooting refresh" });
       try {
         const scroll = captureScroll();
-        state.snapshot = await getJson("/api/snapshot");
+        state.snapshot = mergeSnapshot(await getJson("/api/snapshot"));
         markLiveOk("snapshot");
         render();
         restoreScroll(scroll);
@@ -1487,9 +1629,52 @@ INDEX_HTML = r"""<!doctype html>
         markStreamOk(payload.source || "stream");
         return;
       }
+      const data = payload.data || {};
+      if ((payload.type === "snapshot.initial" || payload.type === "snapshot.updated") && data.snapshot) {
+        const scroll = captureScroll();
+        state.snapshot = mergeSnapshot(data.snapshot);
+        markStreamOk("snapshot");
+        render();
+        restoreScroll(scroll);
+        return;
+      }
+      if (payload.type === "source.error") {
+        const source = data.source || payload.source || "source";
+        markLiveError(source, new Error(data.error || `${source} unavailable`));
+        return;
+      }
+      if (payload.type === "round.detail.updated" && data.round?.round_id) {
+        setRoundDetail(data.round.round_id, data.round);
+        markStreamOk("round-detail");
+        if (state.selectedRound === data.round.round_id) renderRoundDetail();
+        return;
+      }
+      if (payload.type === "timeline.appended" && data.round_id && data.entry) {
+        const detail = state.roundDetails[data.round_id];
+        if (!detail) return;
+        seedTimelineKeys(data.round_id);
+        const key = timelineKey(data.entry);
+        if (!state.timelineKeys[data.round_id].has(key)) {
+          state.timelineKeys[data.round_id].add(key);
+          detail.timeline.push(data.entry);
+          detail.timeline.sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+          if (state.selectedRound === data.round_id) renderRoundDetail();
+        }
+        markStreamOk("round-timeline");
+        return;
+      }
+      if ((payload.type === "rounds.updated" || payload.type === "inbox.updated" || payload.type === "overview.updated" || payload.type === "runtime.updated") && state.snapshot) {
+        if (payload.type === "rounds.updated" && !itemSourcesFailed(state.snapshot)) state.snapshot.rounds = data.rounds || [];
+        if (payload.type === "inbox.updated" && !itemSourcesFailed(state.snapshot)) state.snapshot.inbox = data.inbox || [];
+        if (payload.type === "overview.updated" && !itemSourcesFailed(state.snapshot)) state.snapshot.overview = data;
+        if (payload.type === "runtime.updated") state.snapshot.sources = data.sources || state.snapshot.sources;
+        markStreamOk(payload.source || "stream");
+        render();
+        return;
+      }
       if (payload.type === "snapshot" && payload.snapshot) {
         const scroll = captureScroll();
-        state.snapshot = payload.snapshot;
+        state.snapshot = mergeSnapshot(payload.snapshot);
         markStreamOk("snapshot");
         render();
         restoreScroll(scroll);
@@ -1502,10 +1687,7 @@ INDEX_HTML = r"""<!doctype html>
         return;
       }
       if (payload.type === "round_detail" && payload.round_id && payload.detail) {
-        state.roundDetails[payload.round_id] = payload.detail;
-        state.cursors[payload.round_id] = payload.detail.cursor || state.cursors[payload.round_id] || "";
-        delete state.timelineKeys[payload.round_id];
-        seedTimelineKeys(payload.round_id);
+        setRoundDetail(payload.round_id, payload.detail);
         markStreamOk("round-detail");
         if (state.selectedRound === payload.round_id) renderRoundDetail();
       }
@@ -1516,10 +1698,20 @@ INDEX_HTML = r"""<!doctype html>
         return;
       }
       try {
-        const stream = new EventSource("/api/updates");
+        const stream = new EventSource("/api/live");
         state.stream = stream;
         stream.onopen = () => markStreamOk("stream");
         stream.onmessage = event => applyLiveEvent(JSON.parse(event.data));
+        stream.addEventListener("snapshot.initial", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("snapshot.updated", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("overview.updated", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("rounds.updated", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("inbox.updated", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("runtime.updated", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("source.error", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("round.detail.updated", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("timeline.appended", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("heartbeat", event => applyLiveEvent(JSON.parse(event.data)));
         stream.onerror = () => {
           stream.close();
           state.stream = null;
@@ -1544,10 +1736,12 @@ INDEX_HTML = r"""<!doctype html>
     }
     function renderRounds() {
       const rows = state.snapshot.rounds;
+      const warnings = sourceErrorBanner(["messages", "notifications"]);
       document.getElementById("rounds").innerHTML = rows.length ? `
+        ${warnings}
         <div class="table-wrap"><table><thead><tr><th>Round</th><th>Status</th><th>Phase</th><th>Agents</th><th>Latest update</th><th>Outcome</th><th>Branches</th><th>MCP</th></tr></thead><tbody>
         ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}</td><td>${esc(row.phase)}</td><td>${row.agent_count}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.outcome || "")}${row.mcp?.blockers?.length ? `<div class="error-box">${esc(row.mcp.blockers.join("; "))}</div>` : ""}</td><td>${(row.branches || []).map(branch => `<div class="mono">${esc(branch)}</div>`).join("")}${row.branch_source ? `<div class="muted">${esc(row.branch_source)}</div>` : ""}</td><td>${field("Expected", row.mcp?.expected_branch)}${field("PR-ready", row.mcp?.pr_ready_branch)}${field("Validation", row.mcp?.validation_status)}${field("Remote SHA", row.mcp?.remote_branch_sha)}</td></tr>`).join("")}
-        </tbody></table></div>` : `<div class="card"><strong>No rounds found</strong><div class="muted">Hub returned no round-identifiable agents, messages, or notifications.</div></div>`;
+        </tbody></table></div>` : `${warnings}<div class="card"><strong>No rounds found</strong><div class="muted">Hub returned no round-identifiable agents, messages, or notifications.</div></div>`;
       document.querySelectorAll("[data-round]").forEach(row => row.onclick = () => openRound(row.dataset.round));
     }
     async function openRound(roundId, { force = false } = {}) {
@@ -1556,10 +1750,7 @@ INDEX_HTML = r"""<!doctype html>
       if (!state.roundDetails[roundId] || force) {
         document.getElementById("round-detail").innerHTML = `<div class="card">Loading ${esc(roundId)}...</div>`;
         const detail = await getJson(`/api/rounds/${encodeURIComponent(roundId)}`);
-        state.roundDetails[roundId] = detail;
-        state.cursors[roundId] = detail.cursor || state.cursors[roundId] || "";
-        delete state.timelineKeys[roundId];
-        seedTimelineKeys(roundId);
+        setRoundDetail(roundId, detail);
         markLiveOk("round-detail");
       }
       renderRoundDetail();
@@ -1605,8 +1796,9 @@ INDEX_HTML = r"""<!doctype html>
     }
     function renderInbox() {
       const groups = state.snapshot.inbox;
-      document.getElementById("inbox").innerHTML = groups.length ? groups.map(group => `
-        <div class="detail"><h2>${esc(group.round_id)}</h2>${group.items.map(item => `<div class="timeline item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)} ${esc(item.source_id)}</div><div>${esc(item.summary)}</div></div>`).join("")}</div>`).join("") : `<div class="card"><strong>No inbox updates</strong><div class="muted">Hub returned no messages or notifications.</div></div>`;
+      const warnings = sourceErrorBanner(["messages", "notifications"]);
+      document.getElementById("inbox").innerHTML = groups.length ? warnings + groups.map(group => `
+        <div class="detail"><h2>${esc(group.round_id)}</h2>${group.items.map(item => `<div class="timeline item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)} ${esc(item.source_id)}</div><div>${esc(item.summary)}</div></div>`).join("")}</div>`).join("") : `${warnings}<div class="card"><strong>No inbox updates</strong><div class="muted">Hub returned no messages or notifications.</div></div>`;
     }
     function renderRuntime() {
       const sources = state.snapshot.sources;
