@@ -20,28 +20,32 @@
       "branch": "round-20260510t085414z-4e4f-impl-codex",
       "scope": "Group A Web App Live Update Implementation",
       "status": "unresponsive",
-      "blocker": "Branch stayed at base and runtime broker failed direct message with broken pipe while agent reported idle."
+      "blocker": "Branch stayed at base and runtime broker failed direct message with broken pipe while agent reported idle.",
+      "stopped": true
     },
     "round-20260510t085414z-4e4f-impl-codex-live": {
       "role": "implementation",
       "branch": "round-20260510t085414z-4e4f-impl-codex-live",
       "scope": "Narrow replacement for Group A Web App Live Update Implementation",
       "status": "completed_empty",
-      "blocker": "Branch stayed at base; runtime broker failed direct message with broken pipe; agent later reported Succeeded (Completed) without branch movement."
+      "blocker": "Branch stayed at base; runtime broker failed direct message with broken pipe; agent later reported Succeeded (Completed) without branch movement.",
+      "stopped": true
     },
     "round-20260510t085414z-4e4f-impl-claude-live": {
       "role": "implementation",
       "branch": "round-20260510t085414z-4e4f-impl-claude-live",
       "scope": "Narrow non-Codex replacement for Group A Web App Live Update Implementation",
       "status": "empty_branch",
-      "blocker": "Branch stayed at base while agent reported idle after polling window."
+      "blocker": "Branch stayed at base while agent reported idle after polling window.",
+      "stopped": true
     },
     "round-20260510t085414z-4e4f-impl-claude": {
       "role": "implementation",
       "branch": "round-20260510t085414z-4e4f-impl-claude",
       "scope": "Group B Fixture, Reconnect, Smoke, and No-Spend Verification",
       "status": "empty_branch",
-      "blocker": "Branch stayed at base after direct message was delivered and after an executing-to-idle polling window."
+      "blocker": "Branch stayed at base after direct message was delivered and after an executing-to-idle polling window.",
+      "stopped": true
     }
   },
   "implementation": {
