@@ -34,7 +34,7 @@ spec:
             - |
               if [ ! -f "${SCION_OPS_ROOT}/Taskfile.yml" ]; then
                 for candidate in /workspace/scion-ops /workspace/*/scion-ops /workspace/*/*/scion-ops /workspace/*/*/*/scion-ops; do
-                  if [ -f "${candidate}/Taskfile.yml" ] && [ -f "${candidate}/scripts/web_app_hub.py" ]; then
+                  if [ -f "${candidate}/Taskfile.yml" ] && { [ -f "${candidate}/scripts/web_app_nicegui.py" ] || [ -f "${candidate}/scripts/web_app_hub.py" ]; }; then
                     export SCION_OPS_ROOT="${candidate}"
                     break
                   fi
@@ -43,7 +43,11 @@ spec:
               export SCION_GROVE_ID="${SCION_GROVE_ID:-$(cat "${SCION_OPS_ROOT}/.scion/grove-id" 2>/dev/null || true)}"
               export SCION_OPS_GROVE_ID="${SCION_OPS_GROVE_ID:-$SCION_GROVE_ID}"
               git config --global --add safe.directory "${SCION_OPS_ROOT}" >/dev/null 2>&1 || true
-              exec python "${SCION_OPS_ROOT}/scripts/web_app_hub.py"
+              if [ -f "${SCION_OPS_ROOT}/scripts/web_app_nicegui.py" ]; then
+                exec python "${SCION_OPS_ROOT}/scripts/web_app_nicegui.py"
+              else
+                exec python "${SCION_OPS_ROOT}/scripts/web_app_hub.py"
+              fi
           env:
             - name: HOME
               value: /home/scion

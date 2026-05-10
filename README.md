@@ -184,7 +184,8 @@ Use `task verify` for static checks and repo-local validators. It does not
 create a cluster.
 
 Use `task test` for the regular no-spend control-plane smoke. It checks kind,
-Hub, broker, MCP, and Kubernetes no-auth agent dispatch.
+Hub, broker, MCP, web app NiceGUI console endpoint, and Kubernetes no-auth
+agent dispatch.
 
 Release confidence uses the same steward paths as regular work: create or reuse
 a small OpenSpec change with `task spec:steward`, then run
@@ -211,7 +212,7 @@ task bootstrap -- /path/to/project
 - `docs/kind-control-plane.md` - Kubernetes operations runbook
 - `docs/zed-mcp.md` - Zed and MCP operations
 - `docs/openspec-round-workflow.md` - OpenSpec operations
-- `image-build/` - image additions for task runtime, MCP, and optional harnesses
+- `image-build/` - image additions for task runtime, MCP (includes NiceGUI), and optional harnesses
 - `mcp_servers/scion_ops.py` - streamable HTTP MCP server
 - `orchestrator/` - round launcher scripts
 - `patches/scion/` - required upstream Scion runtime patches
