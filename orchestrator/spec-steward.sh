@@ -201,6 +201,7 @@ start_clarifier:
   summary_file: $SESSION_STATE_ROOT/findings/clarifier.md
   artifact: $SESSION_STATE_ROOT/findings/clarifier.md
   role: clarify the requested OpenSpec outcome, scope boundaries, and operator-facing acceptance questions.
+  completion_contract: before final response or task_completed, run git add $SESSION_STATE_ROOT/findings/clarifier.md && git commit -m 'Record clarifier findings for $SESSION_ID' && git push origin HEAD:refs/heads/$CLARIFIER_NAME && git fetch origin +refs/heads/$CLARIFIER_NAME:refs/remotes/origin/$CLARIFIER_NAME && git show origin/$CLARIFIER_NAME:$SESSION_STATE_ROOT/findings/clarifier.md
   goal: $GOAL"
 
 start_explorer:
@@ -213,6 +214,7 @@ start_explorer:
   summary_file: $SESSION_STATE_ROOT/findings/explorer.md
   artifact: $SESSION_STATE_ROOT/findings/explorer.md
   role: inspect existing framework and identify the lowest-risk OpenSpec files and constraints.
+  completion_contract: before final response or task_completed, run git add $SESSION_STATE_ROOT/findings/explorer.md && git commit -m 'Record explorer findings for $SESSION_ID' && git push origin HEAD:refs/heads/$EXPLORER_NAME && git fetch origin +refs/heads/$EXPLORER_NAME:refs/remotes/origin/$EXPLORER_NAME && git show origin/$EXPLORER_NAME:$SESSION_STATE_ROOT/findings/explorer.md
   goal: $GOAL"
 
 execution_notes:

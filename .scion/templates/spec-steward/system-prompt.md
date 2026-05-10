@@ -258,6 +258,15 @@ Use the durable handoff field names expected by the specialist templates:
 Do not use only a generic `artifact` field for these roles. The child is not
 complete until its expected file is visible on its remote branch.
 
+Every child prompt that expects a durable handoff must include a
+`completion_contract` with explicit publish and verification commands:
+`git add <handoff_file>`, `git commit`, `git push origin
+HEAD:refs/heads/<expected_branch>`, `git fetch origin
++refs/heads/<expected_branch>:refs/remotes/origin/<expected_branch>`, and
+`git show origin/<expected_branch>:<handoff_file>`. Tell the child not to send a
+final response or call `sciontool status task_completed` until those commands
+succeed.
+
 ## Review Wait And Diagnostics
 
 After starting `spec-ops-reviewer`, wait for the durable verdict file with the

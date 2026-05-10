@@ -393,6 +393,8 @@ def _assert_fake_scion_covered(fake_log: Path, spec_session: str, implementation
     assert "summary_file:" in log, log
     assert "wait_clarifier:" in log, log
     assert "wait_explorer:" in log, log
+    assert "completion_contract:" in log, log
+    assert "git push origin HEAD:refs/heads/" in log, log
     assert f'scion --profile "kind" start "round-{spec_session}-spec-clarifier"' in log, log
     assert f'scion --profile "kind" start "round-{spec_session}-spec-explorer"' in log, log
     assert "wait_review:" in log, log
