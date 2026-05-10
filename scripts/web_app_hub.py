@@ -27,6 +27,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from fastapi import Request
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -37,6 +39,7 @@ import mcp_servers.scion_ops as scion_ops
 
 
 STALE_AFTER_SECONDS = 90
+NICEGUI_LIVE_POLL_SECONDS = 5
 ROUND_RE = re.compile(r"(?:round-)?(?P<id>\d{8}t\d{6}z-[a-z0-9]+)", re.IGNORECASE)
 CONTROL_PLANE_NAMES = {"scion-hub", "scion-broker", "scion-ops-mcp", "scion-ops-web-app"}
 CONTROL_PLANE_DEPLOYMENTS = CONTROL_PLANE_NAMES
@@ -1803,8 +1806,18 @@ NICEGUI_FRONTEND_MARKERS = {
         "/api/inbox",
         "/api/runtime",
     ],
-    "live_markers": ["EventSource", "fallback polling", "cursor resume", "stale feedback"],
-    "layout_markers": ["operator-console", "responsive-grid", "dense-rounds", "one-level-down-troubleshooting"],
+    "live_markers": [
+        "EventSource",
+        "NiceGUI ui.timer",
+        "in-place live container",
+        "fallback polling",
+        "cursor resume",
+        "stale feedback",
+        "selected-round preservation",
+        "timeline idempotency",
+        "inbox idempotency",
+    ],
+    "layout_markers": ["operator-console", "responsive-grid", "dense-rounds", "one-level-down-troubleshooting", "live-region"],
     "read_only_forbidden": [
         "start round",
         "abort round",
@@ -1816,6 +1829,71 @@ NICEGUI_FRONTEND_MARKERS = {
         "mutate kubernetes",
     ],
 }
+
+
+def live_status_from_state(state: dict[str, Any]) -> str:
+    snapshot = state.get("snapshot") if isinstance(state.get("snapshot"), dict) else {}
+    if state.get("live_status") == "failed":
+        return "failed"
+    if state.get("source_errors"):
+        return "fallback"
+    if snapshot.get("stale"):
+        return "stale"
+    return state.get("live_status") or "connected"
+
+
+def initialize_live_view_state(provider: RuntimeProvider | Any, *, round_id: str = "") -> dict[str, Any]:
+    batch = build_live_update_batch(provider, round_id=round_id)
+    state: dict[str, Any] = {
+        "selected_round_id": round_id,
+        "live_status": "connected",
+        "last_live_update": batch.get("generated_at") or utc_now(),
+    }
+    merge_live_events(state, batch.get("events", []))
+    state.setdefault("snapshot", batch.get("snapshot") or {})
+    state.setdefault("overview", (state.get("snapshot") or {}).get("overview") or {})
+    state.setdefault("rounds", (state.get("snapshot") or {}).get("rounds") or [])
+    state.setdefault("inbox", (state.get("snapshot") or {}).get("inbox") or [])
+    state.setdefault("sources", (state.get("snapshot") or {}).get("sources") or {})
+    if round_id and isinstance(batch.get("round"), dict):
+        state.setdefault("rounds_detail", {})[round_id] = batch["round"]
+    return state
+
+
+def refresh_live_view_state(state: dict[str, Any], provider: RuntimeProvider | Any, *, round_id: str = "") -> bool:
+    selected_round_id = round_id or str(state.get("selected_round_id") or "")
+    state["selected_round_id"] = selected_round_id
+    previous_cursor = str(state.get("cursor") or "")
+    try:
+        batch = build_live_update_batch(provider, cursor=previous_cursor, round_id=selected_round_id)
+    except Exception as exc:  # pragma: no cover - defensive NiceGUI session guard
+        state["live_status"] = "failed"
+        state["live_error"] = short_text(exc, 220)
+        return False
+    merge_live_events(state, batch.get("events", []))
+    state["last_live_update"] = batch.get("generated_at") or utc_now()
+    state["live_status"] = live_status_from_state(state)
+    return str(state.get("cursor") or "") != previous_cursor or any(event.get("type") != "heartbeat" for event in batch.get("events", []))
+
+
+def live_view_snapshot(state: dict[str, Any]) -> dict[str, Any]:
+    snapshot = state.get("snapshot") if isinstance(state.get("snapshot"), dict) else {}
+    if state.get("rounds") is not None:
+        snapshot = {**snapshot, "rounds": state.get("rounds") or []}
+    if state.get("inbox") is not None:
+        snapshot = {**snapshot, "inbox": state.get("inbox") or []}
+    if state.get("sources") is not None:
+        snapshot = {**snapshot, "sources": state.get("sources") or {}}
+    return snapshot
+
+
+def live_view_round_detail(state: dict[str, Any], round_id: str) -> dict[str, Any]:
+    details = state.get("rounds_detail") if isinstance(state.get("rounds_detail"), dict) else {}
+    detail = details.get(round_id) if isinstance(details.get(round_id), dict) else {}
+    timelines = state.get("timelines") if isinstance(state.get("timelines"), dict) else {}
+    if round_id in timelines:
+        detail = {**detail, "timeline": timelines.get(round_id) or []}
+    return detail
 
 
 def source_operator_summary(name: str, source: dict[str, Any]) -> dict[str, Any]:
@@ -1987,11 +2065,41 @@ def summary_panel(label: str, value: Any, caption: str = "") -> None:
             ui.label(caption).classes("text-xs text-gray-500")
 
 
-def render_overview(snapshot: dict[str, Any]) -> None:
+def live_status_bar(state: dict[str, Any]) -> None:
+    from nicegui import ui
+
+    status = live_status_from_state(state)
+    with ui.row().classes("items-center gap-2 text-xs text-gray-600 mb-2").props("data-live-status"):
+        status_badge(status)
+        ui.label(f"cursor {short_text(state.get('cursor') or 'initial', 52)}").classes("font-mono")
+        ui.label(f"updated {state.get('last_live_update') or 'pending'}")
+        if state.get("live_error"):
+            ui.label(str(state.get("live_error"))).classes("text-red-800")
+
+
+def mount_live_region(state: dict[str, Any], render_body: Any, refresh: Any) -> None:
+    from nicegui import ui
+
+    region = ui.element("div").classes("live-region").props("data-live-region")
+
+    def paint() -> None:
+        region.clear()
+        with region:
+            live_status_bar(state)
+            render_body()
+
+    def tick() -> None:
+        if refresh():
+            paint()
+
+    paint()
+    ui.timer(NICEGUI_LIVE_POLL_SECONDS, tick)
+
+
+def render_overview_body(snapshot: dict[str, Any]) -> None:
     from nicegui import ui
 
     model = build_operator_view_model(snapshot)
-    add_shell("overview")
     with ui.element("main").classes("console-wrap"):
         with ui.row().classes("items-center justify-between w-full gap-2"):
             with ui.column().classes("gap-1"):
@@ -2022,10 +2130,21 @@ def render_overview(snapshot: dict[str, Any]) -> None:
                     ui.link("Troubleshoot", source["diagnostic_target"]).classes("text-sm")
 
 
-def render_rounds(snapshot: dict[str, Any]) -> None:
+def render_overview(snapshot: dict[str, Any] | None = None) -> None:
+    add_shell("overview")
+    state = initialize_live_view_state(nicegui_provider())
+    if snapshot:
+        state["snapshot"] = snapshot
+        state["overview"] = snapshot.get("overview") or {}
+        state["rounds"] = snapshot.get("rounds") or []
+        state["inbox"] = snapshot.get("inbox") or []
+        state["sources"] = snapshot.get("sources") or {}
+    mount_live_region(state, lambda: render_overview_body(live_view_snapshot(state)), lambda: refresh_live_view_state(state, nicegui_provider()))
+
+
+def render_rounds_body(snapshot: dict[str, Any]) -> None:
     from nicegui import ui
 
-    add_shell("rounds")
     rows = snapshot.get("rounds") if isinstance(snapshot.get("rounds"), list) else []
     with ui.element("main").classes("console-wrap dense-rounds"):
         ui.label("Rounds").classes("text-xl font-semibold")
@@ -2056,20 +2175,30 @@ def render_rounds(snapshot: dict[str, Any]) -> None:
                         ui.label(branch).classes("font-mono text-xs break-all")
 
 
-def render_round_detail(round_id: str, detail: dict[str, Any]) -> None:
+def render_rounds(snapshot: dict[str, Any] | None = None) -> None:
+    add_shell("rounds")
+    state = initialize_live_view_state(nicegui_provider())
+    if snapshot:
+        state["snapshot"] = snapshot
+        state["rounds"] = snapshot.get("rounds") or []
+        state["inbox"] = snapshot.get("inbox") or []
+        state["sources"] = snapshot.get("sources") or {}
+    mount_live_region(state, lambda: render_rounds_body(live_view_snapshot(state)), lambda: refresh_live_view_state(state, nicegui_provider()))
+
+
+def render_round_detail_body(round_id: str, detail: dict[str, Any], *, active_tab: str = "flow") -> None:
     from nicegui import ui
 
-    add_shell("rounds")
     with ui.element("main").classes("console-wrap"):
         with ui.row().classes("items-center justify-between w-full gap-2"):
             ui.link("Back to rounds", "/rounds").classes("px-3 py-2 rounded-md border border-gray-300 text-sm")
             status_badge(detail.get("visible_status") or (detail.get("status") or {}).get("status"))
         ui.label(round_id).classes("font-mono text-xl font-semibold break-all mt-3")
         ui.label(detail.get("terminal_summary") or "").classes("text-sm text-gray-700")
-        with ui.tabs(value="flow").classes("mt-4") as tabs:
+        with ui.tabs(value=active_tab).classes("mt-4") as tabs:
             for name in ("flow", "timeline", "agents", "validation", "branches", "diagnostics"):
                 ui.tab(name, label=name.title())
-        with ui.tab_panels(tabs, value="flow").classes("w-full bg-transparent"):
+        with ui.tab_panels(tabs, value=active_tab).classes("w-full bg-transparent"):
             with ui.tab_panel("flow"):
                 for stage in detail.get("decision_flow", []):
                     with ui.card().classes("rounded-md shadow-none border border-gray-200 p-3 mb-2"):
@@ -2105,10 +2234,21 @@ def render_round_detail(round_id: str, detail: dict[str, Any]) -> None:
                 ui.json_editor({"content": {"json": detail}}).classes("w-full troubleshooting-panel")
 
 
-def render_inbox(snapshot: dict[str, Any]) -> None:
+def render_round_detail(round_id: str, detail: dict[str, Any] | None = None, *, active_tab: str = "flow") -> None:
+    add_shell("rounds")
+    state = initialize_live_view_state(nicegui_provider(), round_id=round_id)
+    if detail:
+        state.setdefault("rounds_detail", {})[round_id] = detail
+    mount_live_region(
+        state,
+        lambda: render_round_detail_body(round_id, live_view_round_detail(state, round_id), active_tab=active_tab),
+        lambda: refresh_live_view_state(state, nicegui_provider(), round_id=round_id),
+    )
+
+
+def render_inbox_body(snapshot: dict[str, Any]) -> None:
     from nicegui import ui
 
-    add_shell("inbox")
     with ui.element("main").classes("console-wrap"):
         ui.label("Inbox").classes("text-xl font-semibold")
         groups = snapshot.get("inbox") if isinstance(snapshot.get("inbox"), list) else []
@@ -2125,10 +2265,20 @@ def render_inbox(snapshot: dict[str, Any]) -> None:
                             ui.label(item.get("summary") or "").classes("text-sm")
 
 
-def render_runtime(snapshot: dict[str, Any], *, troubleshooting: bool = False, selected_source: str = "") -> None:
+def render_inbox(snapshot: dict[str, Any] | None = None) -> None:
+    add_shell("inbox")
+    state = initialize_live_view_state(nicegui_provider())
+    if snapshot:
+        state["snapshot"] = snapshot
+        state["inbox"] = snapshot.get("inbox") or []
+        state["rounds"] = snapshot.get("rounds") or []
+        state["sources"] = snapshot.get("sources") or {}
+    mount_live_region(state, lambda: render_inbox_body(live_view_snapshot(state)), lambda: refresh_live_view_state(state, nicegui_provider()))
+
+
+def render_runtime_body(snapshot: dict[str, Any], *, troubleshooting: bool = False, selected_source: str = "") -> None:
     from nicegui import ui
 
-    add_shell("troubleshooting" if troubleshooting else "runtime")
     sources = snapshot.get("sources") if isinstance(snapshot.get("sources"), dict) else {}
     with ui.element("main").classes("console-wrap"):
         ui.label("Troubleshooting" if troubleshooting else "Runtime").classes("text-xl font-semibold")
@@ -2145,12 +2295,27 @@ def render_runtime(snapshot: dict[str, Any], *, troubleshooting: bool = False, s
                     ui.json_editor({"content": {"json": source}}).classes("w-full troubleshooting-panel")
 
 
+def render_runtime(snapshot: dict[str, Any] | None = None, *, troubleshooting: bool = False, selected_source: str = "") -> None:
+    add_shell("troubleshooting" if troubleshooting else "runtime")
+    state = initialize_live_view_state(nicegui_provider())
+    state["selected_source"] = selected_source
+    if snapshot:
+        state["snapshot"] = snapshot
+        state["sources"] = snapshot.get("sources") or {}
+        state["rounds"] = snapshot.get("rounds") or []
+        state["inbox"] = snapshot.get("inbox") or []
+    mount_live_region(
+        state,
+        lambda: render_runtime_body(live_view_snapshot(state), troubleshooting=troubleshooting, selected_source=str(state.get("selected_source") or "")),
+        lambda: refresh_live_view_state(state, nicegui_provider()),
+    )
+
+
 def register_nicegui_app() -> None:
     global NICEGUI_APP_REGISTERED
     if NICEGUI_APP_REGISTERED:
         return
     NICEGUI_APP_REGISTERED = True
-    from fastapi import Request
     from fastapi.responses import StreamingResponse
     from nicegui import app, ui
 
@@ -2218,27 +2383,28 @@ def register_nicegui_app() -> None:
 
     @ui.page("/")
     def page_overview() -> None:
-        render_overview(build_snapshot(nicegui_provider()))
+        render_overview()
 
     @ui.page("/rounds")
     def page_rounds() -> None:
-        render_rounds(build_snapshot(nicegui_provider()))
+        render_rounds()
 
     @ui.page("/rounds/{round_id}")
-    def page_round_detail(round_id: str) -> None:
-        render_round_detail(round_id, build_round_detail(nicegui_provider(), round_id))
+    def page_round_detail(round_id: str, focus: str = "flow") -> None:
+        active_tab = focus if focus in {"flow", "timeline", "agents", "validation", "branches", "diagnostics"} else "flow"
+        render_round_detail(round_id, active_tab=active_tab)
 
     @ui.page("/inbox")
     def page_inbox() -> None:
-        render_inbox(build_snapshot(nicegui_provider()))
+        render_inbox()
 
     @ui.page("/runtime")
     def page_runtime() -> None:
-        render_runtime(build_snapshot(nicegui_provider()))
+        render_runtime()
 
     @ui.page("/troubleshooting")
     def page_troubleshooting(source: str = "") -> None:
-        render_runtime(build_snapshot(nicegui_provider()), troubleshooting=True, selected_source=source)
+        render_runtime(troubleshooting=True, selected_source=source)
 
 
 def serve(host: str, port: int) -> None:

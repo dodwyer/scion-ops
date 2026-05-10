@@ -807,7 +807,12 @@ def test_frontend_live_update_contract_markers_are_present():
     assert contract["round_events"].startswith("cursor-based read-only GET")
     assert contract["states"] == ["connected", "reconnecting", "stale", "fallback", "failed"]
     assert "EventSource" in markers["live_markers"]
+    assert "NiceGUI ui.timer" in markers["live_markers"]
+    assert "in-place live container" in markers["live_markers"]
     assert "fallback polling" in markers["live_markers"]
+    assert "selected-round preservation" in markers["live_markers"]
+    assert "timeline idempotency" in markers["live_markers"]
+    assert "inbox idempotency" in markers["live_markers"]
     assert "/api/snapshot" in markers["json_contracts"]
     assert "/api/rounds/{round_id}/events" in markers["json_contracts"]
     assert "/api/live" in markers["json_contracts"]
@@ -815,6 +820,7 @@ def test_frontend_live_update_contract_markers_are_present():
     assert "operator-console" in markers["layout_markers"]
     assert "responsive-grid" in markers["layout_markers"]
     assert "one-level-down-troubleshooting" in markers["layout_markers"]
+    assert "live-region" in markers["layout_markers"]
 
 
 def test_nicegui_layout_model_keeps_default_view_concise_and_responsive():
@@ -843,6 +849,94 @@ def test_frontend_automatic_update_fetches_are_read_only_no_spend_paths():
         "mutate kubernetes",
     ):
         assert forbidden in markers["read_only_forbidden"]
+
+
+def test_nicegui_live_state_refreshes_overview_rounds_inbox_runtime_in_place():
+    provider = FixtureProvider()
+    state = web_app_hub.initialize_live_view_state(provider)
+    first_cursor = state["cursor"]
+    assert state["rounds"][0]["status"] == "running"
+    assert state["rounds"][0]["visible_status"] == "accepted"
+    assert state["inbox"][0]["items"][0]["source_id"] == "note-1"
+    changed_notifications = {
+        "ok": True,
+        "items": [
+            *healthy_notifications()["items"],
+            {
+                "id": "final-changes",
+                "agentId": "round-20260509t063201z-6c02-final-review",
+                "summary": '{"verdict":"changes_requested","summary":"needs repair"}',
+                "createdAt": "2026-05-09T06:44:01+00:00",
+            },
+        ],
+    }
+    changed_k8s = healthy_k8s()
+    changed_k8s["status"] = "degraded"
+    changed_k8s["deployments"][0] = {**changed_k8s["deployments"][0], "available": 0, "ready": False}
+    provider._notifications = changed_notifications
+    provider._k8s = changed_k8s
+    assert web_app_hub.refresh_live_view_state(state, provider) is True
+    snapshot = web_app_hub.live_view_snapshot(state)
+    assert state["cursor"] != first_cursor
+    assert snapshot["rounds"][0]["visible_status"] == "changes requested"
+    assert snapshot["inbox"][0]["items"][0]["source_id"] == "final-changes"
+    assert snapshot["sources"]["kubernetes"]["status"] == "degraded"
+
+
+def test_nicegui_live_state_preserves_selected_round_and_dedupes_timeline_replays():
+    round_id = "20260509t063201z-6c02"
+    provider = FixtureProvider(
+        round_events={
+            "ok": True,
+            "round_id": round_id,
+            "cursor": "cursor-1",
+            "events": [
+                {"type": "message", "message": {"id": "msg-2", "createdAt": "2026-05-09T06:45:00+00:00", "msg": f"round {round_id} step one"}},
+            ],
+        }
+    )
+    state = web_app_hub.initialize_live_view_state(provider, round_id=round_id)
+    provider._round_events = {
+        "ok": True,
+        "round_id": round_id,
+        "cursor": "cursor-2",
+        "events": [
+            {"type": "message", "message": {"id": "msg-2", "createdAt": "2026-05-09T06:45:00+00:00", "msg": f"round {round_id} step one"}},
+            {"type": "message", "message": {"id": "msg-3", "createdAt": "2026-05-09T06:46:00+00:00", "msg": f"round {round_id} step two"}},
+        ],
+    }
+    assert web_app_hub.refresh_live_view_state(state, provider, round_id=round_id) is True
+    detail = web_app_hub.live_view_round_detail(state, round_id)
+    assert state["selected_round_id"] == round_id
+    assert detail["round_id"] == round_id
+    assert [entry["id"] for entry in detail["timeline"]] == ["message:msg-3", "message:msg-2"]
+
+
+def test_nicegui_live_state_reports_stale_fallback_and_failed_feedback_without_clearing_context():
+    provider = FixtureProvider()
+    state = web_app_hub.initialize_live_view_state(provider)
+    provider._messages = {"ok": False, "error_kind": "hub_state", "error": "messages timeout"}
+    provider._notifications = {"ok": False, "error_kind": "hub_state", "error": "notifications timeout"}
+    assert web_app_hub.refresh_live_view_state(state, provider) is True
+    assert web_app_hub.live_status_from_state(state) == "fallback"
+    assert state["rounds"][0]["round_id"] == "20260509t063201z-6c02"
+    old_hub = healthy_hub()
+    for agent in old_hub["agents"]:
+        agent["updated"] = "2026-05-09T06:00:00+00:00"
+    original = web_app_hub.utc_now
+    try:
+        web_app_hub.utc_now = lambda: "2026-05-09T06:40:00+00:00"
+        stale_state = web_app_hub.initialize_live_view_state(FixtureProvider(hub=old_hub, messages={"ok": True, "items": []}, notifications={"ok": True, "items": []}))
+    finally:
+        web_app_hub.utc_now = original
+    assert web_app_hub.live_status_from_state(stale_state) == "stale"
+
+    class FailingProvider(FixtureProvider):
+        def hub_status(self):
+            raise RuntimeError("hub offline")
+
+    assert web_app_hub.refresh_live_view_state(state, FailingProvider()) is False
+    assert web_app_hub.live_status_from_state(state) == "failed"
 
 
 if __name__ == "__main__":
