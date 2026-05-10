@@ -164,6 +164,9 @@ def canonical_globals(templates: list[dict[str, Any]]) -> dict[str, dict[str, An
 
 
 def repair_shadowing() -> None:
+    for template in deprecated_templates():
+        delete_template(template, "deprecated steward-only orchestration path")
+
     templates = managed_templates()
     globals_by_name = canonical_globals(templates)
 

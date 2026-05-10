@@ -558,6 +558,7 @@ sync_templates() {
   tar -C "${REPO_ROOT}/.scion/templates" -cf - . |
     kubectl_ctx -n "$NAMESPACE" exec -i "$pod" -c hub -- \
       tar -C /home/scion/.scion/templates -xf -
+  run_in_hub "$pod" "rm -rf /home/scion/.scion/templates/consensus-runner /home/scion/.scion/templates/spec-consensus-runner"
 
   log "sync templates from inside Hub pod"
   local hub_url
