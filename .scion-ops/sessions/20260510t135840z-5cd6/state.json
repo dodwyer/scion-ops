@@ -6,7 +6,7 @@
   "change": "autorefresh-web-app",
   "base_branch": "main",
   "status": "running",
-  "phase": "starting",
+  "phase": "implementation",
   "branches": {
     "steward": "round-20260510t135840z-5cd6-implementation-steward",
     "implementer": "round-20260510t135840z-5cd6-impl-codex",
@@ -14,7 +14,20 @@
     "final_review": "round-20260510t135840z-5cd6-final-review",
     "integration": "round-20260510t135840z-5cd6-integration"
   },
-  "agents": {},
+  "agents": {
+    "round-20260510t135840z-5cd6-impl-codex": {
+      "type": "impl-codex",
+      "branch": "round-20260510t135840z-5cd6-impl-codex",
+      "scope": "Group A web app live update contract and UI",
+      "status": "running"
+    },
+    "round-20260510t135840z-5cd6-impl-claude": {
+      "type": "impl-claude",
+      "branch": "round-20260510t135840z-5cd6-impl-claude",
+      "scope": "Group B kind/smoke verification for automatic updates",
+      "status": "running"
+    }
+  },
   "implementation": {
     "branch": "",
     "base_branch": "main",
@@ -27,9 +40,9 @@
   },
   "blockers": [],
   "next_actions": [
-    "Write implementation brief and bounded task groups",
-    "Start bounded implementer agents",
-    "Integrate the accepted implementation branch",
-    "Run verification and final review"
+    "Monitor implementer completion",
+    "Integrate non-empty implementation branches",
+    "Run integration verification",
+    "Start final review"
   ]
 }
