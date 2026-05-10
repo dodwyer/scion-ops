@@ -45,6 +45,13 @@
       "template": "spec-repo-explorer",
       "harness_config": "codex-exec",
       "status": "completed"
+    },
+    "author": {
+      "name": "round-20260510t154643z-459d-spec-author",
+      "branch": "round-20260510t154643z-459d-spec-author",
+      "template": "spec-author",
+      "harness_config": "codex-exec",
+      "status": "running"
     }
   },
   "review": {},
@@ -53,7 +60,7 @@
   },
   "blockers": [],
   "next_actions": [
-    "Start spec-author agent",
+    "Wait for spec-author artifacts",
     "Integrate and validate OpenSpec artifacts",
     "Run ops review on integration branch"
   ]
