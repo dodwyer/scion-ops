@@ -579,6 +579,246 @@ def test_round_detail_loads_openspec_status_when_progress_identifies_change():
     assert detail["spec_status"]["change"] == "update-web-app"
 
 
+# ---- Group B: autorefresh fixture and reconnect tests (tasks 1.8, 1.9) ----
+
+
+def test_round_detail_exposes_cursor_for_incremental_updates():
+    provider = FixtureProvider()
+    detail = web_app_hub.build_round_detail(provider, "20260509t063201z-6c02")
+    assert "cursor" in detail, "round detail must include a cursor field"
+    assert detail["cursor"], "cursor must be non-empty when events are available"
+    assert detail["timeline"], "initial detail must include timeline entries from include_existing=True"
+
+
+def test_cursor_based_events_advance_and_exclude_earlier_events():
+    first_events = {
+        "ok": True,
+        "round_id": "20260509t063201z-6c02",
+        "cursor": "cursor-page-1",
+        "events": [{"type": "message", "message": {"id": "msg-a", "createdAt": "2026-05-09T06:35:00+00:00", "msg": "initial event"}}],
+    }
+    second_events = {
+        "ok": True,
+        "round_id": "20260509t063201z-6c02",
+        "cursor": "cursor-page-2",
+        "events": [{"type": "message", "message": {"id": "msg-b", "createdAt": "2026-05-09T06:36:00+00:00", "msg": "incremental event"}}],
+    }
+
+    class StagedProvider(FixtureProvider):
+        def round_events(self, round_id, cursor="", include_existing=False):
+            if include_existing or not cursor:
+                return first_events
+            if cursor == "cursor-page-1":
+                return second_events
+            return {"ok": True, "round_id": round_id, "cursor": cursor, "events": []}
+
+    provider = StagedProvider()
+    detail = web_app_hub.build_round_detail(provider, "20260509t063201z-6c02")
+    assert detail["cursor"] == "cursor-page-1"
+    initial_summaries = [e["summary"] for e in detail["timeline"]]
+    assert any("initial event" in s for s in initial_summaries)
+
+    incremental = provider.round_events("20260509t063201z-6c02", cursor="cursor-page-1")
+    assert incremental["cursor"] == "cursor-page-2"
+    incremental_ids = [e.get("message", {}).get("id") for e in incremental["events"]]
+    assert "msg-b" in incremental_ids, "incremental fetch must return new events"
+    assert "msg-a" not in incremental_ids, "incremental fetch must not replay events before the cursor"
+
+
+def test_timeline_entries_are_appended_in_chronological_order():
+    events_response = {
+        "ok": True,
+        "round_id": "20260509t063201z-6c02",
+        "cursor": "cursor-sorted",
+        "events": [
+            {"type": "message", "message": {"id": "msg-late", "createdAt": "2026-05-09T06:37:00+00:00", "msg": "later entry"}},
+            {"type": "message", "message": {"id": "msg-early", "createdAt": "2026-05-09T06:35:00+00:00", "msg": "earlier entry"}},
+        ],
+    }
+    provider = FixtureProvider(round_events=events_response)
+    detail = web_app_hub.build_round_detail(provider, "20260509t063201z-6c02")
+    summaries = [e["summary"] for e in detail["timeline"]]
+    assert "earlier entry" in summaries
+    assert "later entry" in summaries
+    earlier_idx = next(i for i, s in enumerate(summaries) if "earlier entry" in s)
+    later_idx = next(i for i, s in enumerate(summaries) if "later entry" in s)
+    assert earlier_idx < later_idx, "timeline must be sorted chronologically: earlier entries first"
+
+
+def test_timeline_does_not_duplicate_entries_when_rebuilt_with_same_events():
+    events_response = {
+        "ok": True,
+        "round_id": "20260509t063201z-6c02",
+        "cursor": "cursor-dedup",
+        "events": [{"type": "message", "message": {"id": "msg-unique", "createdAt": "2026-05-09T06:35:00+00:00", "msg": "unique entry"}}],
+    }
+    provider = FixtureProvider(round_events=events_response)
+    detail = web_app_hub.build_round_detail(provider, "20260509t063201z-6c02")
+    matching = [e for e in detail["timeline"] if "unique entry" in e["summary"]]
+    assert len(matching) == 1, "same event must not appear twice in a single timeline build"
+
+
+def test_inbox_updates_when_new_message_arrives():
+    new_message = {"id": "msg-new", "sender": "round-20260509t063201z-6c02-codex", "msg": "new autorefresh message", "createdAt": "2026-05-09T06:40:00+00:00"}
+    snapshot_before = web_app_hub.build_snapshot(FixtureProvider(messages={"ok": True, "source": "hub_api", "items": []}))
+    snapshot_after = web_app_hub.build_snapshot(FixtureProvider(messages={"ok": True, "source": "hub_api", "items": [new_message]}))
+    before_ids = [item.get("source_id") for group in snapshot_before["inbox"] for item in group["items"]]
+    after_ids = [item.get("source_id") for group in snapshot_after["inbox"] for item in group["items"]]
+    assert "msg-new" not in before_ids, "new message must not be in inbox before it arrives"
+    assert "msg-new" in after_ids, "new message must appear in inbox automatically"
+
+
+def test_inbox_updates_when_new_notification_arrives():
+    new_notification = {"id": "note-new", "agentId": "round-20260509t063201z-6c02-codex", "summary": "new notification", "createdAt": "2026-05-09T06:41:00+00:00"}
+    snapshot_before = web_app_hub.build_snapshot(FixtureProvider(notifications={"ok": True, "source": "hub_api", "items": []}))
+    snapshot_after = web_app_hub.build_snapshot(FixtureProvider(notifications={"ok": True, "source": "hub_api", "items": [new_notification]}))
+    before_ids = [item.get("source_id") for group in snapshot_before["inbox"] for item in group["items"]]
+    after_ids = [item.get("source_id") for group in snapshot_after["inbox"] for item in group["items"]]
+    assert "note-new" not in before_ids
+    assert "note-new" in after_ids, "new notification must appear in inbox automatically"
+
+
+def test_runtime_readiness_degrades_when_mcp_becomes_unavailable():
+    degraded_mcp = {"source": "mcp", "ok": False, "status": "unavailable", "error_kind": "runtime", "error": "connection refused"}
+    original = web_app_hub.utc_now
+    try:
+        web_app_hub.utc_now = lambda: "2026-05-09T06:39:30+00:00"
+        snapshot_healthy = web_app_hub.build_snapshot(FixtureProvider())
+        snapshot_degraded = web_app_hub.build_snapshot(FixtureProvider(mcp=degraded_mcp))
+    finally:
+        web_app_hub.utc_now = original
+    assert snapshot_healthy["readiness"] == "ready"
+    assert snapshot_degraded["readiness"] == "degraded"
+    assert snapshot_degraded["sources"]["hub"]["ok"] is True, "hub data must be preserved when MCP is down"
+
+
+def test_runtime_status_change_visible_in_next_snapshot():
+    hub_mixed = healthy_hub()
+    hub_all_completed = healthy_hub()
+    for agent in hub_all_completed["agents"]:
+        agent["phase"] = "completed"
+        agent["activity"] = "completed"
+    original = web_app_hub.utc_now
+    try:
+        web_app_hub.utc_now = lambda: "2026-05-09T06:39:30+00:00"
+        snapshot_running = web_app_hub.build_snapshot(FixtureProvider(hub=hub_mixed))
+        snapshot_completed = web_app_hub.build_snapshot(FixtureProvider(hub=hub_all_completed))
+    finally:
+        web_app_hub.utc_now = original
+    round_id = "20260509t063201z-6c02"
+    running_row = next((r for r in snapshot_running["rounds"] if r["round_id"] == round_id), None)
+    completed_row = next((r for r in snapshot_completed["rounds"] if r["round_id"] == round_id), None)
+    assert running_row and running_row["status"] == "running"
+    assert completed_row and completed_row["status"] == "completed"
+
+
+def test_stale_snapshot_preserves_last_known_round_data():
+    old_hub = healthy_hub()
+    for agent in old_hub["agents"]:
+        agent["updated"] = "2026-05-09T06:00:00+00:00"
+    original = web_app_hub.utc_now
+    try:
+        web_app_hub.utc_now = lambda: "2026-05-09T06:40:00+00:00"
+        snapshot = web_app_hub.build_snapshot(
+            FixtureProvider(hub=old_hub, messages={"ok": True, "items": []}, notifications={"ok": True, "items": []})
+        )
+    finally:
+        web_app_hub.utc_now = original
+    assert snapshot["stale"] is True, "snapshot must be marked stale when data exceeds freshness threshold"
+    assert len(snapshot["rounds"]) > 0, "last known round data must be preserved when stale"
+    assert snapshot["rounds"][0]["round_id"] == "20260509t063201z-6c02"
+
+
+def test_cursor_resume_after_stream_reconnect_returns_only_new_events():
+    pre_event = {"type": "message", "message": {"id": "pre-reconnect", "createdAt": "2026-05-09T06:35:00+00:00", "msg": "before disconnect"}}
+    post_event = {"type": "message", "message": {"id": "post-reconnect", "createdAt": "2026-05-09T06:37:00+00:00", "msg": "after reconnect"}}
+
+    class ReconnectProvider(FixtureProvider):
+        def round_events(self, round_id, cursor="", include_existing=False):
+            if cursor == "cursor-at-disconnect":
+                return {"ok": True, "round_id": round_id, "cursor": "cursor-resumed", "events": [post_event]}
+            return {"ok": True, "round_id": round_id, "cursor": "cursor-at-disconnect", "events": [pre_event]}
+
+    provider = ReconnectProvider()
+    detail = web_app_hub.build_round_detail(provider, "20260509t063201z-6c02")
+    assert detail["cursor"] == "cursor-at-disconnect"
+    assert any("before disconnect" in e["summary"] for e in detail["timeline"])
+
+    resumed = provider.round_events("20260509t063201z-6c02", cursor="cursor-at-disconnect")
+    assert resumed["cursor"] == "cursor-resumed"
+    resumed_ids = [e.get("message", {}).get("id") for e in resumed["events"]]
+    assert "post-reconnect" in resumed_ids, "reconnect via cursor must deliver missed events"
+    assert "pre-reconnect" not in resumed_ids, "reconnect via cursor must not replay pre-disconnect events"
+
+
+def test_fallback_snapshot_preserves_partial_data_when_events_unavailable():
+    provider = FixtureProvider(round_events={"ok": False, "error": "stream disconnected", "error_kind": "runtime"})
+    detail = web_app_hub.build_round_detail(provider, "20260509t063201z-6c02")
+    assert detail["round_id"] == "20260509t063201z-6c02"
+    assert detail["ok"] or detail.get("status", {}).get("ok"), "partial detail must still be available when events fail"
+
+
+def test_server_write_methods_are_rejected_as_read_only():
+    from http import HTTPStatus
+    captured = []
+
+    class MinimalHandler(web_app_hub.HubRequestHandler):
+        def respond_json(self, payload, *, status=HTTPStatus.OK):
+            captured.append({"status": status, "payload": payload})
+
+    handler = object.__new__(MinimalHandler)
+    for method_name in ("do_POST", "do_PUT", "do_PATCH", "do_DELETE"):
+        captured.clear()
+        getattr(handler, method_name)()
+        assert len(captured) == 1, f"{method_name} must call respond_json exactly once"
+        assert captured[0]["status"] == HTTPStatus.METHOD_NOT_ALLOWED, f"{method_name} must return 405"
+        assert captured[0]["payload"].get("ok") is False, f"{method_name} response must have ok=False"
+
+
+def test_incremental_events_fetch_does_not_mutate_provider_state():
+    provider = FixtureProvider()
+    hub_before = provider.hub_status()
+    messages_before = provider.hub_messages()
+    provider.round_events("20260509t063201z-6c02", cursor="", include_existing=True)
+    provider.round_events("20260509t063201z-6c02", cursor="cursor-1", include_existing=False)
+    provider.round_events("20260509t063201z-6c02", cursor="cursor-2", include_existing=False)
+    assert provider.hub_status() == hub_before, "hub state must not change after event fetches"
+    assert provider.hub_messages() == messages_before, "message state must not change after event fetches"
+
+
+def test_repeated_snapshot_refresh_does_not_start_or_modify_rounds():
+    hub = healthy_hub()
+    agent_count_before = len(hub["agents"])
+    provider = FixtureProvider(hub=hub)
+    snapshot = None
+    for _ in range(3):
+        snapshot = web_app_hub.build_snapshot(provider)
+    assert len(provider.hub_status()["agents"]) == agent_count_before, "snapshot refresh must not create or modify agents"
+    assert snapshot and snapshot["rounds"], "rounds must be present after multiple refreshes"
+
+
+def test_index_html_contains_live_update_indicators():
+    assert "stale" in web_app_hub.INDEX_HTML.lower(), "UI must expose stale data state to operator"
+    assert "setInterval" in web_app_hub.INDEX_HTML, "UI must use setInterval for automatic polling without button press"
+    assert "cursors" in web_app_hub.INDEX_HTML, "UI must track cursors for incremental update path"
+
+
+def test_events_endpoint_returns_cursor_for_incremental_fetch():
+    captured = []
+
+    class TrackingProvider(FixtureProvider):
+        def round_events(self, round_id, cursor="", include_existing=False):
+            captured.append({"cursor": cursor, "include_existing": include_existing})
+            return super().round_events(round_id, cursor=cursor, include_existing=include_existing)
+
+    provider = TrackingProvider()
+    result = provider.round_events("20260509t063201z-6c02", cursor="cursor-1", include_existing=False)
+    assert result.get("ok") is True
+    assert "cursor" in result, "events response must include a cursor for subsequent incremental fetches"
+    assert captured[0]["cursor"] == "cursor-1"
+    assert captured[0]["include_existing"] is False
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

@@ -488,6 +488,66 @@ def ensure_web_app(*, url: str, timeout_seconds: int) -> None:
     )
 
 
+def smoke_web_app_autorefresh(*, url: str) -> None:
+    """Verify the autorefresh-relevant web app endpoints: events cursor and read-only constraint."""
+    base = url.rstrip("/")
+
+    try:
+        req = urllib.request.Request(f"{base}/api/snapshot", headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            body = resp.read(65536).decode(errors="replace")
+            snapshot = json.loads(body)
+    except Exception as exc:
+        raise SmokeFailure("web_app", f"autorefresh snapshot fetch failed: {exc}", hint="Check web app logs:\n  task kind:web-app:logs") from exc
+
+    rounds = snapshot.get("rounds") or []
+    if rounds:
+        round_id = rounds[0].get("round_id", "")
+        if round_id:
+            try:
+                events_url = f"{base}/api/rounds/{urllib.parse.quote(round_id)}/events"
+                req = urllib.request.Request(events_url, headers={"Accept": "application/json"})
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    body = resp.read(16384).decode(errors="replace")
+                    events = json.loads(body)
+                if "cursor" not in events:
+                    raise SmokeFailure(
+                        "web_app",
+                        f"events endpoint missing cursor field for round {round_id}",
+                        hint="Check web app logs:\n  task kind:web-app:logs",
+                    )
+                log(f"web app events endpoint returned cursor for round {round_id}")
+            except SmokeFailure:
+                raise
+            except Exception as exc:
+                raise SmokeFailure("web_app", f"events endpoint failed for round {round_id}: {exc}") from exc
+
+    try:
+        req = urllib.request.Request(
+            f"{base}/api/snapshot",
+            data=b"{}",
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=5):
+                raise SmokeFailure("web_app", "POST to /api/snapshot must return 405 but returned 2xx", hint="web app must be read-only")
+        except urllib.error.HTTPError as exc:
+            if exc.code != 405:
+                raise SmokeFailure(
+                    "web_app",
+                    f"POST to /api/snapshot returned {exc.code}, expected 405",
+                    hint="web app must enforce read-only access",
+                ) from exc
+            log("web app correctly rejects POST with 405 (read-only enforcement)")
+    except SmokeFailure:
+        raise
+    except Exception as exc:
+        raise SmokeFailure("web_app", f"read-only check failed: {exc}") from exc
+
+    log(f"web app autorefresh smoke passed: rounds={len(rounds)} read-only=ok")
+
+
 def pod_data(env: dict[str, str], context: str, namespace: str, agent: str) -> dict[str, Any]:
     result = run(
         [
@@ -743,6 +803,7 @@ async def smoke(args: argparse.Namespace) -> None:
                     url=args.web_app_url,
                     timeout_seconds=args.startup_timeout,
                 )
+                smoke_web_app_autorefresh(url=args.web_app_url)
 
             log(f"dispatch {agent} through kind Hub broker {args.broker}")
             start_args = [

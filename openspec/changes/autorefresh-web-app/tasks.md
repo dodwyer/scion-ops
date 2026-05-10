@@ -7,7 +7,7 @@
 - [ ] 1.5 Preserve selected round detail state, filters, scroll context, and existing timeline entries while incremental updates are applied.
 - [ ] 1.6 Add live connection indicators for connected, reconnecting, stale, fallback polling, and failed states.
 - [ ] 1.7 Make any remaining manual refresh control secondary and ensure it is not required for ordinary monitoring.
-- [ ] 1.8 Add fixture or unit tests for initial snapshot plus incremental updates, duplicate event handling, timeline appends, inbox updates, runtime status changes, and final-review/status changes.
-- [ ] 1.9 Add reconnect and stale-state tests covering cursor resume or safe fallback snapshot behavior.
-- [ ] 1.10 Run OpenSpec validation for this change.
-- [ ] 1.11 Run the repo's relevant static checks, web app tests, and no-spend smoke checks for the automatic update path.
+- [x] 1.8 Add fixture or unit tests for initial snapshot plus incremental updates, duplicate event handling, timeline appends, inbox updates, runtime status changes, and final-review/status changes.
+- [x] 1.9 Add reconnect and stale-state tests covering cursor resume or safe fallback snapshot behavior.
+- [x] 1.10 Run OpenSpec validation for this change.
+- [x] 1.11 Run the repo's relevant static checks, web app tests, and no-spend smoke checks for the automatic update path.
