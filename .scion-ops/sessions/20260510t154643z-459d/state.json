@@ -31,7 +31,22 @@
     },
     "required_multi_harness": true
   },
-  "agents": {},
+  "agents": {
+    "clarifier": {
+      "name": "round-20260510t154643z-459d-spec-clarifier",
+      "branch": "round-20260510t154643z-459d-spec-clarifier",
+      "template": "spec-goal-clarifier-claude",
+      "harness_config": "claude",
+      "status": "running"
+    },
+    "explorer": {
+      "name": "round-20260510t154643z-459d-spec-explorer",
+      "branch": "round-20260510t154643z-459d-spec-explorer",
+      "template": "spec-repo-explorer",
+      "harness_config": "codex-exec",
+      "status": "running"
+    }
+  },
   "review": {},
   "validation": {
     "status": "pending"
