@@ -1,0 +1,172 @@
+{
+  "artifact": ".scion-ops/sessions/20260510t212023z-5a85/findings/round-20260510t212023z-5a85-impl-codex-repair1.json",
+  "artifact_json": {
+    "agent": "round-20260510t212023z-5a85-impl-codex-repair1",
+    "blockers": [],
+    "branch": "round-20260510t212023z-5a85-impl-codex-repair1",
+    "changed_files": [
+      "scripts/web_app_hub.py",
+      "scripts/test-web-app-hub.py"
+    ],
+    "head_sha": "9b9e8c54762fc87fee8bb790945ef2100b26b894",
+    "status": "completed",
+    "summary": "Repaired the app-side final-review blockers on top of the integration branch by composing the NiceGUI operator console with NiceGUI components instead of injecting the old body HTML, while retaining the legacy HTML for diagnostic/legacy HTTP compatibility. The live client now records the latest cursor, reconnects /api/live with cursor resume, carries the selected round_id into the stream, and leaves snapshot/timeline polling feedback active as fallback. Branch pushed to origin at 9b9e8c54762fc87fee8bb790945ef2100b26b894.",
+    "tasks_completed": [
+      "Replaced the NiceGUI root route's legacy INDEX_HTML body injection with component-native NiceGUI page composition for the operator console scaffold.",
+      "Updated the /api/live browser client to reconnect with the current cursor, preserve the selected round_id during stream resume, and keep fallback polling feedback visible.",
+      "Added focused fixture assertions for component composition and live cursor/round reconnect markers."
+    ],
+    "tests_run": [
+      "uv run scripts/test-web-app-hub.py",
+      "uv run --with 'PyYAML>=6,<7' --with 'nicegui>=2.15,<3' --with 'mcp>=1.13,<2' python - <<'PY' ... configure_nicegui_app(...) ... PY",
+      "uv run scripts/web_app_hub.py --host 127.0.0.1 --port 8787; curl -fsS http://127.0.0.1:8787/ | head -60",
+      "curl -fsS 'http://127.0.0.1:8787/api/live?cursor=live:missing&round_id=20260509t063201z-6c02' | uv run python -m json.tool | sed -n '1,60p'",
+      "curl -fsS 'http://127.0.0.1:8787/api/live?format=sse&seconds=1' | head -20",
+      "git diff --check -- scripts/web_app_hub.py scripts/test-web-app-hub.py openspec/changes/use-nicegui/tasks.md"
+    ]
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5edf7b034a3bfd3afa49a268590288ff7f8fa5be",
+      "checked_at": "2026-05-10T21:39:26.203177Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5edf7b034a3bfd3afa49a268590288ff7f8fa5be",
+      "checked_at": "2026-05-10T21:39:46.586247Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5edf7b034a3bfd3afa49a268590288ff7f8fa5be",
+      "checked_at": "2026-05-10T21:40:06.989180Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5edf7b034a3bfd3afa49a268590288ff7f8fa5be",
+      "checked_at": "2026-05-10T21:40:27.413562Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5edf7b034a3bfd3afa49a268590288ff7f8fa5be",
+      "checked_at": "2026-05-10T21:40:47.805089Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5edf7b034a3bfd3afa49a268590288ff7f8fa5be",
+      "checked_at": "2026-05-10T21:41:08.214533Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5edf7b034a3bfd3afa49a268590288ff7f8fa5be",
+      "checked_at": "2026-05-10T21:41:28.608774Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5edf7b034a3bfd3afa49a268590288ff7f8fa5be",
+      "checked_at": "2026-05-10T21:41:49.025937Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5edf7b034a3bfd3afa49a268590288ff7f8fa5be",
+      "checked_at": "2026-05-10T21:42:09.419305Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5edf7b034a3bfd3afa49a268590288ff7f8fa5be",
+      "checked_at": "2026-05-10T21:42:29.823131Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5edf7b034a3bfd3afa49a268590288ff7f8fa5be",
+      "checked_at": "2026-05-10T21:42:50.221410Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5edf7b034a3bfd3afa49a268590288ff7f8fa5be",
+      "checked_at": "2026-05-10T21:43:10.622332Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5edf7b034a3bfd3afa49a268590288ff7f8fa5be",
+      "checked_at": "2026-05-10T21:43:31.034951Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5edf7b034a3bfd3afa49a268590288ff7f8fa5be",
+      "checked_at": "2026-05-10T21:43:51.434167Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5edf7b034a3bfd3afa49a268590288ff7f8fa5be",
+      "checked_at": "2026-05-10T21:44:11.819465Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "9b9e8c54762fc87fee8bb790945ef2100b26b894",
+      "checked_at": "2026-05-10T21:44:32.249301Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "0132f30a4c1cad1a172f4dbedc846cf6d7a9575a",
+      "checked_at": "2026-05-10T21:44:52.828520Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260510t212023z-5a85-impl-codex-repair1",
+  "branch_head": "0132f30a4c1cad1a172f4dbedc846cf6d7a9575a",
+  "completed_at": "2026-05-10T21:44:53.382866Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

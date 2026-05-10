@@ -6,30 +6,79 @@
   "change": "use-nicegui",
   "base_branch": "main",
   "status": "running",
-  "phase": "starting",
+  "phase": "final_review_repair",
   "branches": {
     "steward": "round-20260510t212023z-5a85-implementation-steward",
     "implementer": "round-20260510t212023z-5a85-impl-codex",
     "secondary_implementer": "round-20260510t212023z-5a85-impl-claude",
-    "final_review": "round-20260510t212023z-5a85-final-review",
+    "final_review": "round-20260510t212023z-5a85-final-review-repair1",
     "integration": "round-20260510t212023z-5a85-integration"
   },
-  "agents": {},
+  "agents": {
+    "round-20260510t212023z-5a85-impl-codex": {
+      "role": "implementer",
+      "branch": "round-20260510t212023z-5a85-impl-codex",
+      "template": "impl-codex",
+      "status": "completed"
+    },
+    "round-20260510t212023z-5a85-impl-claude": {
+      "role": "implementer",
+      "branch": "round-20260510t212023z-5a85-impl-claude",
+      "template": "impl-claude",
+      "status": "completed"
+    },
+    "round-20260510t212023z-5a85-impl-codex-repair1": {
+      "role": "implementer_repair",
+      "branch": "round-20260510t212023z-5a85-impl-codex-repair1",
+      "template": "impl-codex",
+      "status": "completed"
+    },
+    "round-20260510t212023z-5a85-final-review": {
+      "role": "final_review",
+      "branch": "round-20260510t212023z-5a85-final-review",
+      "template": "final-reviewer-codex",
+      "status": "completed",
+      "verdict": "request_changes"
+    }
+  },
   "implementation": {
-    "branch": "",
+    "branch": "round-20260510t212023z-5a85-integration",
     "base_branch": "main",
     "integration_branch": "round-20260510t212023z-5a85-integration"
   },
-  "reviews": [],
-  "final_review": {},
-  "verification": {
+  "reviews": [
+    {
+      "agent": "round-20260510t212023z-5a85-final-review",
+      "branch": "round-20260510t212023z-5a85-final-review",
+      "verdict": "request_changes",
+      "classification": "implementation_defect",
+      "summary": "The initial integration fixed the kind dependency path but still injected the legacy UI into NiceGUI and did not reconnect /api/live with cursor resume.",
+      "artifact": ".scion-ops/sessions/20260510t212023z-5a85/reviews/final-review.json"
+    }
+  ],
+  "final_review": {
+    "branch": "round-20260510t212023z-5a85-final-review-repair1",
     "status": "pending"
+  },
+  "verification": {
+    "status": "passed",
+    "integration_branch": "round-20260510t212023z-5a85-integration",
+    "evidence": [
+      "uv run scripts/test-web-app-hub.py",
+      "uv run scripts/test-wait-for-review-artifact.py",
+      "uv run scripts/test-steward-session-validator.py",
+      "kubectl kustomize deploy/kind/control-plane",
+      "python3 scripts/validate-openspec-change.py use-nicegui",
+      "local NiceGUI smoke: /healthz, /api/live cursor_resume with round_id, rendered NiceGUI component marker"
+    ]
   },
   "blockers": [],
   "next_actions": [
     "Write implementation brief and bounded task groups",
     "Start bounded implementer agents",
     "Integrate the accepted implementation branch",
-    "Run verification and final review"
+    "Start final review on round-20260510t212023z-5a85-final-review-repair1",
+    "Wait for accepting final-review verdict",
+    "Finalize PR after acceptance"
   ]
 }
