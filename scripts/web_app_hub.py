@@ -1877,8 +1877,8 @@ INDEX_HTML = r"""<!doctype html>
       roundDetails: {},
       cursors: {},
       timelineKeys: {},
-      live: { state: "reconnecting", mode: "fallback", lastOk: "", error: "", source: "snapshot" },
-      poll: { snapshot: null, detail: null, stale: null },
+      live: { state: "reconnecting", mode: "fallback", lastOk: "", error: "", source: "snapshot", cursor: "", roundId: "" },
+      poll: { snapshot: null, detail: null, stale: null, reconnect: null },
       stream: null
     };
     const SNAPSHOT_POLL_MS = 15000;
@@ -2039,7 +2039,8 @@ INDEX_HTML = r"""<!doctype html>
     function updateLiveState(next) {
       state.live = { ...state.live, ...next };
       const fresh = state.live.lastOk ? `Last update ${fmt(state.live.lastOk)}` : "Waiting for first update";
-      const detail = state.live.error ? `${state.live.source}: ${state.live.error}` : `${fresh} via ${state.live.mode}`;
+      const context = state.live.roundId ? ` for ${state.live.roundId}` : "";
+      const detail = state.live.error ? `${state.live.source}: ${state.live.error}` : `${fresh} via ${state.live.mode}${context}`;
       document.getElementById("refresh-state").innerHTML = `<div>${status(liveLabel())}</div><div class="muted">${esc(detail)}</div>`;
     }
     function markLiveOk(source) {
@@ -2163,7 +2164,9 @@ INDEX_HTML = r"""<!doctype html>
     }
     function applyLiveEvent(payload) {
       if (!payload || typeof payload !== "object") return;
+      if (payload.cursor) state.live.cursor = payload.cursor;
       if (payload.type === "heartbeat") {
+        if (payload.data?.round_id !== undefined) state.live.roundId = payload.data.round_id || "";
         markStreamOk(payload.source || "stream");
         return;
       }
@@ -2231,12 +2234,22 @@ INDEX_HTML = r"""<!doctype html>
       }
     }
     function startLiveUpdates() {
+      if (state.poll.reconnect) {
+        clearTimeout(state.poll.reconnect);
+        state.poll.reconnect = null;
+      }
       if (!("EventSource" in window)) {
         updateLiveState({ state: "fallback", mode: "fallback polling", source: "snapshot", error: "" });
         return;
       }
       try {
-        const stream = new EventSource("/api/live");
+        const params = new URLSearchParams();
+        if (state.live.cursor) params.set("cursor", state.live.cursor);
+        if (state.selectedRound) params.set("round_id", state.selectedRound);
+        params.set("format", "sse");
+        const url = `/api/live?${params.toString()}`;
+        updateLiveState({ state: "reconnecting", mode: state.live.cursor ? "cursor resume" : "stream", source: "stream", error: "", roundId: state.selectedRound || "" });
+        const stream = new EventSource(url);
         state.stream = stream;
         stream.onopen = () => markStreamOk("stream");
         stream.onmessage = event => applyLiveEvent(JSON.parse(event.data));
@@ -2254,10 +2267,26 @@ INDEX_HTML = r"""<!doctype html>
           stream.close();
           state.stream = null;
           updateLiveState({ state: "fallback", mode: "fallback polling", source: "stream", error: "stream unavailable; using automatic polling" });
+          scheduleLiveReconnect();
         };
       } catch (err) {
         updateLiveState({ state: "fallback", mode: "fallback polling", source: "stream", error: err.message || String(err) });
+        scheduleLiveReconnect();
       }
+    }
+    function scheduleLiveReconnect() {
+      if (state.poll.reconnect || !("EventSource" in window)) return;
+      state.poll.reconnect = setTimeout(() => {
+        state.poll.reconnect = null;
+        startLiveUpdates();
+      }, 5000);
+    }
+    function reconnectLiveUpdates() {
+      if (state.stream) {
+        state.stream.close();
+        state.stream = null;
+      }
+      startLiveUpdates();
     }
     function renderOverview() {
       const s = state.snapshot;
@@ -2283,8 +2312,10 @@ INDEX_HTML = r"""<!doctype html>
       document.querySelectorAll("[data-round]").forEach(row => row.onclick = () => openRound(row.dataset.round));
     }
     async function openRound(roundId, { force = false } = {}) {
+      const previousRound = state.selectedRound;
       state.selectedRound = roundId;
       setView("round-detail");
+      if (previousRound !== roundId || state.live.roundId !== roundId) reconnectLiveUpdates();
       if (!state.roundDetails[roundId] || force) {
         document.getElementById("round-detail").innerHTML = `<div class="card">Loading ${esc(roundId)}...</div>`;
         const detail = await getJson(`/api/rounds/${encodeURIComponent(roundId)}`);
@@ -2421,9 +2452,33 @@ def nicegui_console_style() -> str:
     return f"<style>{style}</style>" if style else ""
 
 
+def nicegui_console_script() -> str:
+    script = _extract_index_fragment("script")
+    return script
+
+
 def nicegui_console_fragment() -> str:
     body = _extract_index_fragment("body")
     return f'<div id="nicegui-operator-console" data-framework="NiceGUI" data-live-source="/api/live">{body}</div>'
+
+
+def build_nicegui_console_components(ui: Any) -> None:
+    with ui.header():
+        ui.label("scion-ops hub").classes("text-h6")
+        with ui.element("nav"):
+            ui.button("Overview").props('data-view="overview"').classes("active")
+            ui.button("Rounds").props('data-view="rounds"')
+            ui.button("Inbox").props('data-view="inbox"')
+            ui.button("Runtime").props('data-view="runtime"')
+    with ui.element("main").props('id="nicegui-operator-console" data-framework="NiceGUI" data-live-source="/api/live"'):
+        with ui.element("div").classes("bar live-bar"):
+            with ui.element("div").props('id="refresh-state"').classes("live-state"):
+                ui.label("Loading...")
+        ui.element("section").props('id="overview"')
+        ui.element("section").props('id="rounds"').classes("hidden")
+        ui.element("section").props('id="round-detail"').classes("hidden")
+        ui.element("section").props('id="inbox"').classes("hidden")
+        ui.element("section").props('id="runtime"').classes("hidden")
 
 
 def json_response(payload: dict[str, Any], status_code: int = 200) -> Any:
@@ -2527,7 +2582,8 @@ def configure_nicegui_app(provider: RuntimeProvider | Any | None = None) -> Any:
     def index() -> None:
         ui.page_title("scion-ops operator console")
         ui.add_head_html(nicegui_console_style())
-        ui.add_body_html(nicegui_console_fragment())
+        build_nicegui_console_components(ui)
+        ui.timer(0.1, lambda: ui.run_javascript(nicegui_console_script()), once=True)
 
     return app
 
