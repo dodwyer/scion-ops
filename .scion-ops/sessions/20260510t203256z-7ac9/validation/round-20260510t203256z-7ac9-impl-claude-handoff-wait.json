@@ -1,0 +1,182 @@
+{
+  "artifact": ".scion-ops/sessions/20260510t203256z-7ac9/findings/round-20260510t203256z-7ac9-impl-claude.json",
+  "artifact_json": {
+    "agent": "round-20260510t203256z-7ac9-impl-claude",
+    "blockers": [],
+    "branch": "round-20260510t203256z-7ac9-impl-claude",
+    "changed_files": [
+      "deploy/kind/control-plane/web-app-deployment.yaml",
+      "docs/kind-control-plane.md",
+      "openspec/changes/use-nicegui/tasks.md"
+    ],
+    "head_sha": "84f0a09ed7e11bd339d2d0ed6421c4eb722becb7",
+    "status": "completed",
+    "summary": "Updated web-app-deployment.yaml to start scripts/web_app.py (NiceGUI entry point) instead of scripts/web_app_hub.py, preserving all existing service identity, ports, probes, workspace mount, auth Secret, Hub/MCP env vars, grove id conventions, and read-only RBAC. Updated docs/kind-control-plane.md with NiceGUI operator console language, a NiceGUI Local Development section with local run instructions, and a note on the new entry point and health/JSON endpoints. Smoke check uses /api/overview JSON endpoint without model-backed work \u2014 no changes needed. Checked off task 1.9.",
+    "tasks_completed": [
+      "1.9 Update kind manifests, probes, service wiring, lifecycle tasks, and documentation for the NiceGUI web app while preserving existing runtime configuration conventions."
+    ],
+    "tests_run": [
+      "task verify"
+    ]
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:35:30.282221Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:35:51.032214Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:36:11.427582Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:36:31.813397Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:36:52.186016Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:37:12.547316Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:37:32.936811Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:37:53.342001Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:38:13.773604Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:38:34.175258Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:38:54.570904Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:39:14.963263Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:39:35.358972Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:39:55.764495Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:40:16.179715Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:40:36.570596Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:40:56.995689Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+      "checked_at": "2026-05-10T20:41:17.418419Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "2b0075e55eacb034cad84ca5583ae2b06b848edb",
+      "checked_at": "2026-05-10T20:41:37.828105Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260510t203256z-7ac9-impl-claude",
+  "branch_head": "2b0075e55eacb034cad84ca5583ae2b06b848edb",
+  "completed_at": "2026-05-10T20:41:38.616556Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
