@@ -1,0 +1,141 @@
+{
+  "artifact": ".scion-ops/sessions/20260510t203256z-7ac9/reviews/final-review.json",
+  "artifact_json": {
+    "blocking_issues": [
+      "The NiceGUI live-region refresh still does not preserve selected diagnostic context during updates. `mount_live_region` clears and rebuilds the whole region whenever `refresh()` reports changed data, while round-detail tabs are recreated from the original `active_tab` argument and runtime/troubleshooting expanders are recreated from their default `value` expression rather than client state. As a result, an operator who opens the validation/branches/diagnostics tab or expands a troubleshooting source is reset on the next live update. This violates the approved NiceGUI components preserve operator state during updates scenario, which explicitly covers selected rounds, expanded diagnostic sections, and filtered/selected context."
+    ],
+    "final_failure_classification": "implementation_defect",
+    "final_failure_evidence": "Evidence in scripts/web_app_hub.py: `mount_live_region` calls `region.clear()` and rerenders the live body on changed updates; `render_round_detail_body` creates `ui.tabs(value=active_tab)` and `ui.tab_panels(..., value=active_tab)` from the route-time argument; `render_runtime_body` creates `ui.expansion(..., value=(name == selected_source or not troubleshooting))` without persisting user expansion state. The targeted kind startup issue is fixed by the deployment's `uv run scripts/web_app_hub.py` launcher, and helper tests pass, but the rendered NiceGUI update path still resets one-level-down diagnostic context.",
+    "nits": [
+      "The runtime page includes visible explanatory copy about the interface being read-only and raw diagnostics being one level below the overview; this is low risk but cuts against the spec/design direction to keep such UX constraints out of in-app explanatory text."
+    ],
+    "review_type": "final",
+    "scores": {
+      "completeness": 3,
+      "correctness": 3,
+      "style": 3
+    },
+    "spec": {
+      "change": "use-nicegui",
+      "checked_artifacts": [
+        "openspec/changes/use-nicegui/proposal.md",
+        "openspec/changes/use-nicegui/design.md",
+        "openspec/changes/use-nicegui/specs/web-app-hub/spec.md",
+        "openspec/changes/use-nicegui/tasks.md",
+        "scripts/web_app_hub.py",
+        "scripts/test-web-app-hub.py",
+        "deploy/kind/control-plane/web-app-deployment.yaml",
+        "docs/kind-control-plane.md",
+        ".scion-ops/sessions/20260510t203256z-7ac9/findings/round-20260510t203256z-7ac9-impl-deps-fix.json",
+        ".scion-ops/sessions/20260510t203256z-7ac9/findings/round-20260510t203256z-7ac9-impl-live-fix.json"
+      ],
+      "conformance": 3,
+      "gaps": [
+        "No browser-level or NiceGUI client-state test proves tab/expander preservation across timer-driven live updates.",
+        "No full kind container smoke was run in this review; kustomize rendering and local `uv run` startup were verified."
+      ],
+      "operational_verification": 3,
+      "spec_completeness": 5,
+      "task_coverage": 3,
+      "unresolved_questions": []
+    },
+    "summary": "Final review rejects round-20260510t203256z-7ac9-integration for PR readiness. The prior kind dependency blocker is addressed, and the app now has a timer-backed live region with passing helper tests, but the rendered live update path still resets selected diagnostic context because it clears and recreates tabs/expanders from defaults on refresh. PR is not ready until live refreshes preserve those one-level-down operator selections.",
+    "verdict": "request_changes"
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:09:41.805442Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:10:02.180553Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:10:22.591243Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:10:42.979948Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:11:03.357963Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:11:23.815137Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:11:44.223970Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:12:04.658929Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:12:25.049528Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+      "checked_at": "2026-05-10T21:12:45.497526Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "81a01fde2b68bd8c919cc8783d2b343aa409d973",
+      "checked_at": "2026-05-10T21:13:05.894589Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260510t203256z-7ac9-final-review-2",
+  "branch_head": "81a01fde2b68bd8c919cc8783d2b343aa409d973",
+  "completed_at": "2026-05-10T21:13:06.482925Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
