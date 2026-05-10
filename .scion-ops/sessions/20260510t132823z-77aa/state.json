@@ -25,7 +25,7 @@
       "role": "secondary_implementer",
       "branch": "round-20260510t132823z-77aa-impl-claude",
       "scope": "Frontend autorefresh behavior and smoke/install coverage",
-      "status": "running"
+      "status": "stalled_no_branch_movement"
     }
   },
   "implementation": {
