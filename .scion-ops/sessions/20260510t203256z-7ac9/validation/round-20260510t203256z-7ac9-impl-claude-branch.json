@@ -1,0 +1,13 @@
+{
+  "base_branch": "main",
+  "base_sha": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+  "branch": "round-20260510t203256z-7ac9-impl-claude",
+  "child_sha": "14f2f7ec42dafe49067e9552bee5b2820e564884",
+  "completed_at": "2026-05-10T20:34:32.183578Z",
+  "created": false,
+  "fetch": null,
+  "ok": true,
+  "project_root": "/workspace",
+  "push": null,
+  "reason": ""
+}
