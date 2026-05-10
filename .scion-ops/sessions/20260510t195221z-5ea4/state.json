@@ -5,8 +5,8 @@
   "kind": "implementation",
   "change": "use-nicegui",
   "base_branch": "main",
-  "status": "running",
-  "phase": "implementing",
+  "status": "blocked",
+  "phase": "blocked",
   "branches": {
     "steward": "round-20260510t195221z-5ea4-implementation-steward",
     "implementer": "round-20260510t195221z-5ea4-impl-codex",
@@ -36,16 +36,18 @@
       "branch": "round-20260510t195221z-5ea4-impl-codex-nicegui3",
       "template": "impl-codex",
       "harness_config": "codex-exec",
-      "status": "running",
-      "scope": "Narrow Group A NiceGUI app entry, rendering, preserved JSON endpoints, and tests."
+      "status": "stopped_no_branch_movement",
+      "scope": "Narrow Group A NiceGUI app entry, rendering, preserved JSON endpoints, and tests.",
+      "notes": "Started and directly messaged, but remained idle and remote branch stayed at origin/main."
     },
     "round-20260510t195221z-5ea4-impl-claude-kind3": {
       "role": "replacement_secondary_implementer",
       "branch": "round-20260510t195221z-5ea4-impl-claude-kind3",
       "template": "impl-claude",
       "harness_config": "claude",
-      "status": "running",
-      "scope": "Narrow Group B kind deployment, lifecycle, docs, and smoke wiring."
+      "status": "stopped_no_branch_movement",
+      "scope": "Narrow Group B kind deployment, lifecycle, docs, and smoke wiring.",
+      "notes": "Started and directly messaged, but remained idle and remote branch stayed at origin/main."
     }
   },
   "implementation": {
@@ -56,9 +58,12 @@
   "reviews": [],
   "final_review": {},
   "verification": {
-    "status": "pending"
+    "status": "blocked",
+    "reason": "No implementer branch produced product changes, so no integration branch or verification run was created."
   },
-  "blockers": [],
+  "blockers": [
+    "No implementer branch produced a non-empty branch. Original implementers round-20260510t195221z-5ea4-impl-codex and round-20260510t195221z-5ea4-impl-claude stayed idle after start and direct Hub messages. Replacement implementers round-20260510t195221z-5ea4-impl-codex-nicegui3 and round-20260510t195221z-5ea4-impl-claude-kind3 also stayed idle after start and direct Hub messages. All four branches remained at origin/main SHA 70b0a038493deac7528c3599bf9116c57f8d9a44."
+  ],
   "guard_failures": [
     {
       "branches": [
@@ -76,9 +81,8 @@
     }
   ],
   "next_actions": [
-    "Write implementation brief and bounded task groups",
-    "Monitor bounded implementer agents",
-    "Integrate the accepted implementation branch",
-    "Run verification and final review"
+    "Investigate why Hub-started implementer harnesses remained idle after start and direct message delivery.",
+    "Restart implementation with working implementer harness delivery before product edits.",
+    "Do not mark ready until an integration branch exists with implementer-produced changes, verification, final review, and PR."
   ]
 }
