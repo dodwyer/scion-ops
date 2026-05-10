@@ -30,6 +30,22 @@
       "harness_config": "claude",
       "status": "stopped_no_branch_movement",
       "notes": "Started and directly messaged, but remained idle and remote branch stayed at origin/main."
+    },
+    "round-20260510t195221z-5ea4-impl-codex-nicegui3": {
+      "role": "replacement_implementer",
+      "branch": "round-20260510t195221z-5ea4-impl-codex-nicegui3",
+      "template": "impl-codex",
+      "harness_config": "codex-exec",
+      "status": "running",
+      "scope": "Narrow Group A NiceGUI app entry, rendering, preserved JSON endpoints, and tests."
+    },
+    "round-20260510t195221z-5ea4-impl-claude-kind3": {
+      "role": "replacement_secondary_implementer",
+      "branch": "round-20260510t195221z-5ea4-impl-claude-kind3",
+      "template": "impl-claude",
+      "harness_config": "claude",
+      "status": "running",
+      "scope": "Narrow Group B kind deployment, lifecycle, docs, and smoke wiring."
     }
   },
   "implementation": {
