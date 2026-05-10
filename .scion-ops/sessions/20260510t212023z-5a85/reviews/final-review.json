@@ -1,0 +1,43 @@
+{
+  "review_type": "final",
+  "scores": {
+    "correctness": 2,
+    "completeness": 2,
+    "style": 2
+  },
+  "verdict": "request_changes",
+  "blocking_issues": [
+    "The frontend is not actually rebuilt as NiceGUI components as required by the approved use-nicegui OpenSpec. scripts/web_app_hub.py serves the previous INDEX_HTML body and script through ui.add_body_html(), so page composition, navigation, controls, and live UI behavior remain the legacy handwritten DOM/JavaScript implementation rather than a fresh NiceGUI operator console.",
+    "The rendered client does not implement /api/live reconnect with cursor resume. startLiveUpdates() opens EventSource('/api/live') without the current cursor, closes the stream on error, and only relies on fallback polling afterward. This leaves the approved reconnect/resume behavior and the prior rejection blocker only partially addressed."
+  ],
+  "final_failure_classification": "implementation_defect",
+  "final_failure_evidence": "Reviewed origin/main..origin/round-20260510t212023z-5a85-integration. The deployment image/path blocker is addressed: deploy/kind/control-plane/web-app-deployment.yaml runs the web app from localhost/scion-ops-mcp:latest and image-build/scion-ops-mcp/Dockerfile installs nicegui>=2,<3. Direct smoke checks also showed the NiceGUI server starts, / renders NiceGUI assets plus the injected console, and /api/live responds in JSON and SSE modes. However scripts/web_app_hub.py implements configure_nicegui_app() by extracting the legacy INDEX_HTML <body> and injecting it with ui.add_body_html(), and the live client at startLiveUpdates() does not reconnect or resume /api/live with a cursor after stream errors.",
+  "nits": [
+    "scripts/test-web-app-hub.py checks for source markers in the rendered fragment but does not exercise browser execution, reconnect/resume, or visible state preservation behavior.",
+    "The kind deployment still checks for scripts/web_app_nicegui.py even though the integration branch does not add that file; the fallback works, but the preferred path is dead code in this branch."
+  ],
+  "spec": {
+    "change": "use-nicegui",
+    "conformance": 2,
+    "spec_completeness": 2,
+    "task_coverage": 2,
+    "operational_verification": 3,
+    "checked_artifacts": [
+      "openspec/changes/use-nicegui/specs/web-app-hub/spec.md",
+      "openspec/changes/use-nicegui/design.md",
+      "openspec/changes/use-nicegui/tasks.md",
+      "scripts/web_app_hub.py",
+      "scripts/test-web-app-hub.py",
+      "deploy/kind/control-plane/web-app-deployment.yaml",
+      "image-build/scion-ops-mcp/Dockerfile",
+      "docs/kind-control-plane.md",
+      "README.md"
+    ],
+    "unresolved_questions": [],
+    "gaps": [
+      "No browser-level verification proves visible in-place updates, selected-context preservation, or reconnect/resume behavior under a dropped /api/live stream.",
+      "No kind render or in-cluster smoke was run in this final review; verification was limited to OpenSpec validation, fixture tests, local NiceGUI startup, curl checks for /, /api/snapshot, and /api/live JSON/SSE."
+    ]
+  },
+  "summary": "Request changes. The integration fixes the prior kind deployment image/path blocker and exposes working /api/live JSON/SSE endpoints, but it does not satisfy the approved NiceGUI frontend migration or the prior reconnect/resume portion of the live-update blocker. The page is still the legacy HTML/JavaScript UI injected into a NiceGUI shell, and the /api/live client falls back after errors instead of reconnecting with cursor preservation."
+}
