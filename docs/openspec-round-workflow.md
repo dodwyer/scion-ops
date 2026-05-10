@@ -8,6 +8,45 @@ the session, records durable state, delegates bounded work to specialist agents,
 and uses deterministic validation/review gates before declaring a branch ready.
 For OpenSpec work, steward sessions are the documented path.
 
+## Expected Interaction Flow
+
+```mermaid
+flowchart TD
+  U[User or MCP client] --> MCP[MCP steward tool]
+  MCP --> V[Validate project, change, and base branch]
+  V -->|invalid| BLOCK[Return blocker without starting agents]
+  V -->|valid| BRANCH[Precreate expected branches from base]
+
+  BRANCH --> HUB[Scion Hub]
+  HUB --> BROKER[Scion Broker]
+  BROKER --> STEWARD[Steward agent]
+
+  STEWARD --> STATE[Write durable state on steward branch]
+  STEWARD --> CHILD[Start bounded child agents with scion start]
+  CHILD --> WORK[Child agents commit and push owned branches]
+  WORK --> HUB
+  HUB --> STEWARD
+
+  STEWARD --> INTEGRATE[Integrate accepted branch output]
+  INTEGRATE --> VALIDATE[Run validation and branch-movement gates]
+  VALIDATE -->|fail| BLOCKED[Record blocked state]
+  VALIDATE -->|pass| REVIEW[Run review gate]
+  REVIEW -->|reject or block| BLOCKED
+  REVIEW -->|accept| READY[Ready for PR]
+  READY --> PR[Create or return GitHub PR]
+  PR --> COMPLETE[Record state.pull_request.pr_url]
+  COMPLETE --> FINAL[Validate with require-ready and require-pr]
+
+  UI[Read-only web UI] --> HUB
+  UI --> MCPSTATE[MCP structured status/events]
+  UI --> GIT[Git branch and artifact evidence]
+  UI -.diagnostic only.-> LOGS[Terminal or Kubernetes logs]
+```
+
+The normal observation path is structured Hub, MCP, Git, and steward-state data.
+Terminal output and Kubernetes logs are diagnostic-only fallbacks; they are not
+workflow state and must not decide readiness.
+
 ## Artifact Contract
 
 A spec round writes only:
@@ -69,7 +108,8 @@ task steward:validate -- \
   --require-ready
 ```
 
-Create or return the review PR after validation succeeds:
+Create or return the review PR after validation succeeds. Successful steward
+sessions record the PR URL in `state.pull_request.pr_url`:
 
 ```bash
 task steward:pr -- \
@@ -78,6 +118,18 @@ task steward:pr -- \
   --kind spec \
   --change add-widget \
   --json
+```
+
+Validate completed reviewable state after PR creation:
+
+```bash
+task steward:validate -- \
+  --project-root /path/to/project \
+  --session-id <session-id> \
+  --kind spec \
+  --change add-widget \
+  --require-ready \
+  --require-pr
 ```
 
 Start implementation after the spec PR is merged or after the approved spec
@@ -119,6 +171,18 @@ task steward:pr -- \
   --json
 ```
 
+Validate completed implementation state after PR creation:
+
+```bash
+task steward:validate -- \
+  --project-root /path/to/project \
+  --session-id <session-id> \
+  --kind implementation \
+  --change add-widget \
+  --require-ready \
+  --require-pr
+```
+
 Archive after the implementation PR is merged:
 
 ```bash
@@ -143,7 +207,8 @@ Run a spec round for change=add-widget:
 The external-agent tool for spec work is `scion_ops_start_spec_steward`. Monitor
 the session with `scion_ops_watch_round_events` and validate readiness with
 `scion_ops_validate_steward_session`. After readiness validation passes, call
-`scion_ops_finalize_steward_pr` to create or return the GitHub PR.
+`scion_ops_finalize_steward_pr` to create or return the GitHub PR, then validate
+again with `require_pr=true` when you need the terminal reviewable contract.
 
 When `base_branch` is omitted, steward MCP tools choose the repository's origin
 default branch, then `main`/`master`. This keeps new steward sessions off stale
@@ -162,7 +227,7 @@ approved spec:
 The implementation tool is `scion_ops_start_impl_round`. It starts the
 implementation steward path and validates the approved change before launch.
 Validate the final state with `scion_ops_validate_steward_session`, then call
-`scion_ops_finalize_steward_pr`.
+`scion_ops_finalize_steward_pr`, then validate again with `require_pr=true`.
 
 Archive request:
 

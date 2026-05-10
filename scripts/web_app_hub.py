@@ -95,6 +95,9 @@ MCP_PROGRESS_KEYS = {
     "blockers",
     "warnings",
     "terminal",
+    "pull_request",
+    "pr",
+    "pr_url",
     "status",
     "health",
     "summary",
@@ -231,6 +234,8 @@ def structured_mcp_progress(item: Any, *, source: str) -> dict[str, Any]:
             "blockers": as_string_list(data.get("blockers")),
             "warnings": as_string_list(data.get("warnings")),
             "terminal": data.get("terminal") if isinstance(data.get("terminal"), dict) else {},
+            "pull_request": data.get("pull_request") if isinstance(data.get("pull_request"), dict) else {},
+            "pr_url": str(data.get("pr_url") or ""),
             "status": str(data.get("status") or ""),
             "health": str(data.get("health") or ""),
             "summary": short_text(data.get("summary") or "", 260),
@@ -245,6 +250,13 @@ def structured_mcp_progress(item: Any, *, source: str) -> dict[str, Any]:
             progress["remote_branches"] = [item for item in remote_branches if isinstance(item, dict)]
         if artifacts:
             progress["artifacts"] = artifacts
+        pr = data.get("pr") if isinstance(data.get("pr"), dict) else {}
+        if pr and not progress["pull_request"]:
+            progress["pull_request"] = {"pr": pr, "pr_url": str(pr.get("url") or "")}
+        if progress["pull_request"] and not progress["pr_url"]:
+            pull_request = progress["pull_request"]
+            pr_data = pull_request.get("pr") if isinstance(pull_request.get("pr"), dict) else {}
+            progress["pr_url"] = str(pull_request.get("pr_url") or pr_data.get("url") or "")
         best = progress
         break
     return best
@@ -266,6 +278,8 @@ def merge_mcp_progress(target: dict[str, Any], progress: dict[str, Any]) -> None
         "blockers": [],
         "warnings": [],
         "terminal": {},
+        "pull_request": {},
+        "pr_url": "",
         "status": "",
         "health": "",
         "summary": "",
@@ -285,12 +299,12 @@ def merge_mcp_progress(target: dict[str, Any], progress: dict[str, Any]) -> None
     source = str(progress.get("source") or "")
     if source and source not in existing["sources"]:
         existing["sources"].append(source)
-    for key in ("expected_branch", "pr_ready_branch", "remote_branch_sha", "base_branch_sha", "validation_status", "status", "health", "summary", "change", "project_root", "base_branch"):
+    for key in ("expected_branch", "pr_ready_branch", "remote_branch_sha", "base_branch_sha", "validation_status", "status", "health", "summary", "change", "project_root", "base_branch", "pr_url"):
         if progress.get(key):
             existing[key] = progress[key]
     if progress.get("branch_changed") is not None:
         existing["branch_changed"] = progress["branch_changed"]
-    for key in ("validation", "protocol", "terminal", "artifacts"):
+    for key in ("validation", "protocol", "terminal", "artifacts", "pull_request"):
         if progress.get(key):
             existing[key] = progress[key]
     merge_unique_strings(existing["blockers"], progress.get("blockers"))
@@ -1163,6 +1177,7 @@ INDEX_HTML = r"""<!doctype html>
       ${field("PR-ready branch", mcp.pr_ready_branch)}
       ${field("Remote branch SHA", mcp.remote_branch_sha)}
       ${field("Validation", mcp.validation_status)}
+      ${field("Pull request", mcp.pr_url || mcp.pull_request?.pr_url || mcp.pull_request?.pr?.url)}
       ${mcp.branch_changed !== null && mcp.branch_changed !== undefined ? field("Branch changed", mcp.branch_changed) : ""}
       ${listBlock("Blockers", mcp.blockers, "error-box")}
       ${listBlock("Warnings", mcp.warnings)}

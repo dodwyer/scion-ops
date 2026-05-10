@@ -513,6 +513,7 @@ def test_spec_round_progress_fields_are_preserved_from_structured_payloads():
         "blockers": ["OpenSpec validation failed on the remote branch"],
         "warnings": ["integration branch validates; waiting for spec finalizer"],
         "progress_lines": ["blocker OpenSpec validation failed on the remote branch"],
+        "pull_request": {"pr_url": "https://github.com/example/project/pull/44", "head": "round-20260509t063201z-6c02-spec-integration"},
     }
     messages = {
         "ok": True,
@@ -533,8 +534,10 @@ def test_spec_round_progress_fields_are_preserved_from_structured_payloads():
     assert row["mcp"]["branch_changed"] is True
     assert row["mcp"]["validation_status"] == "failed"
     assert row["mcp"]["blockers"] == ["OpenSpec validation failed on the remote branch"]
+    assert row["mcp"]["pr_url"] == "https://github.com/example/project/pull/44"
     assert "expected_branch" in web_app_hub.INDEX_HTML
     assert "MCP State" in web_app_hub.INDEX_HTML
+    assert "Pull request" in web_app_hub.INDEX_HTML
 
 
 def test_round_artifacts_remote_branches_are_exposed_in_row_and_detail():

@@ -344,6 +344,14 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
 
     url_match = PR_URL_RE.search(str(create_result.get("output") or ""))
     pr_url = url_match.group(0) if url_match else ""
+    if not pr_url:
+        return _failure(
+            args=args,
+            message="failed to parse pull request URL",
+            validation_result=validation_result,
+            validation=validation,
+            gh={"list": list_result, "create": create_result},
+        )
     return _with_state_recording(args, project_root, {
         "ok": True,
         "source": "steward_pr_finalizer",

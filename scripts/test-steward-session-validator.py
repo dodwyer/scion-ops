@@ -126,6 +126,11 @@ def _spec_state() -> dict[str, object]:
         },
         "review": {"verdict": "accept"},
         "validation": {"status": "passed", "command": "python3 scripts/validate-openspec-change.py"},
+        "pull_request": {
+            "pr_url": "https://github.com/example/project/pull/11",
+            "head": "round-s1-spec-integration",
+            "base": "main",
+        },
         "blockers": [],
         "next_actions": ["start implementation"],
     }
@@ -149,6 +154,11 @@ def _implementation_state() -> dict[str, object]:
         "reviews": [],
         "final_review": {"verdict": "accept"},
         "verification": {"status": "passed", "command": "task verify"},
+        "pull_request": {
+            "pr_url": "https://github.com/example/project/pull/12",
+            "head": "round-s1-spec-integration",
+            "base": "main",
+        },
         "blockers": [],
         "next_actions": ["open PR"],
     }
@@ -164,6 +174,22 @@ def main() -> int:
         assert code == 0, payload
         assert payload["ok"] is True, payload
         assert payload["branch"]["resolved_ref"] == "round-s1-spec-integration", payload
+
+        missing_pr = _spec_state()
+        missing_pr.pop("pull_request")
+        _write_state(root, missing_pr)
+        code, payload = _run(root, "spec", "--require-ready", "--require-pr")
+        assert code == 1, payload
+        assert payload["ok"] is False, payload
+        assert any(item["path"] == "state.pull_request.pr_url" for item in payload["errors"]), payload
+
+        wrong_pr_branch = _spec_state()
+        wrong_pr_branch["pull_request"]["head"] = "round-s1-other"
+        _write_state(root, wrong_pr_branch)
+        code, payload = _run(root, "spec", "--require-ready", "--require-pr")
+        assert code == 1, payload
+        assert payload["ok"] is False, payload
+        assert any(item["path"] == "state.pull_request.head" for item in payload["errors"]), payload
 
         failed_child = _spec_state()
         failed_child["agents"]["round-s1-spec-clarifier"] = {
@@ -190,6 +216,10 @@ def main() -> int:
 
         _write_state(root, _implementation_state())
         code, payload = _run(root, "implementation", "--require-ready")
+        assert code == 0, payload
+        assert payload["ok"] is True, payload
+
+        code, payload = _run(root, "implementation", "--require-ready", "--require-pr")
         assert code == 0, payload
         assert payload["ok"] is True, payload
 

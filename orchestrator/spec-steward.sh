@@ -325,7 +325,9 @@ PY
 
    If PR finalization fails, update $SESSION_STATE_ROOT/state.json as blocked
    with the finalizer error and do not report the session as ready. A successful
-   session must end with a PR URL recorded in state.pull_request.pr_url.
+   session must end with a PR URL recorded in state.pull_request.pr_url. After
+   recording the PR, run the readiness validator with both --require-ready and
+   --require-pr; do not report task_completed unless it passes.
 
 Start the OpenSpec steward playbook. Coordinate specialist agents, keep durable
 state under $SESSION_STATE_ROOT, validate the resulting OpenSpec artifacts, and
@@ -381,4 +383,4 @@ printf '\nWatch progress:\n'
 printf '  scion look %s\n' "$STEWARD_NAME"
 printf '  scion messages --agent %s\n' "$STEWARD_NAME"
 printf '\nValidate session:\n'
-printf '  task steward:validate -- --project-root %q --session-id %q --kind spec --change %q --base-branch %q --branch %q --require-ready\n' "$PROJECT_ROOT" "$SESSION_ID" "$CHANGE" "$BASE_BRANCH" "$FINAL_BRANCH"
+printf '  task steward:validate -- --project-root %q --session-id %q --kind spec --change %q --base-branch %q --branch %q --require-ready --require-pr\n' "$PROJECT_ROOT" "$SESSION_ID" "$CHANGE" "$BASE_BRANCH" "$FINAL_BRANCH"

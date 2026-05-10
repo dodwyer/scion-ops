@@ -380,6 +380,7 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
     expected_change = args.change or _text(state.get("change"))
     expected_branch = args.branch or _state_branch(state, args.kind)
     base_branch = args.base_branch or _text(state.get("base_branch"))
+    require_pr = bool(args.require_pr)
 
     if state:
         required_fields = {
@@ -504,6 +505,23 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
             if verification_status not in PASSING_STATUSES:
                 errors.append(Finding("state.verification.status", "implementation sessions must record passing verification"))
 
+    if state and require_pr:
+        pr_url = _text(_get_path(state, "pull_request.pr_url") or _get_path(state, "pull_request.pr.url")).strip()
+        if not pr_url:
+            errors.append(Finding("state.pull_request.pr_url", "completed steward sessions must record a pull request URL"))
+        pr_head = _text(_get_path(state, "pull_request.head") or _get_path(state, "pull_request.pr.head")).strip()
+        pr_base = _text(_get_path(state, "pull_request.base") or _get_path(state, "pull_request.pr.base")).strip()
+        if not pr_head:
+            errors.append(Finding("state.pull_request.head", "completed steward sessions must record the pull request head branch"))
+        elif expected_branch and pr_head != expected_branch:
+            errors.append(Finding("state.pull_request.head", "pull request head does not match the final branch"))
+        if not pr_base:
+            errors.append(Finding("state.pull_request.base", "completed steward sessions must record the pull request base branch"))
+        elif base_branch and pr_base != base_branch:
+            errors.append(Finding("state.pull_request.base", "pull request base does not match the session base branch"))
+    elif require_pr:
+        errors.append(Finding("state.pull_request.pr_url", "completed steward sessions must record a pull request URL"))
+
     payload: dict[str, Any] = {
         "ok": not errors,
         "project_root": str(project_root),
@@ -532,6 +550,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--branch", default="")
     parser.add_argument("--state-branch", default="")
     parser.add_argument("--require-ready", action="store_true")
+    parser.add_argument("--require-pr", action="store_true")
     parser.add_argument("--json", action="store_true")
     return parser
 

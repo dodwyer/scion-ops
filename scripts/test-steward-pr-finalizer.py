@@ -245,6 +245,17 @@ def main() -> int:
         assert _log_entries(log) == [], log.read_text() if log.exists() else ""
 
         log.unlink(missing_ok=True)
+        _write_state(project, _implementation_state())
+        no_url_env = {**env, "SCION_FAKE_GH_CREATED": "created without url"}
+        code, payload = _run_finalizer(project, no_url_env)
+        assert code == 1, payload
+        assert payload["ok"] is False, payload
+        assert payload["error"] == "failed to parse pull request URL", payload
+        entries = _log_entries(log)
+        assert entries[0][:2] == ["pr", "list"], entries
+        assert entries[1][:2] == ["pr", "create"], entries
+
+        log.unlink(missing_ok=True)
         _write_state(project, _spec_state())
         code, payload = _run_finalizer(project, env, "--record-state", kind="spec")
         assert code == 0, payload

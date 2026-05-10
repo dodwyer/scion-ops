@@ -3311,6 +3311,7 @@ def scion_ops_validate_steward_session(
     state_branch: str = "",
     base_branch: str = "",
     require_ready: bool = True,
+    require_pr: bool = False,
 ) -> dict[str, Any]:
     """Validate durable state for a Scion OpenSpec steward session."""
     target_root = _project_root(project_root)
@@ -3340,6 +3341,8 @@ def scion_ops_validate_steward_session(
         args.extend(["--base-branch", _clean_name(base_branch, "base_branch")])
     if require_ready:
         args.append("--require-ready")
+    if require_pr:
+        args.append("--require-pr")
 
     result = _run(args, timeout=30, cwd=_repo_root())
     payload = _parse_json_result(result)
