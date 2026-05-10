@@ -333,6 +333,20 @@ expected_summary: verdict accept/reject/blocked, blocking issues, verification g
 
 Review only $FINAL_BRANCH against the approved OpenSpec artifacts. Do not edit product files. Write, commit, and push $SESSION_STATE_ROOT/reviews/final-review.json on your review branch, then send a concise verdict summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT."
 
+   After starting final review, wait for the durable verdict artifact before
+   deciding readiness. Final-review verdicts are review records, not
+   implementation handoffs, so do not require head_sha or use
+   --require-head-sha-ancestor for this wait. Use verdict-specific fields:
+
+   python3 "$AGENT_SCION_OPS_ROOT/scripts/wait-for-review-artifact.py" --project-root "$AGENT_PROJECT_ROOT" --branch "$FINAL_REVIEW_NAME" --artifact "$SESSION_STATE_ROOT/reviews/final-review.json" --agent "$FINAL_REVIEW_NAME" --scion-profile "$SCION_PROFILE" --timeout-seconds "900" --poll-interval-seconds "20" --output "$SESSION_STATE_ROOT/validation/$FINAL_REVIEW_NAME-wait.json" --require-json-fields verdict summary blocking_issues
+
+   If the wait times out, record a structured blocker with cause
+   artifact_timeout and commit the wait diagnostics. If the verdict is not
+   accept, record the final-review verdict, blocking issues, classification,
+   and evidence in state.json, then either route a bounded repair when policy
+   allows it or finish blocked. Do not leave the steward waiting on a durable
+   request_changes or blocked verdict.
+
 8. After verification passes and final review accepts, update
    $SESSION_STATE_ROOT/state.json on the steward branch with status ready,
    phase complete, the final integration branch, passing verification evidence,

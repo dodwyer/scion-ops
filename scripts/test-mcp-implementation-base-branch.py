@@ -204,6 +204,7 @@ def main() -> int:
             assert "scripts/precreate-agent-branch.py" in dry_run_output, dry_run_output
             assert "scripts/impl-publish-handoff.sh" in dry_run_output, dry_run_output
             assert "--require-head-sha-ancestor" in dry_run_output, dry_run_output
+            assert "--require-json-fields verdict summary blocking_issues" in dry_run_output, dry_run_output
 
             steward_output = _run_script(
                 [

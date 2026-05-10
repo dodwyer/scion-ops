@@ -211,6 +211,64 @@ def test_impl_publish_handoff_commits_pushes_and_verifies_artifact() -> None:
         assert json.loads(wait.stdout)["ok"] is True, wait.stdout
 
 
+def test_final_review_wait_accepts_verdict_without_head_sha() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        origin = base / "origin.git"
+        project = base / "project"
+        run(["git", "init", "--bare", str(origin)])
+        run(["git", "init", "-b", "main", str(project)])
+        git(project, "config", "user.email", "test@example.invalid")
+        git(project, "config", "user.name", "Test User")
+        write(project / "README.md", "review\n")
+        git(project, "add", ".")
+        git(project, "commit", "-m", "initial")
+        git(project, "remote", "add", "origin", str(origin))
+        git(project, "push", "-u", "origin", "main")
+        branch = "round-s1-final-review"
+        git(project, "checkout", "-b", branch)
+        artifact = ".scion-ops/sessions/s1/reviews/final-review.json"
+        write(
+            project / artifact,
+            json.dumps(
+                {
+                    "verdict": "request_changes",
+                    "blocking_issues": ["missing live update wiring"],
+                    "summary": "changes requested",
+                }
+            ),
+        )
+        git(project, "add", artifact)
+        git(project, "commit", "-m", "record final review")
+        git(project, "push", "-u", "origin", branch)
+
+        wait = run(
+            [
+                "python3",
+                str(ROOT / "scripts" / "wait-for-review-artifact.py"),
+                "--project-root",
+                str(project),
+                "--branch",
+                branch,
+                "--artifact",
+                artifact,
+                "--agent",
+                branch,
+                "--timeout-seconds",
+                "0",
+                "--poll-interval-seconds",
+                "1",
+                "--require-json-fields",
+                "verdict",
+                "summary",
+                "blocking_issues",
+            ]
+        )
+        payload = json.loads(wait.stdout)
+        assert payload["ok"] is True, wait.stdout
+        assert payload["artifact_json"]["verdict"] == "request_changes", wait.stdout
+
+
 def write_sample_change(project: Path, change: str) -> None:
     root = project / "openspec" / "changes" / change
     write(root / "proposal.md", "# Proposal: Add Widget\n\nAdd widget behavior.\n")
@@ -272,12 +330,21 @@ def test_implementation_steward_prompt_uses_helpers_and_handoff_wait() -> None:
         assert "handoff_file:" in output, output
         assert "--require-head-sha-ancestor" in output, output
         assert "--require-json-fields agent status branch head_sha" in output, output
+        assert "final-review-wait.json" in output, output
+        assert "--require-json-fields verdict summary blocking_issues" in output, output
+        final_review_wait = output.split("After starting final review, wait for the durable verdict artifact", 1)[1]
+        final_review_wait = final_review_wait.split("8. After verification passes", 1)[0]
+        final_review_command = next(
+            line for line in final_review_wait.splitlines() if "wait-for-review-artifact.py" in line
+        )
+        assert "--require-head-sha-ancestor" not in final_review_command, final_review_command
 
 
 def main() -> int:
     test_template_harness_maps_are_in_sync()
     test_precreate_agent_branch_fetches_base_for_shallow_checkout()
     test_impl_publish_handoff_commits_pushes_and_verifies_artifact()
+    test_final_review_wait_accepts_verdict_without_head_sha()
     test_implementation_steward_prompt_uses_helpers_and_handoff_wait()
     return 0
 
