@@ -1,0 +1,38 @@
+{
+  "review_type": "final",
+  "scores": {
+    "correctness": 2,
+    "completeness": 3,
+    "style": 4
+  },
+  "verdict": "request_changes",
+  "blocking_issues": [
+    "Source-specific failures can clear previously visible operational data during automatic refresh. In scripts/web_app_hub.py, build_snapshot replaces failed message/notification sources with empty item lists before building rounds and inbox, and the frontend refresh path assigns the returned snapshot directly to state.snapshot. If Hub messages or notifications fail after data was already visible, the next automatic refresh renders empty or partial rounds/inbox data instead of preserving the last known data while showing a source-specific error. This violates the approved Source Of Truth Preservation scenario requiring unavailable dependencies not to clear previously visible data unless the source-of-truth response explicitly indicates the data is gone."
+  ],
+  "final_failure_classification": "implementation_defect",
+  "final_failure_evidence": "scripts/web_app_hub.py lines 1199-1214 build a fresh snapshot and inbox from only currently successful message/notification payloads, build_live_update_batch lines 666-670 emits full replacement rounds/inbox/runtime events from that snapshot, and the browser refresh path at lines 1440-1446 replaces state.snapshot wholesale before renderRounds/renderInbox consume state.snapshot.rounds and state.snapshot.inbox at lines 1545-1609. There is no merge/cache path that retains last-known rows or inbox groups for a failed source.",
+  "nits": [
+    "The browser attempts EventSource(\"/api/updates\") while the backend exposes /api/live and /api/stream; fallback polling keeps the UI updating, but the implemented SSE endpoint is not actually used by the frontend."
+  ],
+  "spec": {
+    "change": "autorefresh-web-app",
+    "conformance": 2,
+    "spec_completeness": 5,
+    "task_coverage": 3,
+    "operational_verification": 4,
+    "checked_artifacts": [
+      "openspec/changes/autorefresh-web-app/proposal.md",
+      "openspec/changes/autorefresh-web-app/design.md",
+      "openspec/changes/autorefresh-web-app/tasks.md",
+      "openspec/changes/autorefresh-web-app/specs/web-app-hub/spec.md",
+      "scripts/web_app_hub.py",
+      "scripts/test-web-app-hub.py"
+    ],
+    "unresolved_questions": [],
+    "gaps": [
+      "No test covers preserving previously visible rounds, timeline entries, or inbox groups when a backing source later fails during automatic refresh.",
+      "No browser-level smoke verifies that the SSE endpoint is actually consumed; existing frontend checks are string-marker tests."
+    ]
+  },
+  "summary": "Final review requests changes. The implementation adds automatic polling, live-status UI, a live-update contract, backend /api/live streaming, and fixture tests, and it passes the targeted static/unit/OpenSpec checks. However, the automatic update path can still clear previously visible message/notification-derived rounds and inbox data when one source fails, which is a direct violation of the approved Source Of Truth Preservation requirement. PR is not ready until last-known data is retained across source-specific failures while exposing the dependency error."
+}
