@@ -11,7 +11,7 @@
     "steward": "round-20260510t203256z-7ac9-implementation-steward",
     "implementer": "round-20260510t203256z-7ac9-impl-codex",
     "secondary_implementer": "round-20260510t203256z-7ac9-impl-claude",
-    "final_review": "round-20260510t203256z-7ac9-final-review-2",
+    "final_review": "round-20260510t203256z-7ac9-final-review-3",
     "integration": "round-20260510t203256z-7ac9-integration"
   },
   "agents": {},
@@ -26,10 +26,16 @@
       "verdict": "request_changes",
       "source": ".scion-ops/sessions/20260510t203256z-7ac9/reviews/final-review.json",
       "summary": "Initial final review rejected integration; targeted dependency/startup and live-update fixes were delegated."
+    },
+    {
+      "branch": "round-20260510t203256z-7ac9-final-review-2",
+      "verdict": "request_changes",
+      "source": ".scion-ops/sessions/20260510t203256z-7ac9/reviews/final-review.json",
+      "summary": "Second final review rejected selected diagnostic context preservation; context fix was delegated and merged."
     }
   ],
   "final_review": {
-    "branch": "round-20260510t203256z-7ac9-final-review-2"
+    "branch": "round-20260510t203256z-7ac9-final-review-3"
   },
   "verification": {
     "status": "pending"
