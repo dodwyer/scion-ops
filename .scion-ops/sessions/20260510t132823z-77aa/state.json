@@ -37,7 +37,7 @@
       "role": "final_review",
       "branch": "round-20260510t132823z-77aa-final-review",
       "scope": "Review integration branch against approved OpenSpec artifacts",
-      "status": "running"
+      "status": "request_changes"
     }
   },
   "implementation": {
@@ -45,8 +45,20 @@
     "base_branch": "main",
     "integration_branch": "round-20260510t132823z-77aa-integration"
   },
-  "reviews": [],
-  "final_review": {},
+  "reviews": [
+    {
+      "branch": "round-20260510t132823z-77aa-final-review",
+      "verdict": "request_changes",
+      "classification": "implementation_defect"
+    }
+  ],
+  "final_review": {
+    "branch": "round-20260510t132823z-77aa-final-review",
+    "verdict": "request_changes",
+    "blocking_issues": [
+      "Automatic refresh can clear previously visible rounds/inbox data when message or notification sources fail instead of preserving last-known data with a source-specific error."
+    ]
+  },
   "verification": {
     "status": "pending"
   },
