@@ -1,0 +1,72 @@
+{
+  "artifact": ".scion-ops/sessions/20260510t193207z-32ef/findings/clarifier.md",
+  "artifact_json": null,
+  "artifact_text": "# Clarifier Findings \u2014 Session 20260510t193207z-32ef\n\n**Change:** `use-nicegui`\n**Date:** 2026-05-10\n\n---\n\n## Understood Intent\n\nReplace the existing hand-written HTTP server UI (`scripts/web_app_hub.py`, ~2,500 lines of embedded HTML/CSS/JS) with a **NiceGUI**-based frontend. The new UI targets **operators** who need:\n\n- **Primary view**: concise, action- and context-relevant information at a glance (round status, control plane health, blockers, decisions needing attention)\n- **Secondary view**: in-depth troubleshooting detail one navigation level down (agent logs, decision timelines, MCP trace, terminal summaries)\n\nThe current structure is explicitly discarded \u2014 this is a greenfield implementation informed by the existing data model, not a port.\n\nLaws of UX (https://lawsofux.com/) are to be applied as design constraints, particularly:\n- **Hick's Law** \u2014 limit choices on the primary view; surface only what demands operator attention\n- **Miller's Law** \u2014 chunk information (\u22647 items per group) rather than flat lists\n- **Doherty Threshold** \u2014 target <400 ms feedback on user interactions\n- **Progressive Disclosure** \u2014 details are one level down, never on the overview\n- **Aesthetic-Usability Effect** \u2014 clean, consistent visual language increases perceived reliability\n\n---\n\n## Confirmed Scope\n\n| In Scope | Evidence / Assumption |\n|---|---|\n| New NiceGUI app replacing `web_app_hub.py` | \"fresh starting point\" |\n| Read-only operator monitoring dashboard | existing UI is read-only; no write requirement stated |\n| Round list with status (running, blocked, completed, failed) | core existing feature |\n| Control plane health (Hub, Broker, MCP, Web App, k8s) | core existing feature |\n| Round detail: agent timeline, decisions, consensus | core existing feature |\n| Inbox / notifications | core existing feature |\n| Real-time updates (NiceGUI's async push model replaces SSE polling) | NiceGUI native capability |\n| Kubernetes deployment (same pod, port 8787) | existing deployment target |\n| Docker image update to include NiceGUI dependency | required by new framework |\n\n---\n\n## Likely Non-Goals (to confirm)\n\n1. **Write / control operations** \u2014 triggering rounds, approving decisions, sending messages to agents from the UI. Not mentioned; current UI is read-only.\n2. **Mobile / responsive layout** \u2014 operator context is assumed to be a desktop browser.\n3. **Multi-user sessions or auth changes** \u2014 dev-auth model is unchanged; NiceGUI will inherit the same access model.\n4. **Feature parity line-for-line** \u2014 \"fresh start\" implies the information architecture may differ from the existing UI, not just a 1:1 port.\n5. **Dark mode / theming** \u2014 not mentioned; NiceGUI's default theme is acceptable unless specified.\n\n---\n\n## Unresolved Questions (operator input required)\n\n### Q1 \u2014 Primary view information hierarchy\nWhat belongs on the **overview/landing page** vs. the **drill-down detail page**?\n\n*Proposed default:*\n- **Overview**: control plane health badges, active rounds with status pill + one-line summary, unread inbox count, any blocked/stalled rounds highlighted\n- **Detail**: agent timeline, decision tree, consensus breakdown, terminal logs, MCP branch state\n\nIs this the right split, or should rounds be further subdivided (e.g., separate views for \"needing attention\" vs. \"running fine\")?\n\n---\n\n### Q2 \u2014 Interactivity scope\nShould the operator be able to perform **any write actions** through the new UI?\n\nExamples that exist in the current system but are not in the current UI:\n- Approving a blocked agent decision\n- Sending a message to an agent\n- Triggering a new round\n\nIf write operations are out of scope for v1, confirm so the data layer can be designed read-only.\n\n---\n\n### Q3 \u2014 Real-time update model\nNiceGUI supports native async push (server \u2192 client) without polling. Should the new implementation:\n\na) Use NiceGUI's built-in async/await push (preferred \u2014 cleaner, no client-side JS polling)\nb) Preserve the existing SSE endpoint for compatibility with other consumers (e.g., MCP server or CLI tools that may consume it)\n\nAre there non-browser consumers of the current SSE stream that must remain?\n\n---\n\n### Q4 \u2014 Data layer reuse vs. rewrite\n\"Ignore the current structure\" \u2014 does this apply to the **data-fetching layer** (HTTP calls to Hub/Broker/MCP/k8s APIs) as well as the presentation layer?\n\nThe existing `web_app_hub.py` contains significant logic for querying Scion Hub endpoints, parsing round/agent state, and normalising Kubernetes pod status. Should this logic be:\n\na) Extracted into a shared module and reused by the NiceGUI app (less duplication)\nb) Rewritten from scratch in the new app (full fresh start, may diverge in design)\n\n---\n\n### Q5 \u2014 Deployment change: image and startup\nNiceGUI runs via `uvicorn` (bundled). The current app uses only stdlib. The Docker image will need NiceGUI added as a dependency. Confirm:\n\n- Should NiceGUI be pinned to a specific version, or start with latest stable?\n- Is the existing port (8787) correct for the new app?\n- Should the new entrypoint use `uv run` inline dependencies (consistent with other scripts) or a `requirements.txt` / `pyproject.toml` in the image?\n\n---\n\n### Q6 \u2014 Acceptance criteria\nWhat defines \"done\" for this change?\n\nProposed minimum:\n1. NiceGUI app deploys successfully in the kind cluster (`task x` passes)\n2. Overview page loads within Doherty Threshold (<400 ms) with live control plane data\n3. Round detail page is reachable from the overview in one click\n4. Inbox is reachable from the overview in one click\n5. Real-time updates reflect state changes without a page reload\n\nAre there additional acceptance criteria (e.g., specific Laws of UX checked, accessibility baseline, smoke test coverage)?\n\n---\n\n## Risk Flags\n\n| Risk | Severity | Notes |\n|---|---|---|\n| NiceGUI WebSocket requirement | Medium | NiceGUI uses WebSockets for push; confirm kind ingress/service allows WS traffic on port 8787 |\n| Image size increase | Low | Adding NiceGUI + uvicorn increases image footprint; measure before finalising |\n| Loss of SSE endpoint | Low-Medium | If any non-browser tools consume the current SSE stream, they will break unless the endpoint is preserved alongside the NiceGUI app |\n| Fresh-start scope creep | Medium | \"Ignore the current structure\" risks over-engineering; implementation should be constrained to operator monitoring only |\n\n---\n\n## Recommended Implementation Approach (for implementer)\n\n1. **Single new file** (e.g., `scripts/web_app.py`) replacing `web_app_hub.py`, using NiceGUI and `uv` inline dependencies\n2. **Separate data module** (`scripts/hub_client.py` or similar) extracted from existing logic, shared cleanly\n3. **Three primary views**: Overview, Round Detail, Inbox \u2014 navigated via NiceGUI's `ui.navigate` / page router\n4. **NiceGUI async timers** for real-time refresh (replace SSE polling)\n5. **Docker image** updated with NiceGUI dependency via inline `uv` script header\n6. **Kubernetes manifest** updated only if entrypoint or port changes\n",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:33:18.142005Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:33:33.539739Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:33:48.961373Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:34:04.355626Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:34:19.752744Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:34:35.192017Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:34:50.585563Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:35:05.991116Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": false,
+      "branch_head": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "checked_at": "2026-05-10T19:35:21.388580Z",
+      "fetch_ok": true
+    },
+    {
+      "artifact_found": true,
+      "branch_head": "6e9a961df52bea8eaa30c2ee9b0c4d1d58b697e2",
+      "checked_at": "2026-05-10T19:35:36.785098Z",
+      "fetch_ok": true
+    }
+  ],
+  "branch": "round-20260510t193207z-32ef-spec-clarifier",
+  "branch_head": "6e9a961df52bea8eaa30c2ee9b0c4d1d58b697e2",
+  "completed_at": "2026-05-10T19:35:37.333540Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
