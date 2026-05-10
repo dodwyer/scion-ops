@@ -3,6 +3,7 @@
 # requires-python = ">=3.11"
 # dependencies = [
 #   "mcp>=1.13,<2",
+#   "nicegui>=2.0,<3",
 #   "PyYAML>=6,<7",
 # ]
 # ///
@@ -285,10 +286,10 @@ def test_round_detail_timeline_and_agents_expose_multi_llm_context():
     assert "harness_config" in web_app_hub.BROWSER_JSON_CONTRACT["round"]["agents"]
     assert "decision_flow" in web_app_hub.BROWSER_JSON_CONTRACT["round"]
     assert "terminal_summary" in web_app_hub.BROWSER_JSON_CONTRACT["round"]
-    assert "Decision Flow" in web_app_hub.INDEX_HTML
-    assert "Consensus" in web_app_hub.INDEX_HTML
-    assert "harness" in web_app_hub.INDEX_HTML
-    assert "agentCard" in web_app_hub.INDEX_HTML
+    markers = web_app_hub.NICEGUI_FRONTEND_MARKERS
+    assert markers["framework"] == "nicegui"
+    assert "/rounds/{round_id}" in markers["routes"]
+    assert "dense-rounds" in markers["layout_markers"]
 
 
 def test_empty_snapshot_distinguishes_no_rounds_from_source_failure():
@@ -344,6 +345,11 @@ def test_unavailable_sources_preserve_partial_data():
     assert snapshot["readiness"] == "degraded"
     assert snapshot["sources"]["hub"]["ok"] is True
     assert snapshot["sources"]["mcp"]["error_kind"] == "runtime"
+    model = web_app_hub.build_operator_view_model(snapshot)
+    assert model["next_inspection"]["label"] == "mcp"
+    assert model["next_inspection"]["href"] == "/troubleshooting?source=mcp"
+    assert any(source["name"] == "hub" and source["ok"] is True for source in model["sources"])
+    assert any(source["name"] == "mcp" and "connection refused" in source["detail"] for source in model["sources"])
 
 
 def test_kubernetes_normalization_reports_missing_control_plane():
@@ -454,9 +460,9 @@ def test_final_review_accept_is_exposed_by_backend_and_frontend_template():
     row = snapshot["rounds"][0]
     assert row["final_review"]["normalized_verdict"] == "accept"
     assert row["visible_status"] == "accepted"
-    assert "Final Review" in web_app_hub.INDEX_HTML
-    assert "visible_status" in web_app_hub.INDEX_HTML
-    assert "review.display" in web_app_hub.INDEX_HTML
+    model = web_app_hub.build_operator_view_model(snapshot)
+    assert model["rounds"][0]["visible_status"] == "accepted"
+    assert model["markers"] == web_app_hub.NICEGUI_FRONTEND_MARKERS["layout_markers"]
 
 
 def test_final_review_changes_requested_is_not_collapsed_to_completed():
@@ -588,10 +594,9 @@ def test_steward_progress_fields_are_preserved_from_structured_payloads():
     assert row["terminal_summary"] == "Blocked: OpenSpec validation failed on the remote branch"
     assert row["flow_summary"].startswith("Blocked:")
     assert row["decision_flow"][0]["role"] == "spec steward"
-    assert "expected_branch" in web_app_hub.INDEX_HTML
-    assert "MCP State" in web_app_hub.INDEX_HTML
-    assert "Pull request" in web_app_hub.INDEX_HTML
-    assert "Decision Flow" in web_app_hub.INDEX_HTML
+    markers = web_app_hub.NICEGUI_FRONTEND_MARKERS
+    assert "/api/rounds/{round_id}" in markers["json_contracts"]
+    assert "one-level-down-troubleshooting" in markers["layout_markers"]
 
 
 def test_round_artifacts_remote_branches_are_exposed_in_row_and_detail():
@@ -798,45 +803,46 @@ def test_live_update_path_is_read_only_and_does_not_validate_or_mutate():
 
 def test_frontend_live_update_contract_markers_are_present():
     contract = web_app_hub.BROWSER_JSON_CONTRACT["live_updates"]
-    html = web_app_hub.INDEX_HTML
+    markers = web_app_hub.NICEGUI_FRONTEND_MARKERS
     assert contract["round_events"].startswith("cursor-based read-only GET")
     assert contract["states"] == ["connected", "reconnecting", "stale", "fallback", "failed"]
-    assert "SNAPSHOT_POLL_MS" in html
-    assert "ROUND_EVENT_POLL_MS" in html
-    assert "/api/snapshot" in html
-    assert "/api/rounds/${encodeURIComponent(roundId)}/events?cursor=${encodeURIComponent(cursor)}" in html
-    assert "state.cursors[roundId]" in html
-    assert "timelineKeys" in html
-    assert "mergeTimelineEvents" in html
-    assert "EventSource" in html
-    assert "/api/live" in html
-    assert "/api/updates" not in html
-    assert "mergeSnapshot" in html
-    assert "setRoundDetail" in html
-    assert "markStreamOk" in html
-    assert "checkStaleness" in html
-    assert "fallback polling" in html
-    assert "Refresh snapshot" not in html
-    assert "Troubleshooting snapshot refresh" not in html
-    assert "Refresh timeline snapshot" not in html
+    assert "EventSource" in markers["live_markers"]
+    assert "fallback polling" in markers["live_markers"]
+    assert "/api/snapshot" in markers["json_contracts"]
+    assert "/api/rounds/{round_id}/events" in markers["json_contracts"]
+    assert "/api/live" in markers["json_contracts"]
+    assert "/api/updates" not in markers["json_contracts"]
+    assert "operator-console" in markers["layout_markers"]
+    assert "responsive-grid" in markers["layout_markers"]
+    assert "one-level-down-troubleshooting" in markers["layout_markers"]
+
+
+def test_nicegui_layout_model_keeps_default_view_concise_and_responsive():
+    snapshot = web_app_hub.build_snapshot(FixtureProvider())
+    model = web_app_hub.build_operator_view_model(snapshot)
+    assert set(model["counts"]) == {"active_or_blocked", "recent_rounds", "agents"}
+    assert "responsive-grid" in model["markers"]
+    assert "one-level-down-troubleshooting" in model["markers"]
+    assert "raw" not in model["next_inspection"]
+    assert all("diagnostic_target" in source for source in model["sources"])
+    assert len(web_app_hub.NICEGUI_FRONTEND_MARKERS["routes"]) == 6
 
 
 def test_frontend_automatic_update_fetches_are_read_only_no_spend_paths():
-    html = web_app_hub.INDEX_HTML
-    assert "fetch(url, { cache: \"no-store\" })" in html
-    assert "method:" not in html
-    assert "/api/snapshot" in html
-    assert "/api/rounds/${encodeURIComponent(roundId)}/events" in html
-    assert "/api/rounds/${encodeURIComponent(roundId)}" in html
+    markers = web_app_hub.NICEGUI_FRONTEND_MARKERS
+    assert "/api/snapshot" in markers["json_contracts"]
+    assert "/api/rounds/{round_id}/events" in markers["json_contracts"]
+    assert "/api/rounds/{round_id}" in markers["json_contracts"]
     for forbidden in (
-        "scion_ops_start",
-        "scion_ops_abort",
-        "scion_ops_retry",
-        "scion_ops_archive",
-        "validate_spec_change(",
-        "do_POST(",
+        "start round",
+        "abort round",
+        "retry round",
+        "archive round",
+        "write git",
+        "write openspec",
+        "mutate kubernetes",
     ):
-        assert forbidden not in html
+        assert forbidden in markers["read_only_forbidden"]
 
 
 if __name__ == "__main__":

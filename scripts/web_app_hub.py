@@ -3,6 +3,7 @@
 # requires-python = ">=3.11"
 # dependencies = [
 #   "mcp>=1.13,<2",
+#   "nicegui>=2.0,<3",
 #   "PyYAML>=6,<7",
 # ]
 # ///
@@ -12,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import html
 import json
 import os
 import re
@@ -24,8 +24,6 @@ import urllib.parse
 import urllib.request
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
-from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -1790,735 +1788,465 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
     }
 
 
-INDEX_HTML = r"""<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>scion-ops hub</title>
-  <style>
-    :root { color-scheme: light; --bg:#f7f7f5; --panel:#ffffff; --text:#202225; --muted:#676b73; --line:#d8d9dc; --good:#217a3b; --warn:#a05a00; --bad:#b42318; --info:#1f5f99; }
-    * { box-sizing: border-box; }
-    body { margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
-    header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 20px; border-bottom:1px solid var(--line); background:#fff; position:sticky; top:0; z-index:2; }
-    h1 { font-size:18px; margin:0; }
-    nav { display:flex; gap:4px; flex-wrap:wrap; }
-    button { border:1px solid var(--line); background:#fff; padding:7px 10px; border-radius:6px; cursor:pointer; color:var(--text); }
-    button.active { background:#202225; color:#fff; border-color:#202225; }
-    main { max-width:1280px; margin:0 auto; padding:18px 20px 32px; }
-    .bar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; color:var(--muted); }
-    .live-bar { align-items:flex-start; }
-    .live-state { display:flex; flex-direction:column; gap:3px; }
-    .secondary { font-size:12px; padding:5px 8px; color:var(--muted); }
-    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
-    .card, .table-wrap, .detail { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; }
-    .status { display:inline-flex; align-items:center; gap:6px; font-weight:650; text-transform:capitalize; }
-    .dot { width:9px; height:9px; border-radius:50%; background:var(--muted); display:inline-block; }
-    .ready .dot, .healthy .dot, .completed .dot, .accepted .dot, .connected .dot, .fallback-polling .dot { background:var(--good); }
-    .degraded .dot, .waiting .dot, .stale .dot, .observed .dot, .reconnecting .dot { background:var(--warn); }
-    .unavailable .dot, .blocked .dot, .error .dot, .changes-requested .dot, .failed .dot { background:var(--bad); }
-    .running .dot { background:var(--info); }
-    .muted { color:var(--muted); }
-    .meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
-    .pill { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line); border-radius:999px; padding:2px 7px; background:#f8f9fa; font-size:12px; max-width:100%; }
-    .agent-grid { display:grid; gap:8px; }
-    .agent-card { display:grid; gap:6px; border:1px solid var(--line); border-radius:8px; padding:10px; background:#fff; }
-    .agent-head { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; }
-    table { width:100%; border-collapse:collapse; }
-    th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
-    th { color:var(--muted); font-size:12px; font-weight:650; }
-    tr[data-round] { cursor:pointer; }
-    tr[data-round]:hover { background:#f1f3f4; }
-    .hidden { display:none; }
-    .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; white-space:pre-wrap; overflow:auto; max-height:360px; background:#111820; color:#e9eef4; border-radius:6px; padding:10px; }
-    .timeline { display:grid; gap:8px; }
-    .timeline .item { border-left:3px solid var(--line); padding:5px 0 5px 10px; }
-    .flow { display:grid; gap:10px; }
-    .flow-stage { border:1px solid var(--line); border-radius:8px; padding:10px; background:#fff; }
-    .flow-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
-    .flow-title { display:flex; flex-direction:column; gap:3px; }
-    .flow-events { display:grid; gap:6px; margin-top:8px; }
-    .flow-event { border-left:3px solid var(--info); padding-left:8px; }
-    .flow-event.blocked { border-left-color:var(--bad); }
-    .flow-event.accepted, .flow-event.ready, .flow-event.completed { border-left-color:var(--good); }
-    .flow-strip { display:flex; flex-wrap:wrap; gap:6px; }
-    .stage-pill { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line); border-radius:6px; padding:4px 6px; background:#fff; font-size:12px; }
-    .reason-box { border:1px solid #c9d7e6; background:#f4f8fc; color:#17324d; border-radius:6px; padding:10px; margin:8px 0; }
-    .split { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr); gap:12px; }
-    .error-box { border:1px solid #efb5b0; background:#fff7f6; color:#681a14; border-radius:6px; padding:10px; }
-    @media (max-width: 800px) { header { align-items:flex-start; flex-direction:column; } .split { grid-template-columns:1fr; } th:nth-child(4), td:nth-child(4) { display:none; } }
-  </style>
-</head>
-<body>
-  <header>
-    <h1>scion-ops hub</h1>
-    <nav>
-      <button data-view="overview" class="active">Overview</button>
-      <button data-view="rounds">Rounds</button>
-      <button data-view="inbox">Inbox</button>
-      <button data-view="runtime">Runtime</button>
-    </nav>
-  </header>
-  <main>
-    <div class="bar live-bar"><div id="refresh-state" class="live-state">Loading...</div></div>
-    <section id="overview"></section>
-    <section id="rounds" class="hidden"></section>
-    <section id="round-detail" class="hidden"></section>
-    <section id="inbox" class="hidden"></section>
-    <section id="runtime" class="hidden"></section>
-  </main>
-  <script>
-    const state = {
-      view: "overview",
-      snapshot: null,
-      selectedRound: "",
-      roundDetails: {},
-      cursors: {},
-      timelineKeys: {},
-      live: { state: "reconnecting", mode: "fallback", lastOk: "", error: "", source: "snapshot" },
-      poll: { snapshot: null, detail: null, stale: null },
-      stream: null
-    };
-    const SNAPSHOT_POLL_MS = 15000;
-    const ROUND_EVENT_POLL_MS = 5000;
-    const STALE_GRACE_MS = 45000;
-    const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
-    const status = value => {
-      const label = String(value || "unknown");
-      const cls = label.toLowerCase().replace(/[\s_]+/g, "-");
-      return `<span class="status ${esc(cls)}"><span class="dot"></span>${esc(label)}</span>`;
-    };
-    const field = (label, value) => value !== undefined && value !== null && String(value) !== "" ? `<div><strong>${esc(label)}</strong><div class="mono">${esc(value)}</div></div>` : "";
-    const meta = (label, value) => value !== undefined && value !== null && String(value) !== "" ? `<span class="pill"><span class="muted">${esc(label)}</span> ${esc(value)}</span>` : "";
-    const listBlock = (label, values, kind = "") => values?.length ? `<h3>${esc(label)}</h3>${values.map(value => `<div class="${kind || "muted"}">${esc(value)}</div>`).join("")}` : "";
-    const mcpBlock = mcp => !mcp ? "" : `
-      <h3>MCP State</h3>
-      ${field("Expected branch", mcp.expected_branch)}
-      ${field("PR-ready branch", mcp.pr_ready_branch)}
-      ${field("Remote branch SHA", mcp.remote_branch_sha)}
-      ${field("Validation", mcp.validation_status)}
-      ${field("Pull request", mcp.pr_url || mcp.pull_request?.pr_url || mcp.pull_request?.pr?.url)}
-      ${mcp.branch_changed !== null && mcp.branch_changed !== undefined ? field("Branch changed", mcp.branch_changed) : ""}
-      ${listBlock("Blockers", mcp.blockers, "error-box")}
-      ${listBlock("Warnings", mcp.warnings)}
-      ${mcp.protocol && Object.keys(mcp.protocol).length ? `<pre class="mono">${esc(JSON.stringify(mcp.protocol, null, 2))}</pre>` : ""}`;
-    const fmt = value => value ? new Date(value).toLocaleString() : "unknown";
-    const FLOW_ROLE_ORDER = {
-      "spec steward": 0,
-      "clarifier": 10,
-      "explorer": 20,
-      "author": 30,
-      "ops review": 40,
-      "spec finalizer": 45,
-      "implementation steward": 50,
-      "implementer": 60,
-      "peer review": 70,
-      "final review": 80
-    };
-    const roleRank = role => FLOW_ROLE_ORDER[String(role || "").toLowerCase()] ?? 999;
-    const flowLabel = (summary, statusValue = "", type = "") => {
-      const text = [summary, statusValue, type].map(value => String(value || "").toLowerCase()).join(" ");
-      if (/(blocked|failed|failure|error|changes requested|request_changes)/.test(text)) return "Blocked";
-      if (/\baccept(ed)?\b|\bapproved\b|verdict[^a-z0-9]+accept/.test(text)) return "Accepted";
-      if (/(ready|pr recorded|pull request|validated|validation passed)/.test(text)) return "Ready";
-      if (/(complete|completed|task_completed|succeeded)/.test(text)) return "Completed";
-      if (/(started|starting|created)/.test(text)) return "Started";
-      if (/(stalled|idle|waiting)/.test(text)) return "Waiting";
-      return type === "notification" ? "Notified" : "Reported";
-    };
-    function addFlowEvent(stage, event) {
-      if (!event.summary) return;
-      const key = [event.label, event.summary, event.time, event.source].map(value => String(value || "")).join("|");
-      stage._seen ||= new Set();
-      if (stage._seen.has(key)) return;
-      stage._seen.add(key);
-      stage.events.push(event);
+NICEGUI_FRONTEND_MARKERS = {
+    "framework": "nicegui",
+    "entrypoint": "scripts/web_app_hub.py",
+    "routes": ["/", "/rounds", "/rounds/{round_id}", "/inbox", "/runtime", "/troubleshooting"],
+    "json_contracts": [
+        "/healthz",
+        "/api/healthz",
+        "/api/snapshot",
+        "/api/rounds",
+        "/api/rounds/{round_id}",
+        "/api/rounds/{round_id}/events",
+        "/api/live",
+        "/api/inbox",
+        "/api/runtime",
+    ],
+    "live_markers": ["EventSource", "fallback polling", "cursor resume", "stale feedback"],
+    "layout_markers": ["operator-console", "responsive-grid", "dense-rounds", "one-level-down-troubleshooting"],
+    "read_only_forbidden": [
+        "start round",
+        "abort round",
+        "retry round",
+        "delete round",
+        "archive round",
+        "write git",
+        "write openspec",
+        "mutate kubernetes",
+    ],
+}
+
+
+def source_operator_summary(name: str, source: dict[str, Any]) -> dict[str, Any]:
+    status = str(source.get("status") or ("healthy" if source.get("ok") else "unavailable"))
+    detail = ""
+    if source.get("error"):
+        detail = f"{source.get('error_kind') or 'source'}: {source.get('error')}"
+    elif name == "broker":
+        detail = f"{source.get('count', 0)} broker(s)"
+    elif name == "kubernetes":
+        missing = as_string_list(source.get("missing_deployments")) + as_string_list(source.get("missing_services")) + as_string_list(source.get("missing_endpoints"))
+        detail = f"{len(missing)} missing runtime item(s)" if missing else "control-plane resources present"
+    elif name == "web_app":
+        detail = "deployment, service, and endpoint ready" if status == "healthy" else ", ".join(as_string_list(source.get("missing"))) or "web app readiness degraded"
+    else:
+        detail = "source available"
+    return {
+        "name": name,
+        "status": status,
+        "ok": bool(source.get("ok")),
+        "detail": short_text(detail, 180),
+        "diagnostic_target": f"/troubleshooting?source={urllib.parse.quote(name)}",
     }
-    function buildDecisionFlow(detail) {
-      const stages = [];
-      const byAgent = new Map();
-      const byRole = new Map();
-      const stageFor = (role, agentName = "", agent = null) => {
-        role = role || "observed";
-        let stage = agentName ? byAgent.get(agentName) : null;
-        if (!stage) stage = byRole.get(role);
-        if (!stage) {
-          stage = { role, agent_name: agentName, template: "", harness_config: "", status: "observed", phase: "", activity: "", started_at: "", updated_at: "", events: [], _seen: new Set() };
-          stages.push(stage);
+
+
+def next_inspection_target(snapshot: dict[str, Any]) -> dict[str, str]:
+    sources = snapshot.get("sources") if isinstance(snapshot.get("sources"), dict) else {}
+    for name in ("hub", "broker", "mcp", "web_app", "kubernetes", "messages", "notifications"):
+        source = sources.get(name) if isinstance(sources.get(name), dict) else {}
+        if source and (source.get("ok") is False or source.get("status") not in {"healthy", "ready"}):
+            return {
+                "kind": "source",
+                "label": name,
+                "status": str(source.get("status") or "unavailable"),
+                "summary": short_text(source.get("error") or f"{name} is {source.get('status') or 'degraded'}", 220),
+                "href": f"/troubleshooting?source={urllib.parse.quote(name)}",
+            }
+    for row in snapshot.get("rounds", []) if isinstance(snapshot.get("rounds"), list) else []:
+        if not isinstance(row, dict):
+            continue
+        status = str(row.get("status") or row.get("visible_status") or "")
+        review = str((row.get("final_review") or {}).get("display") or "")
+        if status in {"blocked", "failed", "waiting"} or review in {"blocked", "changes requested"}:
+            target = "final review" if review else ("validation" if (row.get("mcp") or {}).get("validation_status") else "timeline")
+            return {
+                "kind": "round",
+                "label": str(row.get("round_id") or ""),
+                "status": str(row.get("visible_status") or status),
+                "summary": short_text(row.get("terminal_summary") or row.get("flow_summary") or row.get("outcome"), 220),
+                "href": f"/rounds/{urllib.parse.quote(str(row.get('round_id') or ''))}?focus={urllib.parse.quote(target)}",
+            }
+    if snapshot.get("stale"):
+        return {
+            "kind": "live",
+            "label": "live freshness",
+            "status": "stale",
+            "summary": "latest round update is older than the configured freshness threshold",
+            "href": "/troubleshooting?source=live",
         }
-        if (agent) {
-          stage.agent_name ||= agent.name || agent.slug || "";
-          stage.template ||= agent.template || "";
-          stage.harness_config ||= agent.harness_config || agent.harnessConfig || agent.harness || "";
-          stage.status = agent.status || agent.phase || stage.status || "observed";
-          stage.phase ||= agent.phase || "";
-          stage.activity ||= agent.activity || "";
-          stage.started_at ||= agent.created || "";
-          stage.updated_at ||= agent.updated || "";
-        }
-        if (agentName) byAgent.set(agentName, stage);
-        byRole.set(role, stage);
-        return stage;
-      };
-      const agents = [...(detail.status?.agents || [])].sort((a, b) =>
-        roleRank(a.role) - roleRank(b.role) || String(a.created || "").localeCompare(String(b.created || "")) || String(a.name || "").localeCompare(String(b.name || ""))
-      );
-      for (const agent of agents) {
-        const role = agent.role || "observed";
-        const name = agent.name || agent.slug || "";
-        const stage = stageFor(role, name, agent);
-        if (agent.created) addFlowEvent(stage, { label: "Started", summary: `${role} started`, time: agent.created, source: name, type: "agent" });
-        const summary = agent.taskSummary || agent.activity || agent.phase || "";
-        if (summary) addFlowEvent(stage, { label: flowLabel(summary, agent.status || agent.phase, "agent"), summary, time: agent.updated || agent.created || "", source: name, type: "agent" });
-      }
-      const timeline = [...(detail.timeline || [])].sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
-      for (const item of timeline) {
-        const actor = item.agent_name || item.actor || "";
-        const known = byAgent.get(actor) || byAgent.get(String(actor).replace(/^agent:/, ""));
-        const role = item.role || known?.role || "observed";
-        const stage = stageFor(role, known?.agent_name || known?.name || actor);
-        stage.template ||= item.template || "";
-        stage.harness_config ||= item.harness_config || "";
-        stage.phase ||= item.phase || "";
-        stage.activity ||= item.activity || "";
-        const summary = item.summary || item.activity || "";
-        addFlowEvent(stage, { label: flowLabel(summary, stage.status, item.type), summary, time: item.time || "", source: item.source_id || item.actor || "", type: item.type || "event" });
-      }
-      for (const stage of stages) {
-        stage.events.sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
-        stage.latest_event = stage.events[stage.events.length - 1] || {};
-        stage.summary = stage.latest_event.summary || "";
-        delete stage._seen;
-      }
-      return stages.sort((a, b) => roleRank(a.role) - roleRank(b.role) || String(a.started_at || a.updated_at || "").localeCompare(String(b.started_at || b.updated_at || "")));
+    return {
+        "kind": "overview",
+        "label": "control plane",
+        "status": str(snapshot.get("readiness") or "unknown"),
+        "summary": "no blocked source or round is currently highest priority",
+        "href": "/runtime",
     }
-    const terminalSummary = (detail, flow) => {
-      if (detail.terminal_summary) return detail.terminal_summary;
-      const blockers = detail.mcp?.blockers || [];
-      if (blockers.length) return `Blocked: ${blockers.join("; ")}`;
-      const review = detail.final_review || {};
-      const statusText = String(detail.visible_status || detail.status?.status || "").toLowerCase();
-      if (["blocked", "failed", "changes requested"].includes(statusText)) return `${detail.visible_status}: ${review.summary || detail.mcp?.summary || "see the latest role event for details"}`;
-      const latest = flow.flatMap(stage => stage.latest_event?.summary ? [stage.latest_event] : []).sort((a, b) => String(a.time || "").localeCompare(String(b.time || ""))).pop();
-      if (["completed", "accepted"].includes(statusText)) return `Completed: ${review.summary || detail.mcp?.summary || latest?.summary || ""}`;
-      return latest?.summary ? `Current: ${latest.summary}` : "No role decision messages have been observed yet.";
-    };
-    const consensusSummary = (detail, flow) => {
-      const consensus = detail.consensus || {};
-      if (consensus.summary) return consensus;
-      const harnessRoles = new Map();
-      for (const stage of flow) {
-        if (!stage.harness_config || !stage.role) continue;
-        const roles = harnessRoles.get(stage.harness_config) || [];
-        if (!roles.includes(stage.role)) roles.push(stage.role);
-        harnessRoles.set(stage.harness_config, roles);
-      }
-      const harnesses = [...harnessRoles.entries()].map(([harness, roles]) => ({ harness, roles }));
-      const review = detail.final_review?.display || "";
-      return { mode: harnesses.length > 1 ? "multi_harness" : "single_harness", harnesses, review, summary: `${harnesses.length > 1 ? "Multi-LLM" : "Single-harness"} flow across ${harnesses.map(item => item.harness).join(", ") || "unknown harness"}` };
-    };
-    const renderFlowStrip = row => {
-      const flow = row.decision_flow || [];
-      return `<div class="flow-strip">${flow.map(stage => `<span class="stage-pill">${status(stage.status || "observed")}<span>${esc(stage.role || "role")}</span>${stage.harness_config ? `<span class="muted">${esc(stage.harness_config)}</span>` : ""}</span>`).join("")}</div><div class="muted">${esc(row.flow_summary || row.terminal_summary || row.latest_summary || "")}</div>`;
-    };
-    const sourceErrorBanner = names => names
-      .map(name => state.snapshot?.sources?.[name])
-      .filter(source => source?.ok === false)
-      .map(source => `<div class="error-box">${esc(source.source || "source")}: ${esc(source.error_kind || "unavailable")} - ${esc(source.error || "source unavailable; showing last known data")}</div>`)
-      .join("");
-    async function getJson(url) {
-      const response = await fetch(url, { cache: "no-store" });
-      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-      return await response.json();
-    }
-    const captureScroll = () => ({ x: window.scrollX, y: window.scrollY });
-    const restoreScroll = scroll => requestAnimationFrame(() => window.scrollTo(scroll.x, scroll.y));
-    const liveLabel = () => state.live.state === "fallback" ? "fallback polling" : state.live.state;
-    function updateLiveState(next) {
-      state.live = { ...state.live, ...next };
-      const fresh = state.live.lastOk ? `Last update ${fmt(state.live.lastOk)}` : "Waiting for first update";
-      const detail = state.live.error ? `${state.live.source}: ${state.live.error}` : `${fresh} via ${state.live.mode}`;
-      document.getElementById("refresh-state").innerHTML = `<div>${status(liveLabel())}</div><div class="muted">${esc(detail)}</div>`;
-    }
-    function markLiveOk(source) {
-      updateLiveState({ state: "fallback", mode: "fallback polling", lastOk: new Date().toISOString(), error: "", source });
-    }
-    function markStreamOk(source) {
-      updateLiveState({ state: "connected", mode: "stream", lastOk: new Date().toISOString(), error: "", source });
-    }
-    function markLiveError(source, err) {
-      updateLiveState({ state: state.live.lastOk ? "reconnecting" : "failed", source, error: err.message || String(err) });
-    }
-    const snapshotSourceFailed = (snapshot, source) => snapshot?.sources?.[source]?.ok === false;
-    const itemSourcesFailed = snapshot => snapshotSourceFailed(snapshot, "messages") || snapshotSourceFailed(snapshot, "notifications");
-    function mergeRowsByKey(previous = [], current = [], key) {
-      const rows = new Map();
-      for (const item of [...previous, ...current]) {
-        if (!item || !item[key]) continue;
-        rows.set(String(item[key]), item);
-      }
-      return [...rows.values()].sort((a, b) => String(b.latest_update || "").localeCompare(String(a.latest_update || "")));
-    }
-    function mergeInboxGroups(previous = [], current = []) {
-      const groups = new Map();
-      for (const group of [...previous, ...current]) {
-        const roundId = String(group?.round_id || "ungrouped");
-        const target = groups.get(roundId) || { round_id: roundId, items: [], latest_update: "" };
-        const seen = new Set(target.items.map(item => [item.type, item.source_id, item.time, item.summary].map(value => String(value || "")).join("|")));
-        for (const item of group?.items || []) {
-          const key = [item.type, item.source_id, item.time, item.summary].map(value => String(value || "")).join("|");
-          if (seen.has(key)) continue;
-          seen.add(key);
-          target.items.push(item);
-          if (String(item.time || "") > String(target.latest_update || "")) target.latest_update = item.time || "";
-        }
-        if (String(group?.latest_update || "") > String(target.latest_update || "")) target.latest_update = group.latest_update;
-        target.items.sort((a, b) => String(b.time || "").localeCompare(String(a.time || "")));
-        groups.set(roundId, target);
-      }
-      return [...groups.values()].sort((a, b) => String(b.latest_update || "").localeCompare(String(a.latest_update || "")));
-    }
-    function mergeSnapshot(nextSnapshot) {
-      if (!state.snapshot || !itemSourcesFailed(nextSnapshot)) return nextSnapshot;
-      const merged = { ...nextSnapshot };
-      merged.rounds = mergeRowsByKey(state.snapshot.rounds || [], nextSnapshot.rounds || [], "round_id");
-      merged.inbox = mergeInboxGroups(state.snapshot.inbox || [], nextSnapshot.inbox || []);
-      merged.overview = { ...(nextSnapshot.overview || {}) };
-      merged.overview.active_round_count = merged.rounds.filter(item => ["running", "waiting", "blocked"].includes(item.status)).length;
-      merged.overview.recent_round_count = merged.rounds.length;
-      merged.overview.latest_update = merged.rounds.reduce((latest, item) => String(item.latest_update || "") > latest ? String(item.latest_update || "") : latest, merged.overview.latest_update || nextSnapshot.generated_at || "");
-      return merged;
-    }
-    function setRoundDetail(roundId, detail) {
-      const previous = state.roundDetails[roundId];
-      if (previous && detail?.events?.ok === false) {
-        detail = { ...detail, timeline: previous.timeline || [] };
-      }
-      state.roundDetails[roundId] = detail;
-      state.cursors[roundId] = detail.cursor || state.cursors[roundId] || "";
-      delete state.timelineKeys[roundId];
-      seedTimelineKeys(roundId);
-    }
-    function checkStaleness() {
-      if (!state.live.lastOk) return;
-      const age = Date.now() - new Date(state.live.lastOk).getTime();
-      if (age > Math.max(STALE_GRACE_MS, (state.snapshot?.stale_after_seconds || 0) * 1000)) {
-        updateLiveState({ state: "stale", error: "automatic updates are stale" });
-      }
-    }
-    async function refresh() {
-      try {
-        const scroll = captureScroll();
-        state.snapshot = mergeSnapshot(await getJson("/api/snapshot"));
-        markLiveOk("snapshot");
-        render();
-        restoreScroll(scroll);
-      } catch (err) {
-        markLiveError("snapshot", err);
-      }
-    }
-    const timelineKey = item => [item.type, item.time, item.summary, item.raw?.id || item.raw?.agentId || item.raw?.sender || ""].map(value => String(value || "")).join("|");
-    const eventToTimeline = (event, roundId = "") => {
-      const item = event.message || event.notification || event.agent || {};
-      const actor = item.agentId || item.sender || item.senderId || item.name || item.slug || "";
-      const agents = state.roundDetails[roundId]?.status?.agents || [];
-      const agent = agents.find(candidate => [candidate.name, candidate.slug, candidate.id, `agent:${candidate.name}`, `agent:${candidate.slug}`].filter(Boolean).includes(actor)) || {};
-      return {
-        type: event.type || "event",
-        time: item.createdAt || item.created || item.updatedAt || item.updated || item.timestamp || item.time || "",
-        actor,
-        agent_name: agent.name || item.name || item.slug || actor,
-        role: item.role || agent.role || "",
-        template: item.template || agent.template || "",
-        harness_config: item.harness_config || item.harnessConfig || item.harness || agent.harness_config || "",
-        phase: item.phase || agent.phase || "",
-        activity: item.activity || agent.activity || "",
-        summary: item.msg || item.message || item.summary || item.taskSummary || item.activity || "",
-        raw: item
-      };
-    };
-    function seedTimelineKeys(roundId) {
-      const detail = state.roundDetails[roundId];
-      if (!detail || state.timelineKeys[roundId]) return;
-      state.timelineKeys[roundId] = new Set((detail.timeline || []).map(timelineKey));
-    }
-    function mergeTimelineEvents(roundId, eventsPayload) {
-      const detail = state.roundDetails[roundId];
-      if (!detail || !eventsPayload?.ok) return false;
-      seedTimelineKeys(roundId);
-      let changed = false;
-      for (const event of eventsPayload.events || []) {
-        const item = eventToTimeline(event, roundId);
-        const key = timelineKey(item);
-        if (state.timelineKeys[roundId].has(key)) continue;
-        state.timelineKeys[roundId].add(key);
-        detail.timeline.push(item);
-        changed = true;
-      }
-      detail.timeline.sort((a, b) => String(b.time || "").localeCompare(String(a.time || "")));
-      if (eventsPayload.cursor) state.cursors[roundId] = eventsPayload.cursor;
-      return changed;
-    }
-    function applyLiveEvent(payload) {
-      if (!payload || typeof payload !== "object") return;
-      if (payload.type === "heartbeat") {
-        markStreamOk(payload.source || "stream");
-        return;
-      }
-      const data = payload.data || {};
-      if ((payload.type === "snapshot.initial" || payload.type === "snapshot.updated") && data.snapshot) {
-        const scroll = captureScroll();
-        state.snapshot = mergeSnapshot(data.snapshot);
-        markStreamOk("snapshot");
-        render();
-        restoreScroll(scroll);
-        return;
-      }
-      if (payload.type === "source.error") {
-        const source = data.source || payload.source || "source";
-        markLiveError(source, new Error(data.error || `${source} unavailable`));
-        return;
-      }
-      if (payload.type === "round.detail.updated" && data.round?.round_id) {
-        setRoundDetail(data.round.round_id, data.round);
-        markStreamOk("round-detail");
-        if (state.selectedRound === data.round.round_id) renderRoundDetail();
-        return;
-      }
-      if (payload.type === "timeline.appended" && data.round_id && data.entry) {
-        const detail = state.roundDetails[data.round_id];
-        if (!detail) return;
-        seedTimelineKeys(data.round_id);
-        const key = timelineKey(data.entry);
-        if (!state.timelineKeys[data.round_id].has(key)) {
-          state.timelineKeys[data.round_id].add(key);
-          detail.timeline.push(data.entry);
-          detail.timeline.sort((a, b) => String(b.time || "").localeCompare(String(a.time || "")));
-          if (state.selectedRound === data.round_id) renderRoundDetail();
-        }
-        markStreamOk("round-timeline");
-        return;
-      }
-      if ((payload.type === "rounds.updated" || payload.type === "inbox.updated" || payload.type === "overview.updated" || payload.type === "runtime.updated") && state.snapshot) {
-        if (payload.type === "rounds.updated" && !itemSourcesFailed(state.snapshot)) state.snapshot.rounds = data.rounds || [];
-        if (payload.type === "inbox.updated" && !itemSourcesFailed(state.snapshot)) state.snapshot.inbox = data.inbox || [];
-        if (payload.type === "overview.updated" && !itemSourcesFailed(state.snapshot)) state.snapshot.overview = data;
-        if (payload.type === "runtime.updated") state.snapshot.sources = data.sources || state.snapshot.sources;
-        markStreamOk(payload.source || "stream");
-        render();
-        return;
-      }
-      if (payload.type === "snapshot" && payload.snapshot) {
-        const scroll = captureScroll();
-        state.snapshot = mergeSnapshot(payload.snapshot);
-        markStreamOk("snapshot");
-        render();
-        restoreScroll(scroll);
-        return;
-      }
-      if (payload.type === "round_events" && payload.round_id) {
-        const changed = mergeTimelineEvents(payload.round_id, payload);
-        markStreamOk("round-events");
-        if (changed && state.selectedRound === payload.round_id) renderRoundDetail();
-        return;
-      }
-      if (payload.type === "round_detail" && payload.round_id && payload.detail) {
-        setRoundDetail(payload.round_id, payload.detail);
-        markStreamOk("round-detail");
-        if (state.selectedRound === payload.round_id) renderRoundDetail();
-      }
-    }
-    function startLiveUpdates() {
-      if (!("EventSource" in window)) {
-        updateLiveState({ state: "fallback", mode: "fallback polling", source: "snapshot", error: "" });
-        return;
-      }
-      try {
-        const stream = new EventSource("/api/live");
-        state.stream = stream;
-        stream.onopen = () => markStreamOk("stream");
-        stream.onmessage = event => applyLiveEvent(JSON.parse(event.data));
-        stream.addEventListener("snapshot.initial", event => applyLiveEvent(JSON.parse(event.data)));
-        stream.addEventListener("snapshot.updated", event => applyLiveEvent(JSON.parse(event.data)));
-        stream.addEventListener("overview.updated", event => applyLiveEvent(JSON.parse(event.data)));
-        stream.addEventListener("rounds.updated", event => applyLiveEvent(JSON.parse(event.data)));
-        stream.addEventListener("inbox.updated", event => applyLiveEvent(JSON.parse(event.data)));
-        stream.addEventListener("runtime.updated", event => applyLiveEvent(JSON.parse(event.data)));
-        stream.addEventListener("source.error", event => applyLiveEvent(JSON.parse(event.data)));
-        stream.addEventListener("round.detail.updated", event => applyLiveEvent(JSON.parse(event.data)));
-        stream.addEventListener("timeline.appended", event => applyLiveEvent(JSON.parse(event.data)));
-        stream.addEventListener("heartbeat", event => applyLiveEvent(JSON.parse(event.data)));
-        stream.onerror = () => {
-          stream.close();
-          state.stream = null;
-          updateLiveState({ state: "fallback", mode: "fallback polling", source: "stream", error: "stream unavailable; using automatic polling" });
-        };
-      } catch (err) {
-        updateLiveState({ state: "fallback", mode: "fallback polling", source: "stream", error: err.message || String(err) });
-      }
-    }
-    function renderOverview() {
-      const s = state.snapshot;
-      const sources = s.sources;
-      document.getElementById("overview").innerHTML = `
-        <div class="grid">
-          <div class="card"><div>${status(s.overview.readiness)}</div><div class="muted">Control plane readiness</div></div>
-          <div class="card"><strong>${s.overview.active_round_count}</strong><div class="muted">Active or blocked rounds</div></div>
-          <div class="card"><strong>${s.overview.agent_count}</strong><div class="muted">Hub agents</div></div>
-          <div class="card"><strong>${fmt(s.overview.latest_update)}</strong><div class="muted">Latest update</div></div>
-        </div>
-        <h2>Checks</h2>
-        <div class="grid">${["hub","broker","mcp","web_app","kubernetes"].map(name => `<div class="card"><div>${status(sources[name]?.status)}</div><strong>${esc(name)}</strong><div class="muted">${esc(sources[name]?.error || `${sources[name]?.count ?? ""} ${name === "broker" ? "brokers" : ""}`)}</div></div>`).join("")}</div>`;
-    }
-    function renderRounds() {
-      const rows = state.snapshot.rounds;
-      const warnings = sourceErrorBanner(["messages", "notifications"]);
-      document.getElementById("rounds").innerHTML = rows.length ? `
-        ${warnings}
-        <div class="table-wrap"><table><thead><tr><th>Round</th><th>Status</th><th>Decision Flow</th><th>Latest</th><th>Outcome</th></tr></thead><tbody>
-        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}</td><td>${renderFlowStrip(row)}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.terminal_summary || row.outcome || "")}${row.mcp?.blockers?.length ? `<div class="error-box">${esc(row.mcp.blockers.join("; "))}</div>` : ""}</td></tr>`).join("")}
-        </tbody></table></div>` : `${warnings}<div class="card"><strong>No rounds found</strong><div class="muted">Hub returned no round-identifiable agents, messages, or notifications.</div></div>`;
-      document.querySelectorAll("[data-round]").forEach(row => row.onclick = () => openRound(row.dataset.round));
-    }
-    async function openRound(roundId, { force = false } = {}) {
-      state.selectedRound = roundId;
-      setView("round-detail");
-      if (!state.roundDetails[roundId] || force) {
-        document.getElementById("round-detail").innerHTML = `<div class="card">Loading ${esc(roundId)}...</div>`;
-        const detail = await getJson(`/api/rounds/${encodeURIComponent(roundId)}`);
-        setRoundDetail(roundId, detail);
-        markLiveOk("round-detail");
-      }
-      renderRoundDetail();
-      startRoundEventPolling();
-    }
-    async function pollSelectedRoundEvents() {
-      const roundId = state.selectedRound;
-      if (!roundId || state.view !== "round-detail") return;
-      try {
-        const cursor = state.cursors[roundId] || "";
-        const payload = await getJson(`/api/rounds/${encodeURIComponent(roundId)}/events?cursor=${encodeURIComponent(cursor)}`);
-        const changed = mergeTimelineEvents(roundId, payload);
-        markLiveOk("round-events");
-        if (changed) renderRoundDetail();
-      } catch (err) {
-        markLiveError("round-events", err);
-        try {
-          await openRound(roundId, { force: true });
-          updateLiveState({ state: "fallback", mode: "fallback snapshot", source: "round-detail", error: "" });
-        } catch (fallbackErr) {
-          markLiveError("round-detail", fallbackErr);
-        }
-      }
-    }
-    function startRoundEventPolling() {
-      if (state.poll.detail) clearInterval(state.poll.detail);
-      state.poll.detail = setInterval(pollSelectedRoundEvents, ROUND_EVENT_POLL_MS);
-    }
-    function renderConsensus(detail, flow) {
-      const consensus = consensusSummary(detail, flow);
-      const harnesses = consensus.harnesses || [];
-      return `
-        <h3>Consensus</h3>
-        <div class="reason-box">${esc(consensus.summary || "No consensus summary available yet.")}</div>
-        ${harnesses.length ? `<div class="meta">${harnesses.map(item => meta(item.harness, (item.roles || []).join(", "))).join("")}</div>` : ""}
-        ${consensus.review ? `<div class="muted">Review: ${esc(consensus.review)}</div>` : ""}
-        ${consensus.review_summary ? `<div class="muted">${esc(consensus.review_summary)}</div>` : ""}`;
-    }
-    function renderDecisionFlow(detail) {
-      const flow = buildDecisionFlow(detail);
-      const reason = terminalSummary(detail, flow);
-      const stageHtml = flow.map(stage => {
-        const events = (stage.events || []).slice(-4);
-        return `<div class="flow-stage">
-          <div class="flow-head">
-            <div class="flow-title">
-              <strong>${esc(stage.role || "observed")}</strong>
-              <span class="muted">${esc(stage.agent_name || "no agent name")}</span>
-            </div>
-            <div>${status(stage.status || "observed")}</div>
-          </div>
-          <div class="meta">${meta("template", stage.template)}${meta("harness", stage.harness_config)}${meta("phase", stage.phase)}${meta("activity", stage.activity)}</div>
-          <div class="flow-events">${events.length ? events.map(event => `<div class="flow-event ${esc(String(event.label || "").toLowerCase().replace(/\s+/g, "-"))}"><strong>${esc(event.label || "Event")}</strong><div class="muted">${fmt(event.time)} ${esc(event.type || "")}</div><div>${esc(event.summary || "")}</div></div>`).join("") : `<div class="muted">No role events observed yet.</div>`}</div>
-        </div>`;
-      }).join("");
-      return `
-        <h3>Decision Flow</h3>
-        <div class="reason-box">${esc(reason)}</div>
-        <div class="flow">${stageHtml || `<div class="muted">No role stages found for this round.</div>`}</div>`;
-    }
-    function renderRoundDetail() {
-      const roundId = state.selectedRound;
-      const detail = state.roundDetails[roundId];
-      if (!detail) return;
-      const agents = detail.status.agents || [];
-      const review = detail.final_review || {};
-      const timelineItem = item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div><div class="meta">${meta("agent", item.agent_name || item.actor)}${meta("role", item.role)}${meta("template", item.template)}${meta("harness", item.harness_config)}${meta("phase", item.phase)}${meta("activity", item.activity)}</div></div>`;
-      const agentCard = agent => `<div class="agent-card"><div class="agent-head"><strong>${esc(agent.name || agent.slug)}</strong>${status(agent.status || agent.phase || "unknown")}</div><div class="meta">${meta("role", agent.role)}${meta("template", agent.template)}${meta("harness", agent.harness_config)}${meta("phase", agent.phase)}${meta("activity", agent.activity)}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`;
-      const flow = buildDecisionFlow(detail);
-      document.getElementById("round-detail").innerHTML = `
-        <div class="bar"><button id="back-rounds">Back to rounds</button></div>
-        <div class="split">
-          <div class="detail"><h2 class="mono">${esc(roundId)}</h2><div>${status(detail.visible_status || detail.status.status || "unknown")}</div>${renderDecisionFlow(detail)}<h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(timelineItem).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
-          <div class="detail">${renderConsensus(detail, flow)}<h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}${mcpBlock(detail.mcp)}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? `<div class="agent-grid">${agents.map(agentCard).join("")}</div>` : `<div class="muted">No agents found.</div>`}<h3>Coordinator Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No coordinator output available.")}</div>`}</div>
-        </div>`;
-      document.getElementById("back-rounds").onclick = () => setView("rounds");
-    }
-    function renderInbox() {
-      const groups = state.snapshot.inbox;
-      const warnings = sourceErrorBanner(["messages", "notifications"]);
-      document.getElementById("inbox").innerHTML = groups.length ? warnings + groups.map(group => `
-        <div class="detail"><h2>${esc(group.round_id)}</h2>${group.items.map(item => `<div class="timeline item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)} ${esc(item.source_id)}</div><div>${esc(item.summary)}</div></div>`).join("")}</div>`).join("") : `${warnings}<div class="card"><strong>No inbox updates</strong><div class="muted">Hub returned no messages or notifications.</div></div>`;
-    }
-    function renderRuntime() {
-      const sources = state.snapshot.sources;
-      document.getElementById("runtime").innerHTML = `<div class="grid">${Object.entries(sources).map(([name, value]) => `<div class="card"><div>${status(value.status)}</div><h2>${esc(name)}</h2>${value.error ? `<div class="error-box">${esc(value.error_kind)}: ${esc(value.error)}</div>` : ""}<pre class="mono">${esc(JSON.stringify(value, null, 2))}</pre></div>`).join("")}</div>`;
-    }
-    function setView(view) {
-      state.view = view;
-      document.querySelectorAll("main > section").forEach(el => el.classList.add("hidden"));
-      document.querySelectorAll("nav button").forEach(btn => btn.classList.toggle("active", btn.dataset.view === view));
-      document.getElementById(view).classList.remove("hidden");
-      render();
-    }
-    function render() {
-      if (!state.snapshot) return;
-      renderOverview(); renderRounds(); renderInbox(); renderRuntime();
-      if (state.view === "round-detail") {
-        renderRoundDetail();
-        return;
-      }
-      if (state.view !== "round-detail") {
-        document.querySelectorAll("main > section").forEach(el => el.classList.add("hidden"));
-        document.getElementById(state.view).classList.remove("hidden");
-      }
-    }
-    document.querySelectorAll("nav button").forEach(btn => btn.onclick = () => setView(btn.dataset.view));
-    startLiveUpdates();
-    state.poll.snapshot = setInterval(refresh, SNAPSHOT_POLL_MS);
-    state.poll.stale = setInterval(checkStaleness, 5000);
-    refresh();
-  </script>
-</body>
-</html>
-"""
 
 
-class HubRequestHandler(BaseHTTPRequestHandler):
-    provider: RuntimeProvider = RuntimeProvider()
+def build_operator_view_model(snapshot: dict[str, Any]) -> dict[str, Any]:
+    overview = snapshot.get("overview") if isinstance(snapshot.get("overview"), dict) else {}
+    sources = snapshot.get("sources") if isinstance(snapshot.get("sources"), dict) else {}
+    source_order = ["hub", "broker", "mcp", "web_app", "kubernetes", "messages", "notifications"]
+    source_summaries = [
+        source_operator_summary(name, sources[name])
+        for name in source_order
+        if isinstance(sources.get(name), dict)
+    ]
+    return {
+        "readiness": overview.get("readiness") or snapshot.get("readiness") or "unknown",
+        "generated_at": snapshot.get("generated_at") or "",
+        "latest_update": overview.get("latest_update") or snapshot.get("generated_at") or "",
+        "stale": bool(snapshot.get("stale")),
+        "counts": {
+            "active_or_blocked": overview.get("active_round_count", 0),
+            "recent_rounds": overview.get("recent_round_count", 0),
+            "agents": overview.get("agent_count", 0),
+        },
+        "next_inspection": next_inspection_target(snapshot),
+        "sources": source_summaries,
+        "rounds": snapshot.get("rounds") if isinstance(snapshot.get("rounds"), list) else [],
+        "inbox": snapshot.get("inbox") if isinstance(snapshot.get("inbox"), list) else [],
+        "markers": NICEGUI_FRONTEND_MARKERS["layout_markers"],
+    }
 
-    def do_HEAD(self) -> None:
-        self.send_response(HTTPStatus.OK)
-        self.end_headers()
 
-    def do_GET(self) -> None:
-        parsed = urllib.parse.urlparse(self.path)
-        path = parsed.path.rstrip("/") or "/"
-        query = urllib.parse.parse_qs(parsed.query)
-        try:
-            if path == "/":
-                self.respond_html(INDEX_HTML)
-            elif path in {"/healthz", "/api/healthz"}:
-                self.respond_json(build_health())
-            elif path == "/api/snapshot":
-                self.respond_json(build_snapshot(self.provider))
-            elif path == "/api/contract":
-                self.respond_json({"ok": True, "contract": BROWSER_JSON_CONTRACT})
-            elif path in {"/api/live", "/api/stream"}:
-                cursor = query.get("cursor", [self.headers.get("Last-Event-ID", "")])[0]
-                round_id = query.get("round_id", [""])[0]
-                accepts_sse = "text/event-stream" in self.headers.get("Accept", "") or query.get("format", [""])[0] == "sse"
-                if accepts_sse:
-                    self.respond_sse(cursor=cursor, round_id=round_id, seconds=int(query.get("seconds", ["30"])[0] or 30))
-                else:
-                    self.respond_json(build_live_update_batch(self.provider, cursor=cursor, round_id=round_id))
-            elif path == "/api/overview":
-                self.respond_json(build_snapshot(self.provider)["overview"])
-            elif path == "/api/rounds":
-                self.respond_json({"rounds": build_snapshot(self.provider)["rounds"]})
-            elif path.startswith("/api/rounds/") and path.endswith("/events"):
-                round_id = urllib.parse.unquote(path.removeprefix("/api/rounds/").removesuffix("/events").strip("/"))
-                self.respond_json(self.provider.round_events(round_id, cursor=query.get("cursor", [""])[0], include_existing=False))
-            elif path.startswith("/api/rounds/"):
-                round_id = urllib.parse.unquote(path.removeprefix("/api/rounds/").strip("/"))
-                self.respond_json(build_round_detail(self.provider, round_id))
-            elif path == "/api/inbox":
-                self.respond_json({"inbox": build_snapshot(self.provider)["inbox"]})
-            elif path == "/api/runtime":
-                self.respond_json({"sources": build_snapshot(self.provider)["sources"]})
-            else:
-                self.respond_json({"ok": False, "error": "not found"}, status=HTTPStatus.NOT_FOUND)
-        except Exception as exc:
-            self.respond_json({"ok": False, "error_kind": "web_app", "error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+PROVIDER: RuntimeProvider = RuntimeProvider()
 
-    def do_POST(self) -> None:
-        self.respond_json({"ok": False, "error": "web app hub is read-only"}, status=HTTPStatus.METHOD_NOT_ALLOWED)
 
-    def do_PUT(self) -> None:
-        self.do_POST()
+NICEGUI_APP_REGISTERED = False
 
-    def do_PATCH(self) -> None:
-        self.do_POST()
 
-    def do_DELETE(self) -> None:
-        self.do_POST()
+def nicegui_provider() -> RuntimeProvider:
+    return PROVIDER
 
-    def log_message(self, fmt: str, *args: Any) -> None:
-        print(f"{self.address_string()} - {fmt % args}")
 
-    def respond_html(self, body: str) -> None:
-        data = body.encode()
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+def json_response(payload: dict[str, Any], status_code: int = 200) -> Any:
+    from fastapi.responses import JSONResponse
 
-    def respond_json(self, payload: dict[str, Any], *, status: HTTPStatus = HTTPStatus.OK) -> None:
-        data = json.dumps(payload, sort_keys=True, default=str).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+    return JSONResponse(content=json.loads(json.dumps(payload, sort_keys=True, default=str)), status_code=status_code, headers={"Cache-Control": "no-store"})
 
-    def respond_sse(self, *, cursor: str = "", round_id: str = "", seconds: int = 30) -> None:
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Connection", "keep-alive")
-        self.end_headers()
-        deadline = time.monotonic() + max(1, min(seconds, 60))
-        current_cursor = cursor
-        while time.monotonic() <= deadline:
-            batch = build_live_update_batch(self.provider, cursor=current_cursor, round_id=round_id)
-            current_cursor = batch["cursor"]
-            try:
-                for event in batch["events"]:
-                    self.write_sse_event(event)
-                self.wfile.flush()
-            except (BrokenPipeError, ConnectionResetError):
-                return
-            if batch["events"] and any(event.get("type") != "heartbeat" for event in batch["events"]):
+
+def status_badge(value: Any) -> Any:
+    from nicegui import ui
+
+    label = str(value or "unknown")
+    normalized = label.lower().replace("_", " ").replace("-", " ")
+    icon = "check_circle" if normalized in {"ready", "healthy", "completed", "accepted", "connected"} else ("error" if normalized in {"blocked", "failed", "unavailable", "changes requested"} else "pending")
+    colors = {
+        "ready": "bg-green-50 text-green-800 border-green-200",
+        "healthy": "bg-green-50 text-green-800 border-green-200",
+        "completed": "bg-green-50 text-green-800 border-green-200",
+        "accepted": "bg-green-50 text-green-800 border-green-200",
+        "connected": "bg-green-50 text-green-800 border-green-200",
+        "running": "bg-blue-50 text-blue-800 border-blue-200",
+        "waiting": "bg-amber-50 text-amber-900 border-amber-200",
+        "degraded": "bg-amber-50 text-amber-900 border-amber-200",
+        "stale": "bg-amber-50 text-amber-900 border-amber-200",
+        "blocked": "bg-red-50 text-red-800 border-red-200",
+        "failed": "bg-red-50 text-red-800 border-red-200",
+        "unavailable": "bg-red-50 text-red-800 border-red-200",
+        "changes requested": "bg-red-50 text-red-800 border-red-200",
+    }
+    with ui.element("span").classes(f"inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold {colors.get(normalized, 'bg-gray-50 text-gray-700 border-gray-200')}").props(f'aria-label="status {label}"'):
+        ui.icon(icon).classes("text-sm")
+        ui.label(label)
+
+
+def add_shell(active: str) -> None:
+    from nicegui import ui
+
+    ui.add_head_html(
+        """
+        <style>
+          body { background:#f6f7f8; color:#202225; }
+          .operator-console a:focus, .operator-console button:focus { outline:2px solid #1f5f99; outline-offset:2px; }
+          .console-wrap { max-width:1280px; margin:0 auto; padding:16px 18px 32px; }
+          .responsive-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; }
+          .dense-rounds .q-table th, .dense-rounds .q-table td { white-space:normal; vertical-align:top; }
+          @media (max-width: 720px) { .console-wrap { padding:10px; } .hide-narrow { display:none; } }
+        </style>
+        """
+    )
+    with ui.header().classes("bg-white text-gray-900 border-b border-gray-200 px-4 py-2"):
+        with ui.row().classes("w-full items-center justify-between gap-3"):
+            ui.label("scion-ops hub").classes("text-lg font-semibold")
+            with ui.tabs(value=active).classes("text-gray-800") as tabs:
+                for name, href in (("overview", "/"), ("rounds", "/rounds"), ("inbox", "/inbox"), ("runtime", "/runtime"), ("troubleshooting", "/troubleshooting")):
+                    ui.tab(name, label=name.title()).on("click", lambda _=None, target=href: ui.navigate.to(target))
+    ui.query(".nicegui-content").classes("operator-console")
+
+
+def summary_panel(label: str, value: Any, caption: str = "") -> None:
+    from nicegui import ui
+
+    with ui.card().classes("rounded-md shadow-none border border-gray-200 p-3"):
+        ui.label(str(value)).classes("text-xl font-semibold")
+        ui.label(label).classes("text-sm text-gray-600")
+        if caption:
+            ui.label(caption).classes("text-xs text-gray-500")
+
+
+def render_overview(snapshot: dict[str, Any]) -> None:
+    from nicegui import ui
+
+    model = build_operator_view_model(snapshot)
+    add_shell("overview")
+    with ui.element("main").classes("console-wrap"):
+        with ui.row().classes("items-center justify-between w-full gap-2"):
+            with ui.column().classes("gap-1"):
+                ui.label("Overview").classes("text-xl font-semibold")
+                ui.label(f"Generated {model['generated_at']}").classes("text-xs text-gray-500")
+            status_badge(model["readiness"])
+        with ui.element("section").classes("responsive-grid mt-3"):
+            summary_panel("Active or blocked", model["counts"]["active_or_blocked"])
+            summary_panel("Recent rounds", model["counts"]["recent_rounds"])
+            summary_panel("Hub agents", model["counts"]["agents"])
+            summary_panel("Latest update", model["latest_update"], "live freshness" if not model["stale"] else "stale")
+        target = model["next_inspection"]
+        with ui.card().classes("rounded-md shadow-none border border-gray-200 p-3 mt-3"):
+            with ui.row().classes("items-center justify-between gap-2"):
+                with ui.column().classes("gap-1"):
+                    ui.label("Next inspection").classes("font-semibold")
+                    ui.label(f"{target['label']} - {target['summary']}").classes("text-sm text-gray-700")
+                status_badge(target["status"])
+                ui.link("Open", target["href"]).classes("px-3 py-2 rounded-md border border-gray-300 text-sm")
+        ui.label("Runtime checks").classes("font-semibold mt-4")
+        with ui.element("section").classes("responsive-grid mt-2"):
+            for source in model["sources"]:
+                with ui.card().classes("rounded-md shadow-none border border-gray-200 p-3"):
+                    with ui.row().classes("items-center justify-between w-full"):
+                        ui.label(source["name"]).classes("font-semibold")
+                        status_badge(source["status"])
+                    ui.label(source["detail"]).classes("text-sm text-gray-600")
+                    ui.link("Troubleshoot", source["diagnostic_target"]).classes("text-sm")
+
+
+def render_rounds(snapshot: dict[str, Any]) -> None:
+    from nicegui import ui
+
+    add_shell("rounds")
+    rows = snapshot.get("rounds") if isinstance(snapshot.get("rounds"), list) else []
+    with ui.element("main").classes("console-wrap dense-rounds"):
+        ui.label("Rounds").classes("text-xl font-semibold")
+        if not rows:
+            with ui.card().classes("rounded-md shadow-none border border-gray-200 p-3 mt-3").props("data-empty-rounds"):
+                ui.label("No rounds found").classes("font-semibold text-gray-700")
+                ui.label("Hub returned no round-identifiable agents, messages, or notifications.").classes("text-sm text-gray-600")
+            return
+        for row in rows:
+            with ui.card().classes("rounded-md shadow-none border border-gray-200 p-3 mt-3"):
+                with ui.row().classes("items-start justify-between w-full gap-3"):
+                    with ui.column().classes("gap-1 min-w-0"):
+                        ui.link(str(row.get("round_id") or ""), f"/rounds/{row.get('round_id') or ''}").classes("font-mono font-semibold break-all")
+                        ui.label(short_text(row.get("terminal_summary") or row.get("flow_summary") or row.get("outcome"), 240)).classes("text-sm text-gray-700")
+                    status_badge(row.get("visible_status") or row.get("status"))
+                with ui.row().classes("gap-2 mt-2 flex-wrap text-xs text-gray-600"):
+                    ui.label(f"phase {row.get('phase') or 'unknown'}")
+                    ui.label(f"latest {row.get('latest_update') or 'unknown'}")
+                    ui.label(f"validation {(row.get('mcp') or {}).get('validation_status') or 'unknown'}")
+                    ui.label(f"final review {(row.get('final_review') or {}).get('display') or 'none'}")
+                blockers = (row.get("mcp") or {}).get("blockers") or []
+                if blockers:
+                    ui.label("; ".join(blockers)).classes("text-sm text-red-800 bg-red-50 border border-red-200 rounded-md p-2 mt-2")
+                branches = row.get("branches") or []
+                if branches:
+                    ui.label("Branches").classes("text-xs font-semibold text-gray-600 mt-2")
+                    for branch in branches[:4]:
+                        ui.label(branch).classes("font-mono text-xs break-all")
+
+
+def render_round_detail(round_id: str, detail: dict[str, Any]) -> None:
+    from nicegui import ui
+
+    add_shell("rounds")
+    with ui.element("main").classes("console-wrap"):
+        with ui.row().classes("items-center justify-between w-full gap-2"):
+            ui.link("Back to rounds", "/rounds").classes("px-3 py-2 rounded-md border border-gray-300 text-sm")
+            status_badge(detail.get("visible_status") or (detail.get("status") or {}).get("status"))
+        ui.label(round_id).classes("font-mono text-xl font-semibold break-all mt-3")
+        ui.label(detail.get("terminal_summary") or "").classes("text-sm text-gray-700")
+        with ui.tabs(value="flow").classes("mt-4") as tabs:
+            for name in ("flow", "timeline", "agents", "validation", "branches", "diagnostics"):
+                ui.tab(name, label=name.title())
+        with ui.tab_panels(tabs, value="flow").classes("w-full bg-transparent"):
+            with ui.tab_panel("flow"):
+                for stage in detail.get("decision_flow", []):
+                    with ui.card().classes("rounded-md shadow-none border border-gray-200 p-3 mb-2"):
+                        with ui.row().classes("items-center justify-between w-full"):
+                            ui.label(stage.get("role") or "observed").classes("font-semibold")
+                            status_badge(stage.get("status") or "observed")
+                        ui.label(stage.get("summary") or "").classes("text-sm text-gray-700")
+                        ui.label(f"{stage.get('agent_name') or ''} {stage.get('harness_config') or ''}").classes("text-xs text-gray-500")
+            with ui.tab_panel("timeline"):
+                for item in detail.get("timeline", []):
+                    with ui.card().classes("rounded-md shadow-none border border-gray-200 p-3 mb-2"):
+                        status_badge(item.get("type"))
+                        ui.label(item.get("time") or "").classes("text-xs text-gray-500")
+                        ui.label(item.get("summary") or "").classes("text-sm")
+            with ui.tab_panel("agents"):
+                for agent in (detail.get("status") or {}).get("agents", []):
+                    with ui.card().classes("rounded-md shadow-none border border-gray-200 p-3 mb-2"):
+                        with ui.row().classes("items-center justify-between w-full"):
+                            ui.label(agent.get("name") or agent.get("slug") or "").classes("font-mono text-sm break-all")
+                            status_badge(agent.get("status") or agent.get("phase"))
+                        ui.label(f"{agent.get('role') or ''} {agent.get('template') or ''} {agent.get('harness_config') or ''}").classes("text-xs text-gray-500")
+                        ui.label(agent.get("taskSummary") or agent.get("activity") or "").classes("text-sm")
+            with ui.tab_panel("validation"):
+                mcp = detail.get("mcp") or {}
+                status_badge(mcp.get("validation_status") or "unknown")
+                ui.json_editor({"content": {"json": mcp.get("validation") or {}}}).classes("w-full")
+            with ui.tab_panel("branches"):
+                for branch in detail.get("branches", []):
+                    ui.label(branch).classes("font-mono text-xs break-all")
+                ui.json_editor({"content": {"json": detail.get("artifacts") or {}}}).classes("w-full mt-2")
+            with ui.tab_panel("diagnostics"):
+                ui.label("Troubleshooting").classes("font-semibold")
+                ui.json_editor({"content": {"json": detail}}).classes("w-full troubleshooting-panel")
+
+
+def render_inbox(snapshot: dict[str, Any]) -> None:
+    from nicegui import ui
+
+    add_shell("inbox")
+    with ui.element("main").classes("console-wrap"):
+        ui.label("Inbox").classes("text-xl font-semibold")
+        groups = snapshot.get("inbox") if isinstance(snapshot.get("inbox"), list) else []
+        if not groups:
+            ui.label("No inbox updates").classes("text-gray-600 mt-3")
+        for group in groups:
+            with ui.card().classes("rounded-md shadow-none border border-gray-200 p-3 mt-3"):
+                ui.label(group.get("round_id") or "ungrouped").classes("font-mono font-semibold break-all")
+                for item in group.get("items", []):
+                    with ui.row().classes("items-start gap-2 w-full border-t border-gray-100 pt-2 mt-2"):
+                        status_badge(item.get("type"))
+                        with ui.column().classes("gap-1 min-w-0"):
+                            ui.label(item.get("time") or "").classes("text-xs text-gray-500")
+                            ui.label(item.get("summary") or "").classes("text-sm")
+
+
+def render_runtime(snapshot: dict[str, Any], *, troubleshooting: bool = False, selected_source: str = "") -> None:
+    from nicegui import ui
+
+    add_shell("troubleshooting" if troubleshooting else "runtime")
+    sources = snapshot.get("sources") if isinstance(snapshot.get("sources"), dict) else {}
+    with ui.element("main").classes("console-wrap"):
+        ui.label("Troubleshooting" if troubleshooting else "Runtime").classes("text-xl font-semibold")
+        ui.label("Raw diagnostics are grouped one level below the overview. The interface is read-only.").classes("text-sm text-gray-600")
+        for name, source in sources.items():
+            if selected_source and selected_source != name and not troubleshooting:
                 continue
-            time.sleep(15)
+            with ui.expansion(name, icon="manage_search", value=(name == selected_source or not troubleshooting)).classes("w-full mt-3 border border-gray-200 rounded-md bg-white"):
+                with ui.row().classes("items-center gap-2"):
+                    status_badge(source.get("status"))
+                    if source.get("error"):
+                        ui.label(f"{source.get('error_kind')}: {source.get('error')}").classes("text-sm text-red-800")
+                if troubleshooting:
+                    ui.json_editor({"content": {"json": source}}).classes("w-full troubleshooting-panel")
 
-    def write_sse_event(self, event: dict[str, Any]) -> None:
-        data = json.dumps(event, sort_keys=True, default=str)
-        frame = f"id: {event.get('cursor') or event.get('id') or ''}\nevent: {event.get('type') or 'message'}\ndata: {data}\n\n"
-        self.wfile.write(frame.encode())
+
+def register_nicegui_app() -> None:
+    global NICEGUI_APP_REGISTERED
+    if NICEGUI_APP_REGISTERED:
+        return
+    NICEGUI_APP_REGISTERED = True
+    from fastapi import Request
+    from fastapi.responses import StreamingResponse
+    from nicegui import app, ui
+
+    @app.get("/healthz")
+    def healthz() -> Any:
+        return json_response(build_health())
+
+    @app.get("/api/healthz")
+    def api_healthz() -> Any:
+        return json_response(build_health())
+
+    @app.get("/api/snapshot")
+    def api_snapshot() -> Any:
+        return json_response(build_snapshot(nicegui_provider()))
+
+    @app.get("/api/contract")
+    def api_contract() -> Any:
+        return json_response({"ok": True, "contract": BROWSER_JSON_CONTRACT})
+
+    @app.get("/api/overview")
+    def api_overview() -> Any:
+        return json_response(build_snapshot(nicegui_provider())["overview"])
+
+    @app.get("/api/rounds")
+    def api_rounds() -> Any:
+        return json_response({"rounds": build_snapshot(nicegui_provider())["rounds"]})
+
+    @app.get("/api/rounds/{round_id}/events")
+    def api_round_events(round_id: str, cursor: str = "") -> Any:
+        return json_response(nicegui_provider().round_events(round_id, cursor=cursor, include_existing=False))
+
+    @app.get("/api/rounds/{round_id}")
+    def api_round(round_id: str) -> Any:
+        return json_response(build_round_detail(nicegui_provider(), round_id))
+
+    @app.get("/api/inbox")
+    def api_inbox() -> Any:
+        return json_response({"inbox": build_snapshot(nicegui_provider())["inbox"]})
+
+    @app.get("/api/runtime")
+    def api_runtime() -> Any:
+        return json_response({"sources": build_snapshot(nicegui_provider())["sources"]})
+
+    @app.get("/api/live")
+    @app.get("/api/stream")
+    def api_live(request: Request, cursor: str = "", round_id: str = "", seconds: int = 30, format: str = "") -> Any:
+        accepts_sse = "text/event-stream" in request.headers.get("accept", "") or format == "sse"
+        if not accepts_sse:
+            return json_response(build_live_update_batch(nicegui_provider(), cursor=cursor or request.headers.get("last-event-id", ""), round_id=round_id))
+
+        def frames() -> Any:
+            deadline = time.monotonic() + max(1, min(seconds, 60))
+            current_cursor = cursor or request.headers.get("last-event-id", "")
+            while time.monotonic() <= deadline:
+                batch = build_live_update_batch(nicegui_provider(), cursor=current_cursor, round_id=round_id)
+                current_cursor = batch["cursor"]
+                for event in batch["events"]:
+                    data = json.dumps(event, sort_keys=True, default=str)
+                    yield f"id: {event.get('cursor') or event.get('id') or ''}\nevent: {event.get('type') or 'message'}\ndata: {data}\n\n"
+                if batch["events"] and any(event.get("type") != "heartbeat" for event in batch["events"]):
+                    continue
+                time.sleep(15)
+
+        return StreamingResponse(frames(), media_type="text/event-stream", headers={"Cache-Control": "no-store", "Connection": "keep-alive"})
+
+    @ui.page("/")
+    def page_overview() -> None:
+        render_overview(build_snapshot(nicegui_provider()))
+
+    @ui.page("/rounds")
+    def page_rounds() -> None:
+        render_rounds(build_snapshot(nicegui_provider()))
+
+    @ui.page("/rounds/{round_id}")
+    def page_round_detail(round_id: str) -> None:
+        render_round_detail(round_id, build_round_detail(nicegui_provider(), round_id))
+
+    @ui.page("/inbox")
+    def page_inbox() -> None:
+        render_inbox(build_snapshot(nicegui_provider()))
+
+    @ui.page("/runtime")
+    def page_runtime() -> None:
+        render_runtime(build_snapshot(nicegui_provider()))
+
+    @ui.page("/troubleshooting")
+    def page_troubleshooting(source: str = "") -> None:
+        render_runtime(build_snapshot(nicegui_provider()), troubleshooting=True, selected_source=source)
 
 
 def serve(host: str, port: int) -> None:
-    server = ThreadingHTTPServer((host, port), HubRequestHandler)
-    print(f"scion-ops web app hub listening on http://{host}:{port}")
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        server.server_close()
+    register_nicegui_app()
+    from nicegui import ui
+
+    print(f"scion-ops NiceGUI web app hub listening on http://{host}:{port}")
+    ui.run(host=host, port=port, title="scion-ops hub", reload=False, show=False)
 
 
 def main() -> None:
