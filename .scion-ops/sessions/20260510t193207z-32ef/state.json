@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "session_id": "20260510t193207z-32ef",
+  "round_id": "20260510t193207z-32ef",
+  "kind": "spec",
+  "change": "use-nicegui",
+  "base_branch": "main",
+  "status": "running",
+  "phase": "clarifying",
+  "branches": {
+    "steward": "round-20260510t193207z-32ef-spec-steward",
+    "clarifier": "round-20260510t193207z-32ef-spec-clarifier",
+    "explorer": "round-20260510t193207z-32ef-spec-explorer",
+    "author": "round-20260510t193207z-32ef-spec-author",
+    "review": "round-20260510t193207z-32ef-spec-ops-review",
+    "integration": "round-20260510t193207z-32ef-spec-integration"
+  },
+  "consensus": {
+    "mode": "multi_harness",
+    "templates": {
+      "clarifier": "spec-goal-clarifier-claude",
+      "explorer": "spec-repo-explorer",
+      "author": "spec-author",
+      "ops_review": "spec-ops-reviewer-claude"
+    },
+    "harnesses": {
+      "clarifier": "claude",
+      "explorer": "codex-exec",
+      "author": "codex-exec",
+      "ops_review": "claude"
+    },
+    "required_multi_harness": true
+  },
+  "agents": {},
+  "review": {},
+  "validation": {
+    "status": "pending"
+  },
+  "blockers": [],
+  "next_actions": [
+    "Start spec-goal-clarifier and spec-repo-explorer agents",
+    "Create OpenSpec artifacts on the author branch",
+    "Validate and review the integration branch"
+  ]
+}
