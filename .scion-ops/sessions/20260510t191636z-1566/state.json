@@ -74,6 +74,25 @@
   },
   "blockers": [],
   "next_actions": [
-    "Use round-20260510t191636z-1566-spec-integration for OpenSpec review or implementation planning"
-  ]
+    "Review pull request https://github.com/dodwyer/scion-ops/pull/136"
+  ],
+  "pull_request": {
+    "source": "steward_pr_finalizer",
+    "session_id": "20260510t191636z-1566",
+    "kind": "spec",
+    "change": "holly-ops-branding",
+    "head": "round-20260510t191636z-1566-spec-integration",
+    "base": "main",
+    "head_commit": "e5919e9a466ab856eb5f73a8072329eecaf2e562",
+    "base_commit": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+    "created": true,
+    "draft": false,
+    "pr": {
+      "url": "https://github.com/dodwyer/scion-ops/pull/136",
+      "head": "round-20260510t191636z-1566-spec-integration",
+      "base": "main",
+      "title": "OpenSpec: holly-ops-branding"
+    },
+    "pr_url": "https://github.com/dodwyer/scion-ops/pull/136"
+  }
 }

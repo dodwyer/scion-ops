@@ -1,0 +1,187 @@
+{
+  "base": "main",
+  "base_commit": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+  "change": "holly-ops-branding",
+  "created": true,
+  "draft": false,
+  "gh": {
+    "create": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "create",
+        "--base",
+        "main",
+        "--head",
+        "round-20260510t191636z-1566-spec-integration",
+        "--title",
+        "OpenSpec: holly-ops-branding",
+        "--body",
+        "Created by scion-ops after successful spec steward validation.\n\n- Session: `20260510t191636z-1566`\n- Change: `holly-ops-branding`\n- Head: `round-20260510t191636z-1566-spec-integration` (`e5919e9a466a`)\n- Base: `main` (`2d7a02d1b546`)\n- Steward validation: passed\n- OpenSpec review: `accept`"
+      ],
+      "ok": true,
+      "output": "Warning: 1 uncommitted change\nhttps://github.com/dodwyer/scion-ops/pull/136\n",
+      "returncode": 0
+    },
+    "list": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "list",
+        "--head",
+        "round-20260510t191636z-1566-spec-integration",
+        "--base",
+        "main",
+        "--state",
+        "all",
+        "--json",
+        "number,url,state,title,baseRefName,headRefName",
+        "--limit",
+        "1"
+      ],
+      "ok": true,
+      "output": "[]\n",
+      "returncode": 0
+    }
+  },
+  "head": "round-20260510t191636z-1566-spec-integration",
+  "head_commit": "e5919e9a466ab856eb5f73a8072329eecaf2e562",
+  "kind": "spec",
+  "ok": true,
+  "pr": {
+    "base": "main",
+    "head": "round-20260510t191636z-1566-spec-integration",
+    "title": "OpenSpec: holly-ops-branding",
+    "url": "https://github.com/dodwyer/scion-ops/pull/136"
+  },
+  "pr_url": "https://github.com/dodwyer/scion-ops/pull/136",
+  "project_root": "/workspace",
+  "session_id": "20260510t191636z-1566",
+  "source": "steward_pr_finalizer",
+  "state_recording": {
+    "pr_path": "/workspace/.scion-ops/sessions/20260510t191636z-1566/pr.json",
+    "state_path": "/workspace/.scion-ops/sessions/20260510t191636z-1566/state.json"
+  },
+  "validation": {
+    "agent_harnesses": {
+      "author": "codex-exec",
+      "clarifier": "claude",
+      "explorer": "codex-exec",
+      "ops_review": "claude"
+    },
+    "branch": {
+      "base_branch": "main",
+      "base_commit": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "base_resolved_ref": "origin/main",
+      "branch": "round-20260510t191636z-1566-spec-integration",
+      "commit": "e5919e9a466ab856eb5f73a8072329eecaf2e562",
+      "resolved_ref": "origin/round-20260510t191636z-1566-spec-integration"
+    },
+    "change": "holly-ops-branding",
+    "errors": [],
+    "kind": "spec",
+    "ok": true,
+    "openspec_validation": {
+      "change": "holly-ops-branding",
+      "change_path": "openspec/changes/holly-ops-branding",
+      "errors": [],
+      "ok": true,
+      "project_root": "/tmp/tmp4pux5tt3",
+      "required_files": {
+        "design.md": "openspec/changes/holly-ops-branding/design.md",
+        "proposal.md": "openspec/changes/holly-ops-branding/proposal.md",
+        "tasks.md": "openspec/changes/holly-ops-branding/tasks.md"
+      },
+      "source_ref": "origin/round-20260510t191636z-1566-spec-integration",
+      "spec_files": [
+        "openspec/changes/holly-ops-branding/specs/web-app-hub/spec.md"
+      ],
+      "warnings": []
+    },
+    "openspec_validation_source": "origin/round-20260510t191636z-1566-spec-integration",
+    "project_root": "/workspace",
+    "session_id": "20260510t191636z-1566",
+    "state": {
+      "agents": {
+        "author": {
+          "branch": "round-20260510t191636z-1566-spec-author",
+          "harness_config": "codex-exec",
+          "name": "round-20260510t191636z-1566-spec-author",
+          "status": "completed",
+          "template": "spec-author"
+        },
+        "clarifier": {
+          "branch": "round-20260510t191636z-1566-spec-clarifier",
+          "harness_config": "claude",
+          "name": "round-20260510t191636z-1566-spec-clarifier",
+          "status": "completed",
+          "template": "spec-goal-clarifier-claude"
+        },
+        "explorer": {
+          "branch": "round-20260510t191636z-1566-spec-explorer",
+          "harness_config": "codex-exec",
+          "name": "round-20260510t191636z-1566-spec-explorer",
+          "status": "completed",
+          "template": "spec-repo-explorer"
+        },
+        "ops_review": {
+          "branch": "round-20260510t191636z-1566-spec-ops-review",
+          "harness_config": "claude",
+          "name": "round-20260510t191636z-1566-spec-ops-review",
+          "status": "completed",
+          "template": "spec-ops-reviewer-claude"
+        }
+      },
+      "base_branch": "main",
+      "blockers": [],
+      "branches": {
+        "author": "round-20260510t191636z-1566-spec-author",
+        "clarifier": "round-20260510t191636z-1566-spec-clarifier",
+        "explorer": "round-20260510t191636z-1566-spec-explorer",
+        "integration": "round-20260510t191636z-1566-spec-integration",
+        "review": "round-20260510t191636z-1566-spec-ops-review",
+        "steward": "round-20260510t191636z-1566-spec-steward"
+      },
+      "change": "holly-ops-branding",
+      "consensus": {
+        "harnesses": {
+          "author": "codex-exec",
+          "clarifier": "claude",
+          "explorer": "codex-exec",
+          "ops_review": "claude"
+        },
+        "mode": "multi_harness",
+        "required_multi_harness": true,
+        "templates": {
+          "author": "spec-author",
+          "clarifier": "spec-goal-clarifier-claude",
+          "explorer": "spec-repo-explorer",
+          "ops_review": "spec-ops-reviewer-claude"
+        }
+      },
+      "kind": "spec",
+      "next_actions": [
+        "Use round-20260510t191636z-1566-spec-integration for OpenSpec review or implementation planning"
+      ],
+      "phase": "complete",
+      "review": {
+        "agent": "round-20260510t191636z-1566-spec-ops-review",
+        "summary": "Ops review accepted the Holly Ops branding OpenSpec as coherent, in scope, and low compatibility risk with no conditions.",
+        "verdict": "accept"
+      },
+      "round_id": "20260510t191636z-1566",
+      "session_id": "20260510t191636z-1566",
+      "status": "ready",
+      "validation": {
+        "command": "python3 scripts/validate-openspec-change.py --project-root . --change holly-ops-branding",
+        "integration_branch": "round-20260510t191636z-1566-spec-integration",
+        "review_agent": "round-20260510t191636z-1566-spec-ops-review",
+        "status": "passed"
+      },
+      "version": 1
+    },
+    "state_path": "/workspace/.scion-ops/sessions/20260510t191636z-1566/state.json",
+    "state_source": "/workspace/.scion-ops/sessions/20260510t191636z-1566/state.json",
+    "warnings": []
+  }
+}
