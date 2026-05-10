@@ -582,6 +582,120 @@ def test_round_detail_loads_openspec_status_when_progress_identifies_change():
     assert detail["spec_status"]["change"] == "update-web-app"
 
 
+def test_live_contract_describes_typed_events_and_source_coverage():
+    contract = web_app_hub.BROWSER_JSON_CONTRACT["live_updates"]
+    assert contract["endpoint"].startswith("/api/live")
+    assert "snapshot.initial" in contract["event_types"]
+    assert "timeline.appended" in contract["event_types"]
+    assert "source.error" in contract["event_types"]
+    assert "Hub" in contract["read_only"]
+    assert "kubernetes" in contract["source_errors"] or "source.error" in contract["source_errors"]
+
+
+def test_live_initial_snapshot_emits_typed_cursor_and_heartbeat_events():
+    batch = web_app_hub.build_live_update_batch(FixtureProvider(), round_id="20260509t063201z-6c02")
+    event_types = [event["type"] for event in batch["events"]]
+    assert batch["ok"] is True
+    assert batch["cursor"].startswith("live:")
+    assert event_types[:5] == ["snapshot.initial", "overview.updated", "rounds.updated", "inbox.updated", "runtime.updated"]
+    assert "round.detail.updated" in event_types
+    assert "timeline.appended" in event_types
+    assert event_types[-1] == "heartbeat"
+    assert all(event.get("id") and event.get("cursor") == batch["cursor"] for event in batch["events"])
+
+
+def test_live_incremental_updates_capture_inbox_runtime_status_and_final_review_changes():
+    first = web_app_hub.build_live_update_batch(FixtureProvider())
+    changed_notifications = {
+        "ok": True,
+        "items": [
+            *healthy_notifications()["items"],
+            {
+                "id": "final-changes",
+                "agentId": "round-20260509t063201z-6c02-final-review",
+                "summary": '{"verdict":"changes_requested","summary":"needs repair"}',
+                "createdAt": "2026-05-09T06:44:01+00:00",
+            },
+        ],
+    }
+    changed_k8s = healthy_k8s()
+    changed_k8s["status"] = "degraded"
+    changed_k8s["ok"] = True
+    changed_k8s["deployments"][0] = {**changed_k8s["deployments"][0], "available": 0, "ready": False}
+    second = web_app_hub.build_live_update_batch(
+        FixtureProvider(notifications=changed_notifications, k8s=changed_k8s),
+        cursor=first["cursor"],
+    )
+    assert second["cursor"] != first["cursor"]
+    state = web_app_hub.merge_live_events({}, second["events"])
+    row = state["rounds"][0]
+    assert row["visible_status"] == "changes requested"
+    assert state["inbox"][0]["items"][0]["source_id"] == "final-changes"
+    assert state["sources"]["kubernetes"]["status"] == "degraded"
+
+
+def test_live_duplicate_replayed_events_are_idempotent_for_snapshot_and_timeline_appends():
+    round_events = {
+        "ok": True,
+        "round_id": "20260509t063201z-6c02",
+        "cursor": "cursor-2",
+        "events": [
+            {"type": "message", "message": {"id": "msg-2", "createdAt": "2026-05-09T06:45:00+00:00", "msg": "round 20260509t063201z-6c02 step one"}},
+            {"type": "message", "message": {"id": "msg-2", "createdAt": "2026-05-09T06:45:00+00:00", "msg": "round 20260509t063201z-6c02 step one"}},
+        ],
+    }
+    batch = web_app_hub.build_live_update_batch(FixtureProvider(round_events=round_events), round_id="20260509t063201z-6c02")
+    replayed = batch["events"] + batch["events"]
+    state = web_app_hub.merge_live_events({}, replayed)
+    timeline = state["timelines"]["20260509t063201z-6c02"]
+    assert [entry["id"] for entry in timeline] == ["message:msg-2"]
+    assert len(state["_seen_event_ids"]) == len({event["id"] for event in batch["events"]})
+
+
+def test_live_reconnect_with_current_cursor_returns_heartbeat_only_and_bogus_cursor_falls_back_to_snapshot():
+    provider = FixtureProvider()
+    first = web_app_hub.build_live_update_batch(provider)
+    resumed = web_app_hub.build_live_update_batch(provider, cursor=first["cursor"])
+    fallback = web_app_hub.build_live_update_batch(provider, cursor="live:missing")
+    assert [event["type"] for event in resumed["events"]] == ["heartbeat"]
+    assert fallback["mode"] == "cursor_resume"
+    assert fallback["events"][0]["type"] == "snapshot.updated"
+    assert fallback["events"][0]["data"]["snapshot"]["rounds"]
+
+
+def test_live_source_specific_errors_do_not_clear_healthy_sources():
+    provider = FixtureProvider(
+        mcp={"source": "mcp", "ok": False, "status": "unavailable", "error_kind": "runtime", "error": "connection refused"},
+        k8s={"source": "kubernetes", "ok": False, "status": "unavailable", "error_kind": "runtime", "error": "kubectl missing"},
+    )
+    batch = web_app_hub.build_live_update_batch(provider)
+    errors = [event for event in batch["events"] if event["type"] == "source.error"]
+    assert {event["source"] for event in errors} >= {"mcp", "kubernetes", "web_app"}
+    runtime = next(event for event in batch["events"] if event["type"] == "runtime.updated")
+    assert runtime["data"]["sources"]["hub"]["ok"] is True
+    assert runtime["data"]["sources"]["mcp"]["error_kind"] == "runtime"
+
+
+def test_live_update_path_is_read_only_and_does_not_validate_or_mutate():
+    class TrackingProvider(FixtureProvider):
+        def __init__(self):
+            super().__init__()
+            self.calls = []
+
+        def validate_spec_change(self, project_root, change):
+            self.calls.append(("validate_spec_change", project_root, change))
+            raise AssertionError("live updates must not validate or mutate")
+
+        def start_round(self):
+            self.calls.append(("start_round",))
+            raise AssertionError("live updates must not start rounds")
+
+    provider = TrackingProvider()
+    batch = web_app_hub.build_live_update_batch(provider, round_id="20260509t063201z-6c02")
+    assert batch["ok"] is True
+    assert provider.calls == []
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
