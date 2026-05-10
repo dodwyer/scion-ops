@@ -83,8 +83,8 @@ eval "$(task kind:hub:auth-export)"
 task kind:mcp:smoke
 ```
 
-Open the web app in a browser at the configured web app URL (default
-`http://192.168.122.103:8808`). The web app reads operational state from Hub and
+Open the NiceGUI operator console at the configured web app URL (default
+`http://192.168.122.103:8808`). The console reads operational state from Hub and
 MCP using the same in-cluster credentials as the MCP server.
 
 The MCP pod reads Hub through the in-cluster `scion-hub` Service and uses the
@@ -153,8 +153,8 @@ task load:image -- localhost/scion-codex:latest
 task dev:test
 ```
 
-The web app reuses the `scion-ops-mcp` image. `task update:web-app` reloads
-that image and restarts the web app deployment.
+The NiceGUI web app reuses the `scion-ops-mcp` image. `task update:web-app`
+reloads that image and restarts the web app deployment.
 
 Use `task storage:status` before full image rebuilds. If Docker is using `vfs`,
 switch to `overlay2` storage before large rebuild cycles.
@@ -166,9 +166,13 @@ task kind:web-app:status    # rollout status and service info
 task kind:web-app:logs      # streaming logs
 ```
 
-The web app reads Hub dev auth from the `scion-hub-dev-auth` Secret. If Hub
-credentials have changed, run `task bootstrap` to restore the Secret, then
-`task update:web-app` to pick it up.
+The NiceGUI operator console reads Hub dev auth from the `scion-hub-dev-auth`
+Secret. If Hub credentials have changed, run `task bootstrap` to restore the
+Secret, then `task update:web-app` to pick it up.
+
+The console entry point is `scripts/web_app.py`. Health and JSON snapshot
+endpoints (`/healthz`, `/api/overview`) remain available for probes and smoke
+checks; they do not require a browser connection to be active.
 
 If the web app port is unreachable, verify the kind cluster has the web app port
 mapping active:
@@ -183,6 +187,21 @@ An old cluster without the web app port mapping must be recreated:
 task down
 task up
 ```
+
+## NiceGUI Local Development
+
+Run the operator console locally against a live kind control plane:
+
+```bash
+SCION_OPS_HUB_ENDPOINT=http://192.168.122.103:18090 \
+SCION_OPS_MCP_URL=http://192.168.122.103:8765/mcp \
+SCION_OPS_WEB_HOST=127.0.0.1 \
+SCION_OPS_WEB_PORT=8787 \
+uv run scripts/web_app.py
+```
+
+The console opens at `http://127.0.0.1:8787`. It uses the same environment
+variables and Hub dev auth conventions as the kind deployment.
 
 ## Destroy
 
