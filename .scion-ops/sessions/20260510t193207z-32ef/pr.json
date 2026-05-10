@@ -1,0 +1,187 @@
+{
+  "base": "main",
+  "base_commit": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+  "change": "use-nicegui",
+  "created": true,
+  "draft": false,
+  "gh": {
+    "create": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "create",
+        "--base",
+        "main",
+        "--head",
+        "round-20260510t193207z-32ef-spec-integration",
+        "--title",
+        "OpenSpec: use-nicegui",
+        "--body",
+        "Created by scion-ops after successful spec steward validation.\n\n- Session: `20260510t193207z-32ef`\n- Change: `use-nicegui`\n- Head: `round-20260510t193207z-32ef-spec-integration` (`1affd3871898`)\n- Base: `main` (`2d7a02d1b546`)\n- Steward validation: passed\n- OpenSpec review: `accept`"
+      ],
+      "ok": true,
+      "output": "Warning: 1 uncommitted change\nhttps://github.com/dodwyer/scion-ops/pull/137\n",
+      "returncode": 0
+    },
+    "list": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "list",
+        "--head",
+        "round-20260510t193207z-32ef-spec-integration",
+        "--base",
+        "main",
+        "--state",
+        "all",
+        "--json",
+        "number,url,state,title,baseRefName,headRefName",
+        "--limit",
+        "1"
+      ],
+      "ok": true,
+      "output": "[]\n",
+      "returncode": 0
+    }
+  },
+  "head": "round-20260510t193207z-32ef-spec-integration",
+  "head_commit": "1affd38718981cf0478eedebb78b67d5feaf56d9",
+  "kind": "spec",
+  "ok": true,
+  "pr": {
+    "base": "main",
+    "head": "round-20260510t193207z-32ef-spec-integration",
+    "title": "OpenSpec: use-nicegui",
+    "url": "https://github.com/dodwyer/scion-ops/pull/137"
+  },
+  "pr_url": "https://github.com/dodwyer/scion-ops/pull/137",
+  "project_root": "/workspace",
+  "session_id": "20260510t193207z-32ef",
+  "source": "steward_pr_finalizer",
+  "state_recording": {
+    "pr_path": "/workspace/.scion-ops/sessions/20260510t193207z-32ef/pr.json",
+    "state_path": "/workspace/.scion-ops/sessions/20260510t193207z-32ef/state.json"
+  },
+  "validation": {
+    "agent_harnesses": {
+      "author": "codex-exec",
+      "clarifier": "claude",
+      "explorer": "codex-exec",
+      "ops_review": "claude"
+    },
+    "branch": {
+      "base_branch": "main",
+      "base_commit": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+      "base_resolved_ref": "origin/main",
+      "branch": "round-20260510t193207z-32ef-spec-integration",
+      "commit": "1affd38718981cf0478eedebb78b67d5feaf56d9",
+      "resolved_ref": "origin/round-20260510t193207z-32ef-spec-integration"
+    },
+    "change": "use-nicegui",
+    "errors": [],
+    "kind": "spec",
+    "ok": true,
+    "openspec_validation": {
+      "change": "use-nicegui",
+      "change_path": "openspec/changes/use-nicegui",
+      "errors": [],
+      "ok": true,
+      "project_root": "/tmp/tmpiigfg6_z",
+      "required_files": {
+        "design.md": "openspec/changes/use-nicegui/design.md",
+        "proposal.md": "openspec/changes/use-nicegui/proposal.md",
+        "tasks.md": "openspec/changes/use-nicegui/tasks.md"
+      },
+      "source_ref": "origin/round-20260510t193207z-32ef-spec-integration",
+      "spec_files": [
+        "openspec/changes/use-nicegui/specs/web-app-hub/spec.md"
+      ],
+      "warnings": []
+    },
+    "openspec_validation_source": "origin/round-20260510t193207z-32ef-spec-integration",
+    "project_root": "/workspace",
+    "session_id": "20260510t193207z-32ef",
+    "state": {
+      "agents": {
+        "author": {
+          "branch": "round-20260510t193207z-32ef-spec-author",
+          "harness_config": "codex-exec",
+          "name": "round-20260510t193207z-32ef-spec-author",
+          "status": "completed",
+          "template": "spec-author"
+        },
+        "clarifier": {
+          "branch": "round-20260510t193207z-32ef-spec-clarifier",
+          "harness_config": "claude",
+          "name": "round-20260510t193207z-32ef-spec-clarifier",
+          "status": "completed",
+          "template": "spec-goal-clarifier-claude"
+        },
+        "explorer": {
+          "branch": "round-20260510t193207z-32ef-spec-explorer",
+          "harness_config": "codex-exec",
+          "name": "round-20260510t193207z-32ef-spec-explorer",
+          "status": "completed",
+          "template": "spec-repo-explorer"
+        },
+        "ops_review": {
+          "branch": "round-20260510t193207z-32ef-spec-ops-review",
+          "harness_config": "claude",
+          "name": "round-20260510t193207z-32ef-spec-ops-review",
+          "status": "completed",
+          "template": "spec-ops-reviewer-claude"
+        }
+      },
+      "base_branch": "main",
+      "blockers": [],
+      "branches": {
+        "author": "round-20260510t193207z-32ef-spec-author",
+        "clarifier": "round-20260510t193207z-32ef-spec-clarifier",
+        "explorer": "round-20260510t193207z-32ef-spec-explorer",
+        "integration": "round-20260510t193207z-32ef-spec-integration",
+        "review": "round-20260510t193207z-32ef-spec-ops-review",
+        "steward": "round-20260510t193207z-32ef-spec-steward"
+      },
+      "change": "use-nicegui",
+      "consensus": {
+        "harnesses": {
+          "author": "codex-exec",
+          "clarifier": "claude",
+          "explorer": "codex-exec",
+          "ops_review": "claude"
+        },
+        "mode": "multi_harness",
+        "required_multi_harness": true,
+        "templates": {
+          "author": "spec-author",
+          "clarifier": "spec-goal-clarifier-claude",
+          "explorer": "spec-repo-explorer",
+          "ops_review": "spec-ops-reviewer-claude"
+        }
+      },
+      "kind": "spec",
+      "next_actions": [
+        "Use round-20260510t193207z-32ef-spec-integration for OpenSpec review or implementation planning"
+      ],
+      "phase": "complete",
+      "review": {
+        "agent": "round-20260510t193207z-32ef-spec-ops-review",
+        "summary": "Accepted: complete and protocol-compliant use-nicegui OpenSpec; contract preservation, NiceGUI runtime/deployment compatibility, read-only safety, operator progressive disclosure, Laws of UX constraints, responsive/accessibility coverage, and no-spend verification are sufficiently specified. Minor timestamp, empty-state, and priority heuristic details are left to implementation.",
+        "verdict": "accept"
+      },
+      "round_id": "20260510t193207z-32ef",
+      "session_id": "20260510t193207z-32ef",
+      "status": "ready",
+      "validation": {
+        "command": "python3 scripts/validate-openspec-change.py --project-root . --change use-nicegui",
+        "integration_branch": "round-20260510t193207z-32ef-spec-integration",
+        "review_agent": "round-20260510t193207z-32ef-spec-ops-review",
+        "status": "passed"
+      },
+      "version": 1
+    },
+    "state_path": "/workspace/.scion-ops/sessions/20260510t193207z-32ef/state.json",
+    "state_source": "/workspace/.scion-ops/sessions/20260510t193207z-32ef/state.json",
+    "warnings": []
+  }
+}

@@ -74,6 +74,25 @@
   },
   "blockers": [],
   "next_actions": [
-    "Use round-20260510t193207z-32ef-spec-integration for OpenSpec review or implementation planning"
-  ]
+    "Review pull request https://github.com/dodwyer/scion-ops/pull/137"
+  ],
+  "pull_request": {
+    "source": "steward_pr_finalizer",
+    "session_id": "20260510t193207z-32ef",
+    "kind": "spec",
+    "change": "use-nicegui",
+    "head": "round-20260510t193207z-32ef-spec-integration",
+    "base": "main",
+    "head_commit": "1affd38718981cf0478eedebb78b67d5feaf56d9",
+    "base_commit": "2d7a02d1b5464bc43d000151ac75fbad536ec808",
+    "created": true,
+    "draft": false,
+    "pr": {
+      "url": "https://github.com/dodwyer/scion-ops/pull/137",
+      "head": "round-20260510t193207z-32ef-spec-integration",
+      "base": "main",
+      "title": "OpenSpec: use-nicegui"
+    },
+    "pr_url": "https://github.com/dodwyer/scion-ops/pull/137"
+  }
 }
