@@ -549,6 +549,88 @@ def test_round_detail_loads_openspec_status_when_progress_identifies_change():
     assert detail["spec_status"]["change"] == "update-web-app"
 
 
+def test_inbox_items_have_stable_ids_and_duplicate_source_items_are_deduped():
+    message = {
+        "id": "msg-stable",
+        "sender": "round-20260509t063201z-6c02-codex",
+        "msg": "round 20260509t063201z-6c02 progress",
+        "createdAt": "2026-05-09T06:40:00+00:00",
+    }
+    inbox = web_app_hub.build_inbox([message, dict(message)], [])
+    assert len(inbox[0]["items"]) == 1
+    assert inbox[0]["items"][0]["source_id"] == "msg-stable"
+    assert inbox[0]["items"][0]["stable_id"] == "message:msg-stable"
+
+
+def test_round_detail_timeline_uses_stable_ids_and_deduplicates_replayed_events():
+    event = {
+        "id": "event-1",
+        "type": "message",
+        "message": {
+            "id": "msg-1",
+            "createdAt": "2026-05-09T06:40:00+00:00",
+            "msg": "round 20260509t063201z-6c02 update",
+        },
+    }
+    provider = FixtureProvider(
+        round_events={
+            "ok": True,
+            "round_id": "20260509t063201z-6c02",
+            "cursor": "cursor-2",
+            "events": [event, dict(event)],
+        }
+    )
+    detail = web_app_hub.build_round_detail(provider, "20260509t063201z-6c02")
+    assert len(detail["timeline"]) == 1
+    assert detail["timeline"][0]["source_id"] == "event-1"
+    assert detail["timeline"][0]["stable_id"] == "message:event-1"
+    assert detail["cursor"] == "cursor-2"
+
+
+def test_live_snapshot_event_exposes_contract_cursor_and_source_errors():
+    snapshot = web_app_hub.build_snapshot(
+        FixtureProvider(
+            mcp={
+                "source": "mcp",
+                "ok": False,
+                "status": "unavailable",
+                "error_kind": "runtime",
+                "error": "connection refused",
+            }
+        )
+    )
+    event = web_app_hub.build_snapshot_live_event(snapshot)
+    assert event["event"] == "snapshot"
+    assert event["cursor"].startswith("snapshot:")
+    assert event["payload"]["snapshot"]["rounds"][0]["round_id"] == "20260509t063201z-6c02"
+    assert event["payload"]["source_errors"][0]["source"] == "mcp"
+    assert web_app_hub.BROWSER_JSON_CONTRACT["live_updates"]["endpoint"].startswith("/api/live")
+
+
+def test_snapshot_cursor_is_stable_across_generation_time_only_changes():
+    snapshot = web_app_hub.build_snapshot(FixtureProvider())
+    changed_time = {**snapshot, "generated_at": "2026-05-09T07:00:00+00:00"}
+    assert web_app_hub.snapshot_cursor(snapshot) == web_app_hub.snapshot_cursor(changed_time)
+
+
+def test_initial_live_events_emit_snapshot_round_detail_and_heartbeat_with_cursors():
+    events = web_app_hub.build_initial_live_events(FixtureProvider(), ["20260509t063201z-6c02"])
+    assert [event["event"] for event in events] == ["snapshot", "round-detail", "heartbeat"]
+    assert events[0]["payload"]["snapshot"]["overview"]["active_round_count"] == 1
+    assert events[1]["payload"]["round_id"] == "20260509t063201z-6c02"
+    assert events[1]["payload"]["round_event_cursor"] == "cursor-1"
+    assert len(events[1]["payload"]["timeline_ids"]) == 1
+    assert events[1]["payload"]["timeline_ids"][0].startswith("message:timeline:20260509t063201z-6c02:message:")
+    assert events[2]["payload"]["last_cursor"] == events[1]["cursor"]
+
+
+def test_heartbeat_event_marks_stale_state_without_mutating_sources():
+    heartbeat = web_app_hub.build_heartbeat_live_event("snapshot:abc", stale=True)
+    assert heartbeat["event"] == "heartbeat"
+    assert heartbeat["payload"]["status"] == "stale"
+    assert heartbeat["payload"]["last_cursor"] == "snapshot:abc"
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

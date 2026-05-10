@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html
 import json
 import os
@@ -38,11 +39,27 @@ import mcp_servers.scion_ops as scion_ops
 
 
 STALE_AFTER_SECONDS = 90
+LIVE_POLL_SECONDS = 5
 ROUND_RE = re.compile(r"(?:round-)?(?P<id>\d{8}t\d{6}z-[a-z0-9]+)", re.IGNORECASE)
 CONTROL_PLANE_NAMES = {"scion-hub", "scion-broker", "scion-ops-mcp", "scion-ops-web-app"}
 CONTROL_PLANE_DEPLOYMENTS = CONTROL_PLANE_NAMES
 CONTROL_PLANE_SERVICES = CONTROL_PLANE_NAMES - {"scion-broker"}
 BROWSER_JSON_CONTRACT = {
+    "live_updates": {
+        "transport": "server-sent-events",
+        "endpoint": "/api/live?round_id=<optional repeatable round id>&cursor=<optional last cursor>",
+        "read_only": True,
+        "initial_event": "snapshot",
+        "events": {
+            "snapshot": "full overview, rounds, inbox, runtime sources, source errors, and snapshot cursor",
+            "round-detail": "selected round detail with timeline stable ids and backing round event cursor",
+            "heartbeat": "stream liveness marker with last cursor and staleness state",
+            "error": "source-specific or stream error payload; unrelated last-known data remains valid",
+        },
+        "cursor": "opaque stable cursor derived from source payload content and source cursors",
+        "stable_ids": "round_id for rows; source ids when present; deterministic content hashes otherwise",
+        "source_errors": "array of source, status, error_kind, error, and optional detail for unavailable dependencies",
+    },
     "snapshot": {
         "readiness": "ready|degraded|unavailable",
         "sources": ["hub", "broker", "mcp", "web_app", "kubernetes", "messages", "notifications"],
@@ -129,6 +146,15 @@ def short_text(value: Any, limit: int = 180) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - 1].rstrip() + "..."
+
+
+def stable_hash(value: Any, limit: int = 16) -> str:
+    data = json.dumps(value, sort_keys=True, default=str, separators=(",", ":")).encode()
+    return hashlib.sha256(data).hexdigest()[:limit]
+
+
+def stable_payload_id(prefix: str, *parts: Any) -> str:
+    return f"{prefix}:{stable_hash(parts)}"
 
 
 def parse_json_object(value: Any) -> dict[str, Any]:
@@ -485,6 +511,29 @@ def event_time(item: dict[str, Any]) -> str:
         if item.get(key):
             return str(item[key])
     return ""
+
+
+def item_source_id(item: dict[str, Any], *, kind: str, fallback_parts: list[Any]) -> str:
+    for key in ("id", "messageId", "message_id", "notificationId", "notification_id", "eventId", "event_id", "uuid"):
+        if item.get(key):
+            return str(item[key])
+    return stable_payload_id(kind, *fallback_parts)
+
+
+def timeline_source_id(round_id: str, event: dict[str, Any], item: dict[str, Any]) -> str:
+    for key in ("id", "eventId", "event_id", "cursor", "sequence", "seq"):
+        if event.get(key):
+            return str(event[key])
+    return item_source_id(
+        item,
+        kind=f"timeline:{round_id}:{event.get('type') or 'event'}",
+        fallback_parts=[
+            round_id,
+            event.get("type") or "event",
+            event_time(item),
+            item.get("msg") or item.get("message") or item.get("summary") or item.get("taskSummary") or item.get("activity"),
+        ],
+    )
 
 
 def agent_status(agent: dict[str, Any]) -> str:
@@ -872,6 +921,7 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
 
 def build_inbox(messages: list[dict[str, Any]], notifications: list[dict[str, Any]]) -> list[dict[str, Any]]:
     groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    seen: set[str] = set()
     for kind, collection in (("message", messages), ("notification", notifications)):
         for item in collection:
             round_id = extract_round_id(
@@ -883,11 +933,22 @@ def build_inbox(messages: list[dict[str, Any]], notifications: list[dict[str, An
                 item.get("message"),
                 item.get("summary"),
             ) or "ungrouped"
+            summary = short_text(item.get("msg") or item.get("message") or item.get("summary") or item.get("status"), 260)
+            source_id = item_source_id(
+                item,
+                kind=f"inbox:{kind}",
+                fallback_parts=[round_id, kind, event_time(item), summary],
+            )
+            stable_id = f"{kind}:{source_id}"
+            if stable_id in seen:
+                continue
+            seen.add(stable_id)
             groups[round_id].append({
                 "type": kind,
                 "time": event_time(item),
-                "source_id": item.get("id") or item.get("agentId") or item.get("sender") or "",
-                "summary": short_text(item.get("msg") or item.get("message") or item.get("summary") or item.get("status"), 260),
+                "source_id": source_id,
+                "stable_id": stable_id,
+                "summary": summary,
                 "raw": item,
             })
     result = []
@@ -970,6 +1031,7 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
     status = provider.round_status(round_id)
     events = provider.round_events(round_id, include_existing=True)
     timeline: list[dict[str, Any]] = []
+    seen_timeline_ids: set[str] = set()
     structured_branches: list[str] = []
     fallback_branches: list[str] = []
     final_reviews: list[dict[str, Any]] = []
@@ -1004,10 +1066,18 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
                 review = final_review_from_item(item, source=str(event.get("type") or "event"))
                 if review:
                     final_reviews.append(review)
+            summary = short_text(item.get("msg") or item.get("message") or item.get("summary") or item.get("taskSummary") or item.get("activity"), 360)
+            source_id = timeline_source_id(round_id, event, item)
+            stable_id = f"{event.get('type') or 'event'}:{source_id}"
+            if stable_id in seen_timeline_ids:
+                continue
+            seen_timeline_ids.add(stable_id)
             timeline.append({
                 "type": event.get("type") or "event",
                 "time": event_time(item),
-                "summary": short_text(item.get("msg") or item.get("message") or item.get("summary") or item.get("taskSummary") or item.get("activity"), 360),
+                "source_id": source_id,
+                "stable_id": stable_id,
+                "summary": summary,
                 "raw": item,
             })
     artifacts: dict[str, Any] = {}
@@ -1064,6 +1134,130 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
         "spec_status": spec_status if isinstance(spec_status, dict) else {},
         "cursor": events.get("cursor") or "",
     }
+
+
+def source_errors_from_snapshot(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
+    sources = snapshot.get("sources") if isinstance(snapshot.get("sources"), dict) else {}
+    for name, source in sources.items():
+        if not isinstance(source, dict) or source.get("ok", True):
+            continue
+        error = {
+            "source": name,
+            "status": str(source.get("status") or "unavailable"),
+            "error_kind": str(source.get("error_kind") or "source"),
+            "error": str(source.get("error") or "source unavailable"),
+        }
+        for key in ("hub", "url", "command"):
+            if key in source:
+                error[key] = source[key]
+        errors.append(error)
+    return errors
+
+
+def snapshot_cursor(snapshot: dict[str, Any]) -> str:
+    payload = {
+        "overview": snapshot.get("overview"),
+        "rounds": snapshot.get("rounds"),
+        "inbox": snapshot.get("inbox"),
+        "sources": snapshot.get("sources"),
+    }
+    return f"snapshot:{stable_hash(payload, 20)}"
+
+
+def round_detail_cursor(detail: dict[str, Any]) -> str:
+    payload = {
+        "round_id": detail.get("round_id"),
+        "cursor": detail.get("cursor"),
+        "visible_status": detail.get("visible_status"),
+        "timeline": [(item.get("stable_id"), item.get("time"), item.get("summary")) for item in detail.get("timeline", [])],
+        "final_review": detail.get("final_review"),
+        "mcp": detail.get("mcp"),
+    }
+    return f"round-detail:{detail.get('round_id')}:{stable_hash(payload, 20)}"
+
+
+def live_event(event_type: str, payload: dict[str, Any], *, cursor: str = "", event_id: str = "") -> dict[str, Any]:
+    cursor = cursor or stable_payload_id(event_type, payload)
+    return {
+        "id": event_id or cursor,
+        "event": event_type,
+        "type": event_type,
+        "cursor": cursor,
+        "generated_at": utc_now(),
+        "payload": payload,
+    }
+
+
+def build_snapshot_live_event(snapshot: dict[str, Any]) -> dict[str, Any]:
+    cursor = snapshot_cursor(snapshot)
+    return live_event(
+        "snapshot",
+        {
+            "snapshot": snapshot,
+            "cursor": cursor,
+            "source_errors": source_errors_from_snapshot(snapshot),
+            "stale": bool(snapshot.get("stale")),
+        },
+        cursor=cursor,
+    )
+
+
+def build_round_detail_live_event(detail: dict[str, Any]) -> dict[str, Any]:
+    cursor = round_detail_cursor(detail)
+    return live_event(
+        "round-detail",
+        {
+            "round_id": detail.get("round_id"),
+            "detail": detail,
+            "cursor": cursor,
+            "round_event_cursor": detail.get("cursor") or "",
+            "timeline_ids": [item.get("stable_id") for item in detail.get("timeline", []) if item.get("stable_id")],
+        },
+        cursor=cursor,
+    )
+
+
+def build_heartbeat_live_event(cursor: str, *, stale: bool = False) -> dict[str, Any]:
+    return live_event(
+        "heartbeat",
+        {
+            "status": "stale" if stale else "live",
+            "last_cursor": cursor,
+            "stale": stale,
+            "stale_after_seconds": STALE_AFTER_SECONDS,
+        },
+        cursor=f"heartbeat:{stable_hash([cursor, stale], 20)}",
+    )
+
+
+def build_error_live_event(error: Exception, *, source: str = "web_app", cursor: str = "") -> dict[str, Any]:
+    return live_event(
+        "error",
+        {
+            "source": source,
+            "status": "failed",
+            "error_kind": source,
+            "error": str(error),
+            "last_cursor": cursor,
+        },
+        cursor=f"error:{stable_hash([source, str(error), cursor], 20)}",
+    )
+
+
+def build_initial_live_events(provider: RuntimeProvider | Any, round_ids: list[str] | None = None) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    snapshot = build_snapshot(provider)
+    snapshot_event = build_snapshot_live_event(snapshot)
+    events.append(snapshot_event)
+    last_cursor = str(snapshot_event.get("cursor") or "")
+    for round_id in round_ids or []:
+        detail = build_round_detail(provider, round_id)
+        detail_event = build_round_detail_live_event(detail)
+        events.append(detail_event)
+        last_cursor = str(detail_event.get("cursor") or last_cursor)
+    events.append(build_heartbeat_live_event(last_cursor, stale=bool(snapshot.get("stale"))))
+    return events
 
 
 INDEX_HTML = r"""<!doctype html>
@@ -1249,6 +1443,16 @@ class HubRequestHandler(BaseHTTPRequestHandler):
                 self.respond_json(build_health())
             elif path == "/api/snapshot":
                 self.respond_json(build_snapshot(self.provider))
+            elif path == "/api/live":
+                round_ids = [extract_round_id(value) or value for value in query.get("round_id", []) if value]
+                poll_seconds = max(1.0, float(query.get("poll", [str(LIVE_POLL_SECONDS)])[0]))
+                max_events = int(query.get("max_events", ["0"])[0] or "0")
+                self.respond_sse(
+                    round_ids=round_ids,
+                    poll_seconds=poll_seconds,
+                    max_events=max_events,
+                    resume_cursor=query.get("cursor", [""])[0],
+                )
             elif path == "/api/contract":
                 self.respond_json({"ok": True, "contract": BROWSER_JSON_CONTRACT})
             elif path == "/api/overview":
@@ -1301,6 +1505,61 @@ class HubRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def write_sse_event(self, event: dict[str, Any]) -> None:
+        event_name = str(event.get("event") or "message")
+        event_id = str(event.get("id") or event.get("cursor") or "")
+        if event_id:
+            self.wfile.write(f"id: {event_id}\n".encode())
+        self.wfile.write(f"event: {event_name}\n".encode())
+        data = json.dumps(event, sort_keys=True, default=str)
+        for line in data.splitlines() or [""]:
+            self.wfile.write(f"data: {line}\n".encode())
+        self.wfile.write(b"\n")
+        self.wfile.flush()
+
+    def respond_sse(self, *, round_ids: list[str], poll_seconds: float, max_events: int = 0, resume_cursor: str = "") -> None:
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "keep-alive")
+        self.end_headers()
+        emitted = 0
+        last_cursors: dict[str, str] = {}
+        last_cursor = resume_cursor
+        while True:
+            try:
+                snapshot = build_snapshot(self.provider)
+                snapshot_event = build_snapshot_live_event(snapshot)
+                snapshot_cursor_value = str(snapshot_event["cursor"])
+                if not last_cursors or last_cursors.get("snapshot") != snapshot_cursor_value:
+                    self.write_sse_event(snapshot_event)
+                    emitted += 1
+                    last_cursors["snapshot"] = snapshot_cursor_value
+                    last_cursor = snapshot_cursor_value
+                for round_id in round_ids:
+                    detail = build_round_detail(self.provider, round_id)
+                    detail_event = build_round_detail_live_event(detail)
+                    detail_cursor_value = str(detail_event["cursor"])
+                    cursor_key = f"round-detail:{round_id}"
+                    if last_cursors.get(cursor_key) != detail_cursor_value:
+                        self.write_sse_event(detail_event)
+                        emitted += 1
+                        last_cursors[cursor_key] = detail_cursor_value
+                        last_cursor = detail_cursor_value
+                self.write_sse_event(build_heartbeat_live_event(last_cursor, stale=bool(snapshot.get("stale"))))
+                emitted += 1
+            except (BrokenPipeError, ConnectionResetError):
+                return
+            except Exception as exc:
+                try:
+                    self.write_sse_event(build_error_live_event(exc, cursor=last_cursor))
+                    emitted += 1
+                except (BrokenPipeError, ConnectionResetError):
+                    return
+            if max_events and emitted >= max_events:
+                return
+            time.sleep(poll_seconds)
 
 
 def serve(host: str, port: int) -> None:
