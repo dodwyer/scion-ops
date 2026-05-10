@@ -83,9 +83,9 @@ eval "$(task kind:hub:auth-export)"
 task kind:mcp:smoke
 ```
 
-Open the web app in a browser at the configured web app URL (default
-`http://192.168.122.103:8808`). The web app reads operational state from Hub and
-MCP using the same in-cluster credentials as the MCP server.
+Open the NiceGUI operator console in a browser at the configured web app URL
+(default `http://192.168.122.103:8808`). The web app reads operational state
+from Hub and MCP using the same in-cluster credentials as the MCP server.
 
 The MCP pod reads Hub through the in-cluster `scion-hub` Service and uses the
 `scion-hub-dev-auth` Secret restored by `task bootstrap`.
@@ -153,8 +153,8 @@ task load:image -- localhost/scion-codex:latest
 task dev:test
 ```
 
-The web app reuses the `scion-ops-mcp` image. `task update:web-app` reloads
-that image and restarts the web app deployment.
+The web app reuses the `scion-ops-mcp` image, which includes NiceGUI.
+`task update:web-app` reloads that image and restarts the web app deployment.
 
 Use `task storage:status` before full image rebuilds. If Docker is using `vfs`,
 switch to `overlay2` storage before large rebuild cycles.

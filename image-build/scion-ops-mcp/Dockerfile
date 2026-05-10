@@ -8,7 +8,7 @@ USER root
 ENV VIRTUAL_ENV=/opt/scion-ops-mcp/venv
 
 RUN python3 -m venv "${VIRTUAL_ENV}" \
-  && "${VIRTUAL_ENV}/bin/pip" install --no-cache-dir "mcp>=1.13,<2" "PyYAML>=6,<7"
+  && "${VIRTUAL_ENV}/bin/pip" install --no-cache-dir "mcp>=1.13,<2" "PyYAML>=6,<7" "nicegui>=2,<3"
 
 RUN npm install -g "@fission-ai/openspec@${OPENSPEC_VERSION}" \
   && npm cache clean --force
