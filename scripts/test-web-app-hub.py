@@ -810,6 +810,12 @@ def test_frontend_live_update_contract_markers_are_present():
     assert "timelineKeys" in html
     assert "mergeTimelineEvents" in html
     assert "EventSource" in html
+    assert "new URLSearchParams" in html
+    assert 'params.set("cursor", state.live.cursor)' in html
+    assert 'params.set("round_id", state.selectedRound)' in html
+    assert "reconnectLiveUpdates" in html
+    assert "scheduleLiveReconnect" in html
+    assert "cursor resume" in html
     assert "/api/live" in html
     assert "/api/updates" not in html
     assert "mergeSnapshot" in html
@@ -849,6 +855,10 @@ def test_nicegui_entrypoint_preserves_json_route_contracts_as_fastapi_handlers()
     assert "from nicegui import app, ui" in source
     assert "@ui.page(\"/\")" in source
     assert "configure_api_routes(app, provider)" in source
+    assert "build_nicegui_console_components(ui)" in source
+    assert "ui.add_body_html(nicegui_console_fragment())" not in source
+    assert "ui.header()" in source
+    assert 'ui.element("section").props(\'id="round-detail"\')' in source
     for route in (
         '"/healthz"',
         '"/api/healthz"',
