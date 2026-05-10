@@ -172,6 +172,11 @@ required_commands:
   finalize_pr: python3 "$AGENT_SCION_OPS_ROOT/scripts/finalize-steward-pr.py" --project-root "$AGENT_PROJECT_ROOT" --session-id "$SESSION_ID" --kind spec --change "$CHANGE" --branch "$FINAL_BRANCH" --state-branch "$STEWARD_BRANCH" --base-branch "$BASE_BRANCH" --record-state --json > "$SESSION_STATE_ROOT/pr.json"
   validate_ready: python3 "$AGENT_SCION_OPS_ROOT/scripts/validate-steward-session.py" --project-root "$AGENT_PROJECT_ROOT" --session-id "$SESSION_ID" --kind spec --change "$CHANGE" --base-branch "$BASE_BRANCH" --branch "$FINAL_BRANCH" --state-branch "$STEWARD_BRANCH" --require-ready --require-pr$SPEC_REQUIRE_MULTI_HARNESS_FLAG
 
+required_artifacts:
+  clarifier_summary_file: $SESSION_STATE_ROOT/findings/clarifier.md
+  explorer_summary_file: $SESSION_STATE_ROOT/findings/explorer.md
+  ops_review_verdict_file: $SESSION_STATE_ROOT/findings/ops-review.json
+
 mandatory_first_actions:
 - Run init_state now, then commit and push "$SESSION_STATE_ROOT/state.json" on "$STEWARD_BRANCH".
 - Start the clarifier and explorer with the exact scion commands below before
@@ -185,6 +190,7 @@ start_clarifier:
   steward_agent: $STEWARD_NAME
   collection_recipient: $COLLECTION_RECIPIENT
   expected_branch: $CLARIFIER_NAME
+  summary_file: $SESSION_STATE_ROOT/findings/clarifier.md
   artifact: $SESSION_STATE_ROOT/findings/clarifier.md
   role: clarify the requested OpenSpec outcome, scope boundaries, and operator-facing acceptance questions.
   goal: $GOAL"
@@ -196,6 +202,7 @@ start_explorer:
   steward_agent: $STEWARD_NAME
   collection_recipient: $COLLECTION_RECIPIENT
   expected_branch: $EXPLORER_NAME
+  summary_file: $SESSION_STATE_ROOT/findings/explorer.md
   artifact: $SESSION_STATE_ROOT/findings/explorer.md
   role: inspect existing framework and identify the lowest-risk OpenSpec files and constraints.
   goal: $GOAL"
@@ -204,8 +211,9 @@ execution_notes:
 - Follow the spec-steward system prompt as the authoritative protocol.
 - Do not pause for confirmation. Execute the mandatory first actions before
   detailed repo inspection or authoring.
-- Child prompts must include the original goal, expected branch, artifact path,
-  steward agent, and collection recipient.
+- Child prompts must include the original goal, expected branch, steward agent,
+  collection recipient, and the template-specific durable artifact field:
+  summary_file for clarifier/explorer and verdict_file for ops review.
 - Create the integration branch from the author branch before review.
 - Run wait_review after starting ops review. Do not stop or restart the reviewer
   early only because Hub reports idle activity or the branch has not moved after

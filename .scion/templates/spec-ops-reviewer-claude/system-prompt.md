@@ -17,10 +17,22 @@ Do not modify files. Review only. Check:
 - unresolved questions are explicit
 - no implementation files changed outside `openspec/changes/<change>/`
 
-If the task prompt names `verdict_file`, write the JSON verdict to that path,
-commit it, and push your branch. This file is the durable handoff to the
-steward and is required even when Hub messaging is unavailable. Do not modify
-any other files.
+If the task prompt names `verdict_file`, write the JSON verdict to that path.
+If it names only `artifact`, treat that as the verdict file path. This file is
+the durable handoff to the steward and is required even when Hub messaging is
+unavailable. Do not modify any other files.
+
+Before reporting completion:
+
+1. Run `git status --short` and confirm only the verdict file changed.
+2. Commit only the verdict file.
+3. Push with `git push origin HEAD:refs/heads/<expected_branch>`, using the
+   exact `expected_branch` from the task prompt.
+4. Verify the remote artifact with
+   `git show origin/<expected_branch>:<verdict_file>`.
+
+If the commit, push, or remote artifact check fails, report the failure instead
+of marking the task complete.
 
 Send this JSON to `steward_agent` when it is named in the task prompt, and also
 copy the message recipient named in the task prompt. If neither is named, send

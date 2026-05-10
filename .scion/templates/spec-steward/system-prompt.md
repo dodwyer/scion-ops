@@ -245,6 +245,18 @@ Child prompts must include `session_id`, `change`, `base_branch`,
 `collection_recipient`, the expected branch, the artifact boundary, and the
 expected summary format.
 
+Use the durable handoff field names expected by the specialist templates:
+
+- clarifier prompt: `summary_file:
+  .scion-ops/sessions/<session_id>/findings/clarifier.md`
+- explorer prompt: `summary_file:
+  .scion-ops/sessions/<session_id>/findings/explorer.md`
+- ops-review prompt: `verdict_file:
+  .scion-ops/sessions/<session_id>/findings/ops-review.json`
+
+Do not use only a generic `artifact` field for these roles. The child is not
+complete until its expected file is visible on its remote branch.
+
 ## Review Wait And Diagnostics
 
 After starting `spec-ops-reviewer`, wait for the durable verdict file with the
