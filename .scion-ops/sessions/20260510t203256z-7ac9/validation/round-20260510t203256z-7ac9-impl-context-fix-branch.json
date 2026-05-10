@@ -1,0 +1,21 @@
+{
+  "base_branch": "round-20260510t203256z-7ac9-integration",
+  "base_sha": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+  "branch": "round-20260510t203256z-7ac9-impl-context-fix",
+  "child_sha": "719d46a0fdd82218fd0b426be8d6386ba4ece739",
+  "completed_at": "2026-05-10T21:13:29.377412Z",
+  "created": true,
+  "fetch": {
+    "ok": true,
+    "output": "",
+    "returncode": 0
+  },
+  "ok": true,
+  "project_root": "/workspace",
+  "push": {
+    "ok": true,
+    "output": "remote: \nremote: Create a pull request for 'round-20260510t203256z-7ac9-impl-context-fix' on GitHub by visiting:        \nremote:      https://github.com/dodwyer/scion-ops/pull/new/round-20260510t203256z-7ac9-impl-context-fix        \nremote: \nTo https://github.com/dodwyer/scion-ops.git\n * [new branch]      origin/round-20260510t203256z-7ac9-integration -> round-20260510t203256z-7ac9-impl-context-fix\n",
+    "returncode": 0
+  },
+  "reason": ""
+}
