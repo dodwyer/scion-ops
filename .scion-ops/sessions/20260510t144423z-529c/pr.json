@@ -1,0 +1,161 @@
+{
+  "base": "main",
+  "base_commit": "57f5bb15ffa834bab254a1f5393fd2eff5e7e751",
+  "change": "dynamic-web-2",
+  "created": true,
+  "draft": false,
+  "gh": {
+    "create": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "create",
+        "--base",
+        "main",
+        "--head",
+        "round-20260510t144423z-529c-spec-integration",
+        "--title",
+        "OpenSpec: dynamic-web-2",
+        "--body",
+        "Created by scion-ops after successful spec steward validation.\n\n- Session: `20260510t144423z-529c`\n- Change: `dynamic-web-2`\n- Head: `round-20260510t144423z-529c-spec-integration` (`cbdb404b7a1c`)\n- Base: `main` (`57f5bb15ffa8`)\n- Steward validation: passed\n- OpenSpec review: `accept`"
+      ],
+      "ok": true,
+      "output": "Warning: 2 uncommitted changes\nhttps://github.com/dodwyer/scion-ops/pull/133\n",
+      "returncode": 0
+    },
+    "list": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "list",
+        "--head",
+        "round-20260510t144423z-529c-spec-integration",
+        "--base",
+        "main",
+        "--state",
+        "all",
+        "--json",
+        "number,url,state,title,baseRefName,headRefName",
+        "--limit",
+        "1"
+      ],
+      "ok": true,
+      "output": "[]\n",
+      "returncode": 0
+    }
+  },
+  "head": "round-20260510t144423z-529c-spec-integration",
+  "head_commit": "cbdb404b7a1cc54389067c9f97b361c50d9c1711",
+  "kind": "spec",
+  "ok": true,
+  "pr": {
+    "base": "main",
+    "head": "round-20260510t144423z-529c-spec-integration",
+    "title": "OpenSpec: dynamic-web-2",
+    "url": "https://github.com/dodwyer/scion-ops/pull/133"
+  },
+  "pr_url": "https://github.com/dodwyer/scion-ops/pull/133",
+  "project_root": "/workspace",
+  "session_id": "20260510t144423z-529c",
+  "source": "steward_pr_finalizer",
+  "state_recording": {
+    "pr_path": "/workspace/.scion-ops/sessions/20260510t144423z-529c/pr.json",
+    "state_path": "/workspace/.scion-ops/sessions/20260510t144423z-529c/state.json"
+  },
+  "validation": {
+    "branch": {
+      "base_branch": "main",
+      "base_commit": "57f5bb15ffa834bab254a1f5393fd2eff5e7e751",
+      "base_resolved_ref": "origin/main",
+      "branch": "round-20260510t144423z-529c-spec-integration",
+      "commit": "cbdb404b7a1cc54389067c9f97b361c50d9c1711",
+      "resolved_ref": "origin/round-20260510t144423z-529c-spec-integration"
+    },
+    "change": "dynamic-web-2",
+    "errors": [],
+    "kind": "spec",
+    "ok": true,
+    "openspec_validation": {
+      "change": "dynamic-web-2",
+      "change_path": "openspec/changes/dynamic-web-2",
+      "errors": [],
+      "ok": true,
+      "project_root": "/tmp/tmpulkr1jrs",
+      "required_files": {
+        "design.md": "openspec/changes/dynamic-web-2/design.md",
+        "proposal.md": "openspec/changes/dynamic-web-2/proposal.md",
+        "tasks.md": "openspec/changes/dynamic-web-2/tasks.md"
+      },
+      "source_ref": "origin/round-20260510t144423z-529c-spec-integration",
+      "spec_files": [
+        "openspec/changes/dynamic-web-2/specs/web-app-hub/spec.md"
+      ],
+      "warnings": []
+    },
+    "openspec_validation_source": "origin/round-20260510t144423z-529c-spec-integration",
+    "project_root": "/workspace",
+    "session_id": "20260510t144423z-529c",
+    "state": {
+      "agents": {
+        "author": {
+          "branch": "round-20260510t144423z-529c-spec-author",
+          "name": "round-20260510t144423z-529c-spec-author",
+          "status": "completed",
+          "template": "spec-author"
+        },
+        "clarifier": {
+          "branch": "round-20260510t144423z-529c-spec-clarifier",
+          "name": "round-20260510t144423z-529c-spec-clarifier",
+          "status": "completed",
+          "template": "spec-goal-clarifier"
+        },
+        "explorer": {
+          "branch": "round-20260510t144423z-529c-spec-explorer",
+          "name": "round-20260510t144423z-529c-spec-explorer",
+          "status": "completed",
+          "template": "spec-repo-explorer"
+        },
+        "ops_review": {
+          "branch": "round-20260510t144423z-529c-spec-ops-review",
+          "name": "round-20260510t144423z-529c-spec-ops-review",
+          "status": "completed",
+          "template": "spec-ops-reviewer"
+        }
+      },
+      "base_branch": "main",
+      "blockers": [],
+      "branches": {
+        "author": "round-20260510t144423z-529c-spec-author",
+        "clarifier": "round-20260510t144423z-529c-spec-clarifier",
+        "explorer": "round-20260510t144423z-529c-spec-explorer",
+        "integration": "round-20260510t144423z-529c-spec-integration",
+        "review": "round-20260510t144423z-529c-spec-ops-review",
+        "steward": "round-20260510t144423z-529c-spec-steward"
+      },
+      "change": "dynamic-web-2",
+      "kind": "spec",
+      "next_actions": [
+        "Create or verify the pull request for round-20260510t144423z-529c-spec-integration"
+      ],
+      "phase": "complete",
+      "review": {
+        "agent": "round-20260510t144423z-529c-spec-ops-review",
+        "summary": "Accept. The OpenSpec artifacts directly address push-first operator updates, top insertion, refresh removal, live/reconnecting/stale/fallback/failed status semantics, and validation passed with no blocking issues.",
+        "verdict": "accept"
+      },
+      "round_id": "20260510t144423z-529c",
+      "session_id": "20260510t144423z-529c",
+      "status": "ready",
+      "validation": {
+        "command": "python3 scripts/validate-openspec-change.py --project-root . --change dynamic-web-2",
+        "integration_branch": "round-20260510t144423z-529c-spec-integration",
+        "review_agent": "round-20260510t144423z-529c-spec-ops-review",
+        "status": "passed"
+      },
+      "version": 1
+    },
+    "state_path": "/workspace/.scion-ops/sessions/20260510t144423z-529c/state.json",
+    "state_source": "/workspace/.scion-ops/sessions/20260510t144423z-529c/state.json",
+    "warnings": []
+  }
+}

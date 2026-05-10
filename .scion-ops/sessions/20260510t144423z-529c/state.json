@@ -5,8 +5,8 @@
   "kind": "spec",
   "change": "dynamic-web-2",
   "base_branch": "main",
-  "status": "running",
-  "phase": "clarifying",
+  "status": "ready",
+  "phase": "complete",
   "branches": {
     "steward": "round-20260510t144423z-529c-spec-steward",
     "clarifier": "round-20260510t144423z-529c-spec-clarifier",
@@ -15,15 +15,64 @@
     "review": "round-20260510t144423z-529c-spec-ops-review",
     "integration": "round-20260510t144423z-529c-spec-integration"
   },
-  "agents": {},
-  "review": {},
+  "agents": {
+    "clarifier": {
+      "name": "round-20260510t144423z-529c-spec-clarifier",
+      "branch": "round-20260510t144423z-529c-spec-clarifier",
+      "template": "spec-goal-clarifier",
+      "status": "completed"
+    },
+    "explorer": {
+      "name": "round-20260510t144423z-529c-spec-explorer",
+      "branch": "round-20260510t144423z-529c-spec-explorer",
+      "template": "spec-repo-explorer",
+      "status": "completed"
+    },
+    "author": {
+      "name": "round-20260510t144423z-529c-spec-author",
+      "branch": "round-20260510t144423z-529c-spec-author",
+      "template": "spec-author",
+      "status": "completed"
+    },
+    "ops_review": {
+      "name": "round-20260510t144423z-529c-spec-ops-review",
+      "branch": "round-20260510t144423z-529c-spec-ops-review",
+      "template": "spec-ops-reviewer",
+      "status": "completed"
+    }
+  },
+  "review": {
+    "verdict": "accept",
+    "agent": "round-20260510t144423z-529c-spec-ops-review",
+    "summary": "Accept. The OpenSpec artifacts directly address push-first operator updates, top insertion, refresh removal, live/reconnecting/stale/fallback/failed status semantics, and validation passed with no blocking issues."
+  },
   "validation": {
-    "status": "pending"
+    "status": "passed",
+    "command": "python3 scripts/validate-openspec-change.py --project-root . --change dynamic-web-2",
+    "integration_branch": "round-20260510t144423z-529c-spec-integration",
+    "review_agent": "round-20260510t144423z-529c-spec-ops-review"
   },
   "blockers": [],
   "next_actions": [
-    "Start spec-goal-clarifier and spec-repo-explorer agents",
-    "Create OpenSpec artifacts on the author branch",
-    "Validate and review the integration branch"
-  ]
+    "Review pull request https://github.com/dodwyer/scion-ops/pull/133"
+  ],
+  "pull_request": {
+    "source": "steward_pr_finalizer",
+    "session_id": "20260510t144423z-529c",
+    "kind": "spec",
+    "change": "dynamic-web-2",
+    "head": "round-20260510t144423z-529c-spec-integration",
+    "base": "main",
+    "head_commit": "cbdb404b7a1cc54389067c9f97b361c50d9c1711",
+    "base_commit": "57f5bb15ffa834bab254a1f5393fd2eff5e7e751",
+    "created": true,
+    "draft": false,
+    "pr": {
+      "url": "https://github.com/dodwyer/scion-ops/pull/133",
+      "head": "round-20260510t144423z-529c-spec-integration",
+      "base": "main",
+      "title": "OpenSpec: dynamic-web-2"
+    },
+    "pr_url": "https://github.com/dodwyer/scion-ops/pull/133"
+  }
 }
