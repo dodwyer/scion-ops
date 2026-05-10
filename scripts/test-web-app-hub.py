@@ -15,12 +15,26 @@ import importlib.util
 import json
 from pathlib import Path
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("web_app_hub", ROOT / "scripts" / "web_app_hub.py")
 assert SPEC and SPEC.loader
 web_app_hub = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(web_app_hub)
+
+
+def test_kind_web_app_deployment_uses_uv_run_for_script_dependencies():
+    deployment_path = ROOT / "deploy" / "kind" / "control-plane" / "web-app-deployment.yaml"
+    deployment = yaml.safe_load(deployment_path.read_text())
+    container = deployment["spec"]["template"]["spec"]["containers"][0]
+    launcher = "\n".join(container["args"])
+
+    assert container["image"] == "localhost/scion-ops-mcp:latest"
+    assert "cd \"${SCION_OPS_ROOT}\"" in launcher
+    assert "exec uv run scripts/web_app_hub.py" in launcher
+    assert "exec python \"${SCION_OPS_ROOT}/scripts/web_app_hub.py\"" not in launcher
 
 
 class FixtureProvider:
