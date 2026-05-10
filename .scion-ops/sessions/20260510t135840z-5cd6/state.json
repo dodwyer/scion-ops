@@ -19,13 +19,20 @@
       "type": "impl-codex",
       "branch": "round-20260510t135840z-5cd6-impl-codex",
       "scope": "Group A web app live update contract and UI",
-      "status": "running"
+      "status": "exited_no_branch_movement",
+      "blocker": "Agent exited/completed with remote branch still at origin/main base SHA."
     },
     "round-20260510t135840z-5cd6-impl-claude": {
       "type": "impl-claude",
       "branch": "round-20260510t135840z-5cd6-impl-claude",
       "scope": "Group B kind/smoke verification for automatic updates",
       "status": "running"
+    },
+    "round-20260510t135840z-5cd6-impl-codex-app2": {
+      "type": "impl-codex",
+      "branch": "round-20260510t135840z-5cd6-impl-codex-app2",
+      "scope": "Narrow replacement: scripts/web_app_hub.py app live update contract/UI plus focused web app tests",
+      "status": "preparing"
     }
   },
   "implementation": {
@@ -38,7 +45,13 @@
   "verification": {
     "status": "pending"
   },
-  "blockers": [],
+  "blockers": [
+    {
+      "agent": "round-20260510t135840z-5cd6-impl-codex",
+      "status": "non_blocking_replaced",
+      "detail": "Original Group A implementer exited without branch movement; starting narrower replacement branch for app live update implementation."
+    }
+  ],
   "next_actions": [
     "Monitor implementer completion",
     "Integrate non-empty implementation branches",
