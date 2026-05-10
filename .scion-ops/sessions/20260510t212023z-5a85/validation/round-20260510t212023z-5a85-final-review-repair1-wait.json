@@ -1,0 +1,116 @@
+{
+  "artifact": ".scion-ops/sessions/20260510t212023z-5a85/reviews/final-review.json",
+  "artifact_json": {
+    "blocking_issues": [],
+    "nits": [],
+    "review_type": "final",
+    "scores": {
+      "completeness": 5,
+      "correctness": 5,
+      "style": 4
+    },
+    "spec": {
+      "change": "use-nicegui",
+      "checked_artifacts": [
+        "openspec/changes/use-nicegui/specs/web-app-hub/spec.md",
+        "openspec/changes/use-nicegui/tasks.md",
+        "openspec/changes/use-nicegui/design.md",
+        "scripts/web_app_hub.py",
+        "scripts/test-web-app-hub.py",
+        "deploy/kind/control-plane/web-app-deployment.yaml",
+        "image-build/scion-ops-mcp/Dockerfile",
+        "docs/kind-control-plane.md"
+      ],
+      "conformance": 5,
+      "gaps": [
+        "No live kind cluster deployment was exercised in this review; deployment compatibility was reconfirmed by kustomize render plus manifest and image dependency inspection."
+      ],
+      "operational_verification": 4,
+      "spec_completeness": 5,
+      "task_coverage": 5,
+      "unresolved_questions": []
+    },
+    "summary": "Verdict: accept. The repaired integration branch addresses the prior request_changes findings: the NiceGUI root page composes the operator console with NiceGUI components and no longer injects the legacy INDEX_HTML body through ui.add_body_html, while /api/live reconnect sends the current cursor and selected round_id, resumes with heartbeat-only cursor continuity when unchanged, preserves selected round context, and exposes fallback polling feedback. The kind web-app Deployment still runs from localhost/scion-ops-mcp:latest through scripts/web_app_hub.py, and that image installs nicegui in the venv that is first on PATH. Focused web app tests, OpenSpec validation, Python compile checks, kustomize render inspection, and direct live cursor smoke checks passed. PR readiness: ready.",
+    "verdict": "accept"
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "50c6ffda196d120fab661388fc0e2d4ec4b44c26",
+      "checked_at": "2026-05-10T21:46:51.236392Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "50c6ffda196d120fab661388fc0e2d4ec4b44c26",
+      "checked_at": "2026-05-10T21:47:11.648454Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "50c6ffda196d120fab661388fc0e2d4ec4b44c26",
+      "checked_at": "2026-05-10T21:47:32.026964Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "50c6ffda196d120fab661388fc0e2d4ec4b44c26",
+      "checked_at": "2026-05-10T21:47:52.400341Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "50c6ffda196d120fab661388fc0e2d4ec4b44c26",
+      "checked_at": "2026-05-10T21:48:12.783416Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "50c6ffda196d120fab661388fc0e2d4ec4b44c26",
+      "checked_at": "2026-05-10T21:48:33.174565Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "50c6ffda196d120fab661388fc0e2d4ec4b44c26",
+      "checked_at": "2026-05-10T21:48:53.571368Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "50c6ffda196d120fab661388fc0e2d4ec4b44c26",
+      "checked_at": "2026-05-10T21:49:13.964278Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "8f2f4d2ce492141f1aa7e07dfff9e6de97c64b60",
+      "checked_at": "2026-05-10T21:49:34.366463Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260510t212023z-5a85-final-review-repair1",
+  "branch_head": "8f2f4d2ce492141f1aa7e07dfff9e6de97c64b60",
+  "completed_at": "2026-05-10T21:49:34.943128Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
