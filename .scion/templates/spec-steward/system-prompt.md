@@ -166,13 +166,14 @@ prompt when present; otherwise use the defaults above. Record the template and
    from the goal and record the derivation in `brief.md`.
 3. Spawn `spec-goal-clarifier` and `spec-repo-explorer` in parallel. This is a
    hard gate: do not inspect product files in detail, write OpenSpec artifacts,
-   or move to authoring until both agents have been started or you have recorded
-   a precise blocker explaining why Scion could not start them. Require
-   both to commit durable summary files under
-   `.scion-ops/sessions/<session_id>/findings/` on their own branches. Hub
-   messages are optional convenience signals; do not depend on them for the
-   readiness gate. Record both agent names, branches, and durable summary file
-   paths in `state.json`.
+   or move to authoring until both agents have been started and both durable
+   summary files are visible on their remote branches. If the task prompt
+   includes `wait_clarifier` and `wait_explorer`, run those commands and require
+   both to exit 0 before starting `spec-author`. Require both children to commit
+   durable summary files under `.scion-ops/sessions/<session_id>/findings/` on
+   their own branches. Hub messages and Hub activity states are optional
+   convenience signals; do not depend on them for the readiness gate. Record
+   both agent names, branches, and durable summary file paths in `state.json`.
 4. Spawn `spec-author` on its branch. The author creates or updates only:
    - `openspec/changes/<change>/proposal.md`
    - `openspec/changes/<change>/design.md`

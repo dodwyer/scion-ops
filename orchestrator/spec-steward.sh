@@ -66,6 +66,8 @@ SPEC_AUTHOR_TEMPLATE="${SCION_OPS_SPEC_AUTHOR_TEMPLATE:-spec-author}"
 SPEC_AUTHOR_HARNESS="${SCION_OPS_SPEC_AUTHOR_HARNESS:-codex-exec}"
 SPEC_OPS_REVIEW_TEMPLATE="${SCION_OPS_SPEC_OPS_REVIEW_TEMPLATE:-spec-ops-reviewer-claude}"
 SPEC_OPS_REVIEW_HARNESS="${SCION_OPS_SPEC_OPS_REVIEW_HARNESS:-claude}"
+SPEC_INITIAL_HANDOFF_WAIT_SECONDS="${SCION_OPS_SPEC_INITIAL_HANDOFF_WAIT_SECONDS:-420}"
+SPEC_INITIAL_HANDOFF_POLL_SECONDS="${SCION_OPS_SPEC_INITIAL_HANDOFF_POLL_SECONDS:-15}"
 SPEC_OPS_REVIEW_WAIT_SECONDS="${SCION_OPS_SPEC_OPS_REVIEW_WAIT_SECONDS:-420}"
 SPEC_OPS_REVIEW_POLL_SECONDS="${SCION_OPS_SPEC_OPS_REVIEW_POLL_SECONDS:-15}"
 SPEC_REQUIRE_MULTI_HARNESS="${SCION_OPS_SPEC_REQUIRE_MULTI_HARNESS:-1}"
@@ -166,6 +168,8 @@ branch_names:
 required_commands:
   init_state: python3 "$AGENT_SCION_OPS_ROOT/scripts/steward-state.py" spec-init --project-root "$AGENT_PROJECT_ROOT" --session-id "$SESSION_ID" --change "$CHANGE" --base-branch "$BASE_BRANCH"
   spec_validate: python3 "$AGENT_SCION_OPS_ROOT/scripts/validate-openspec-change.py" --project-root "$AGENT_PROJECT_ROOT" --change "$CHANGE"
+  wait_clarifier: python3 "$AGENT_SCION_OPS_ROOT/scripts/wait-for-review-artifact.py" --project-root "$AGENT_PROJECT_ROOT" --branch "$CLARIFIER_NAME" --artifact "$SESSION_STATE_ROOT/findings/clarifier.md" --agent "$CLARIFIER_NAME" --scion-profile "$SCION_PROFILE" --timeout-seconds "$SPEC_INITIAL_HANDOFF_WAIT_SECONDS" --poll-interval-seconds "$SPEC_INITIAL_HANDOFF_POLL_SECONDS" --output "$SESSION_STATE_ROOT/validation/clarifier-wait.json"
+  wait_explorer: python3 "$AGENT_SCION_OPS_ROOT/scripts/wait-for-review-artifact.py" --project-root "$AGENT_PROJECT_ROOT" --branch "$EXPLORER_NAME" --artifact "$SESSION_STATE_ROOT/findings/explorer.md" --agent "$EXPLORER_NAME" --scion-profile "$SCION_PROFILE" --timeout-seconds "$SPEC_INITIAL_HANDOFF_WAIT_SECONDS" --poll-interval-seconds "$SPEC_INITIAL_HANDOFF_POLL_SECONDS" --output "$SESSION_STATE_ROOT/validation/explorer-wait.json"
   wait_review: python3 "$AGENT_SCION_OPS_ROOT/scripts/wait-for-review-artifact.py" --project-root "$AGENT_PROJECT_ROOT" --branch "$OPS_REVIEW_NAME" --artifact "$SESSION_STATE_ROOT/findings/ops-review.json" --agent "$OPS_REVIEW_NAME" --scion-profile "$SCION_PROFILE" --timeout-seconds "$SPEC_OPS_REVIEW_WAIT_SECONDS" --poll-interval-seconds "$SPEC_OPS_REVIEW_POLL_SECONDS" --output "$SESSION_STATE_ROOT/validation/ops-review-wait.json"
   ready_state: python3 "$AGENT_SCION_OPS_ROOT/scripts/steward-state.py" spec-ready --project-root "$AGENT_PROJECT_ROOT" --session-id "$SESSION_ID" --change "$CHANGE" --base-branch "$BASE_BRANCH" --integration-branch "$FINAL_BRANCH" --validation-command "python3 scripts/validate-openspec-change.py --project-root . --change $CHANGE" --review-summary "<accepted ops review summary>"
   blocked_state: python3 "$AGENT_SCION_OPS_ROOT/scripts/steward-state.py" spec-blocked --project-root "$AGENT_PROJECT_ROOT" --session-id "$SESSION_ID" --change "$CHANGE" --base-branch "$BASE_BRANCH" --phase review --blocker "<blocker summary>" --next-action "<next action>"
@@ -182,6 +186,10 @@ mandatory_first_actions:
 - Start the clarifier and explorer with the exact scion commands below before
   detailed repo inspection. If either command fails, write blocked_state with
   the command output as the blocker and push it on "$STEWARD_BRANCH".
+- After both start commands succeed, run wait_clarifier and wait_explorer.
+  Do not start author until both wait commands exit 0 and the remote branch
+  artifacts are readable. If either wait times out, write blocked_state with
+  the wait diagnostics and push it on "$STEWARD_BRANCH".
 
 start_clarifier:
   scion --profile "$SCION_PROFILE" start "$CLARIFIER_NAME" --type "$SPEC_CLARIFIER_TEMPLATE" --branch "$CLARIFIER_NAME" --broker "$BROKER" --harness-config "$SPEC_CLARIFIER_HARNESS" --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
@@ -211,6 +219,8 @@ execution_notes:
 - Follow the spec-steward system prompt as the authoritative protocol.
 - Do not pause for confirmation. Execute the mandatory first actions before
   detailed repo inspection or authoring.
+- Hub activity such as started, running, idle, or stopped is not enough to move
+  to authoring. The clarifier and explorer remote artifact waits must pass.
 - Child prompts must include the original goal, expected branch, steward agent,
   collection recipient, and the template-specific durable artifact field:
   summary_file for clarifier/explorer and verdict_file for ops review.

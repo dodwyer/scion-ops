@@ -391,6 +391,8 @@ def _assert_fake_scion_covered(fake_log: Path, spec_session: str, implementation
     assert "explorer_summary_file:" in log, log
     assert "ops_review_verdict_file:" in log, log
     assert "summary_file:" in log, log
+    assert "wait_clarifier:" in log, log
+    assert "wait_explorer:" in log, log
     assert f'scion --profile "kind" start "round-{spec_session}-spec-clarifier"' in log, log
     assert f'scion --profile "kind" start "round-{spec_session}-spec-explorer"' in log, log
     assert "wait_review:" in log, log
