@@ -32,7 +32,14 @@
       "type": "impl-codex",
       "branch": "round-20260510t135840z-5cd6-impl-codex-app2",
       "scope": "Narrow replacement: scripts/web_app_hub.py app live update contract/UI plus focused web app tests",
-      "status": "running"
+      "status": "stopped_no_branch_movement",
+      "blocker": "Replacement Codex app agent stayed idle with branch at base SHA; stopped and replaced with app-focused Claude branch."
+    },
+    "round-20260510t135840z-5cd6-impl-claude-app": {
+      "type": "impl-claude",
+      "branch": "round-20260510t135840z-5cd6-impl-claude-app",
+      "scope": "Narrow app replacement: scripts/web_app_hub.py automatic updates and focused tests",
+      "status": "preparing"
     }
   },
   "implementation": {
@@ -50,6 +57,11 @@
       "agent": "round-20260510t135840z-5cd6-impl-codex",
       "status": "non_blocking_replaced",
       "detail": "Original Group A implementer exited without branch movement; starting narrower replacement branch for app live update implementation."
+    },
+    {
+      "agent": "round-20260510t135840z-5cd6-impl-codex-app2",
+      "status": "non_blocking_replaced",
+      "detail": "Codex replacement stayed idle and branch remained at origin/main base SHA; starting narrower Claude app replacement."
     }
   ],
   "next_actions": [
