@@ -5,8 +5,8 @@
   "kind": "spec",
   "change": "holly-ops-branding",
   "base_branch": "main",
-  "status": "running",
-  "phase": "clarifying",
+  "status": "blocked",
+  "phase": "review",
   "branches": {
     "steward": "round-20260510t180845z-3fc5-spec-steward",
     "clarifier": "round-20260510t180845z-3fc5-spec-clarifier",
@@ -31,15 +31,59 @@
     },
     "required_multi_harness": true
   },
-  "agents": {},
-  "review": {},
-  "validation": {
-    "status": "pending"
+  "agents": {
+    "clarifier": {
+      "name": "round-20260510t180845z-3fc5-spec-clarifier",
+      "branch": "round-20260510t180845z-3fc5-spec-clarifier",
+      "template": "spec-goal-clarifier-claude",
+      "harness_config": "claude",
+      "status": "completed"
+    },
+    "explorer": {
+      "name": "round-20260510t180845z-3fc5-spec-explorer",
+      "branch": "round-20260510t180845z-3fc5-spec-explorer",
+      "template": "spec-repo-explorer",
+      "harness_config": "codex-exec",
+      "status": "completed"
+    },
+    "author": {
+      "name": "round-20260510t180845z-3fc5-spec-author",
+      "branch": "round-20260510t180845z-3fc5-spec-author",
+      "template": "spec-author",
+      "harness_config": "codex-exec",
+      "status": "blocked",
+      "note": "Agent remained idle after start, message, restart, and plain delivery; steward created OpenSpec-only artifacts to keep branch available."
+    },
+    "ops_review": {
+      "name": "round-20260510t180845z-3fc5-spec-ops-review",
+      "branch": "round-20260510t180845z-3fc5-spec-ops-review",
+      "template": "spec-ops-reviewer-claude",
+      "harness_config": "claude",
+      "status": "blocked",
+      "note": "Agent remained idle after start, message, restart, and plain delivery; review branch did not move from base."
+    }
   },
-  "blockers": [],
+  "review": {
+    "verdict": "blocked",
+    "agent": "round-20260510t180845z-3fc5-spec-ops-review",
+    "summary": "ops review agent did not produce .scion-ops/sessions/20260510t180845z-3fc5/findings/ops-review.json"
+  },
+  "validation": {
+    "status": "passed",
+    "command": "python3 scripts/validate-openspec-change.py --project-root . --change holly-ops-branding",
+    "integration_branch": "round-20260510t180845z-3fc5-spec-integration",
+    "note": "OpenSpec artifacts validate, but readiness is blocked pending accepted ops review."
+  },
+  "blockers": [
+    {
+      "type": "ops_review_unavailable",
+      "summary": "Required ops review agent did not execute or push a verdict after start, direct message, restart, and plain message delivery.",
+      "required_artifact": ".scion-ops/sessions/20260510t180845z-3fc5/findings/ops-review.json",
+      "blocked_ready_state": true
+    }
+  ],
   "next_actions": [
-    "Start spec-goal-clarifier and spec-repo-explorer agents",
-    "Create OpenSpec artifacts on the author branch",
-    "Validate and review the integration branch"
+    "Repair or rerun round-20260510t180845z-3fc5-spec-ops-review so it reviews round-20260510t180845z-3fc5-spec-integration and pushes ops-review.json",
+    "If review accepts, rerun final ready-state update, finalize-steward-pr.py, and validate-steward-session.py with --require-ready --require-pr --require-multi-harness"
   ]
 }
