@@ -1026,8 +1026,14 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
         final_reviews.append(outcome_review)
     if events.get("ok"):
         merge_mcp_progress(mcp_holder, structured_mcp_progress(events, source="round_events"))
+        seen_event_ids: set[str] = set()
         for event in events.get("events", []):
             item = event.get("message") or event.get("notification") or event.get("agent") or {}
+            event_id = str(item.get("id") or event.get("id") or "")
+            if event_id and event_id in seen_event_ids:
+                continue
+            if event_id:
+                seen_event_ids.add(event_id)
             payload = parse_json_object(item.get("msg") or item.get("message") or item.get("summary"))
             for branch in structured_branch_refs(item):
                 add_unique(structured_branches, branch)

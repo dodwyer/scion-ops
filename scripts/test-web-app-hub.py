@@ -582,6 +582,200 @@ def test_round_detail_loads_openspec_status_when_progress_identifies_change():
     assert detail["spec_status"]["change"] == "update-web-app"
 
 
+# --- Task 1.8: autorefresh fixture tests ---
+
+
+def test_round_detail_returns_cursor_for_incremental_updates():
+    provider = FixtureProvider()
+    detail = web_app_hub.build_round_detail(provider, "20260509t063201z-6c02")
+    assert "cursor" in detail
+    assert detail["cursor"] == "cursor-1", "detail must carry the cursor returned by round_events"
+
+
+def test_round_timeline_grows_as_new_events_arrive():
+    events_one = {
+        "ok": True,
+        "cursor": "cursor-1",
+        "events": [
+            {"type": "message", "message": {"id": "msg-a", "createdAt": "2026-05-09T06:35:00+00:00", "msg": "first message"}},
+        ],
+    }
+    events_two = {
+        "ok": True,
+        "cursor": "cursor-2",
+        "events": [
+            {"type": "message", "message": {"id": "msg-a", "createdAt": "2026-05-09T06:35:00+00:00", "msg": "first message"}},
+            {"type": "message", "message": {"id": "msg-b", "createdAt": "2026-05-09T06:36:00+00:00", "msg": "second message"}},
+        ],
+    }
+    detail_one = web_app_hub.build_round_detail(FixtureProvider(round_events=events_one), "20260509t063201z-6c02")
+    detail_two = web_app_hub.build_round_detail(FixtureProvider(round_events=events_two), "20260509t063201z-6c02")
+    assert len(detail_one["timeline"]) == 1
+    assert len(detail_two["timeline"]) == 2
+    assert detail_two["timeline"][0]["summary"] == "first message"
+    assert detail_two["timeline"][1]["summary"] == "second message"
+
+
+def test_duplicate_timeline_events_with_same_id_are_deduplicated():
+    events = {
+        "ok": True,
+        "cursor": "cursor-2",
+        "events": [
+            {"type": "message", "message": {"id": "msg-a", "createdAt": "2026-05-09T06:35:00+00:00", "msg": "first message"}},
+            {"type": "message", "message": {"id": "msg-a", "createdAt": "2026-05-09T06:35:00+00:00", "msg": "first message"}},
+            {"type": "message", "message": {"id": "msg-b", "createdAt": "2026-05-09T06:36:00+00:00", "msg": "second message"}},
+        ],
+    }
+    detail = web_app_hub.build_round_detail(FixtureProvider(round_events=events), "20260509t063201z-6c02")
+    assert len(detail["timeline"]) == 2, "replayed event with same id must not create a duplicate timeline entry"
+
+
+def test_inbox_update_adds_new_item_without_removing_existing():
+    empty_notifs = {"ok": True, "source": "hub_api", "items": []}
+    messages_before = {
+        "ok": True,
+        "source": "hub_api",
+        "items": [
+            {"id": "msg-1", "sender": "round-20260509t063201z-6c02-codex", "msg": "initial update", "createdAt": "2026-05-09T06:38:01+00:00"},
+        ],
+    }
+    messages_after = {
+        "ok": True,
+        "source": "hub_api",
+        "items": [
+            {"id": "msg-1", "sender": "round-20260509t063201z-6c02-codex", "msg": "initial update", "createdAt": "2026-05-09T06:38:01+00:00"},
+            {"id": "msg-2", "sender": "round-20260509t063201z-6c02-codex", "msg": "new update", "createdAt": "2026-05-09T06:39:01+00:00"},
+        ],
+    }
+    snap_before = web_app_hub.build_snapshot(FixtureProvider(messages=messages_before, notifications=empty_notifs))
+    snap_after = web_app_hub.build_snapshot(FixtureProvider(messages=messages_after, notifications=empty_notifs))
+    group_before = next((g for g in snap_before["inbox"] if g["round_id"] == "20260509t063201z-6c02"), None)
+    group_after = next((g for g in snap_after["inbox"] if g["round_id"] == "20260509t063201z-6c02"), None)
+    assert group_before is not None
+    assert group_after is not None
+    assert len(group_after["items"]) == 2
+    assert len(group_after["items"]) > len(group_before["items"])
+    source_ids_after = {item["source_id"] for item in group_after["items"]}
+    assert "msg-1" in source_ids_after
+    assert "msg-2" in source_ids_after
+
+
+def test_runtime_status_change_does_not_clear_hub_derived_rounds():
+    provider = FixtureProvider(
+        mcp={"source": "mcp", "ok": False, "status": "unavailable", "error_kind": "runtime", "error": "connection refused"},
+    )
+    snapshot = web_app_hub.build_snapshot(provider)
+    assert snapshot["readiness"] == "degraded"
+    assert snapshot["sources"]["hub"]["ok"] is True
+    assert len(snapshot["rounds"]) > 0, "Hub-derived rounds must remain visible when MCP fails"
+    assert snapshot["rounds"][0]["round_id"] == "20260509t063201z-6c02"
+
+
+def test_automatic_update_path_calls_only_read_operations():
+    method_calls: list[str] = []
+
+    class LoggingProvider(FixtureProvider):
+        def hub_status(self):
+            method_calls.append("hub_status")
+            return super().hub_status()
+
+        def hub_messages(self):
+            method_calls.append("hub_messages")
+            return super().hub_messages()
+
+        def hub_notifications(self):
+            method_calls.append("hub_notifications")
+            return super().hub_notifications()
+
+        def mcp_status(self):
+            method_calls.append("mcp_status")
+            return super().mcp_status()
+
+        def kubernetes_status(self):
+            method_calls.append("kubernetes_status")
+            return super().kubernetes_status()
+
+        def round_status(self, round_id):
+            method_calls.append("round_status")
+            return super().round_status(round_id)
+
+        def round_events(self, round_id, cursor="", include_existing=False):
+            method_calls.append(f"round_events(cursor={cursor!r})")
+            return super().round_events(round_id, cursor=cursor, include_existing=include_existing)
+
+        def round_artifacts(self, round_id):
+            method_calls.append("round_artifacts")
+            return super().round_artifacts(round_id)
+
+    provider = LoggingProvider()
+    web_app_hub.build_snapshot(provider)
+    web_app_hub.build_round_detail(provider, "20260509t063201z-6c02")
+    read_prefixes = {"hub_status", "hub_messages", "hub_notifications", "mcp_status", "kubernetes_status", "round_status", "round_events", "round_artifacts", "spec_status"}
+    unexpected = [c for c in method_calls if not any(c.startswith(r) for r in read_prefixes)]
+    assert unexpected == [], f"unexpected non-read operations during automatic updates: {unexpected}"
+
+
+# --- Task 1.9: reconnect and stale-state tests ---
+
+
+def test_reconnect_cursor_is_preserved_from_round_detail():
+    events = {
+        "ok": True,
+        "cursor": "cursor-from-server-42",
+        "events": [
+            {"type": "message", "message": {"id": "msg-x", "createdAt": "2026-05-09T06:35:00+00:00", "msg": "event"}},
+        ],
+    }
+    detail = web_app_hub.build_round_detail(FixtureProvider(round_events=events), "20260509t063201z-6c02")
+    assert detail["cursor"] == "cursor-from-server-42", "cursor must be preserved for cursor-based reconnect"
+
+
+def test_empty_events_on_cursor_resume_does_not_break_timeline():
+    empty_events = {
+        "ok": True,
+        "cursor": "cursor-resume-1",
+        "events": [],
+    }
+    detail = web_app_hub.build_round_detail(FixtureProvider(round_events=empty_events), "20260509t063201z-6c02")
+    assert detail["timeline"] == []
+    assert detail["cursor"] == "cursor-resume-1"
+
+
+def test_stale_snapshot_detected_by_data_age_not_generation_time():
+    stale_hub = healthy_hub()
+    for agent in stale_hub["agents"]:
+        agent["updated"] = "2026-05-09T04:00:00+00:00"
+    original = web_app_hub.utc_now
+    try:
+        web_app_hub.utc_now = lambda: "2026-05-09T06:40:00+00:00"
+        fresh_snap = web_app_hub.build_snapshot(FixtureProvider())
+        stale_snap = web_app_hub.build_snapshot(
+            FixtureProvider(
+                hub=stale_hub,
+                messages={"ok": True, "items": []},
+                notifications={"ok": True, "items": []},
+            )
+        )
+    finally:
+        web_app_hub.utc_now = original
+    assert fresh_snap["stale"] is False
+    assert stale_snap["stale"] is True
+    assert stale_snap["readiness"] == "degraded"
+
+
+def test_source_failure_on_reconnect_preserves_other_source_data():
+    provider = FixtureProvider(
+        mcp={"source": "mcp", "ok": False, "status": "unavailable", "error_kind": "runtime", "error": "stream disconnected"},
+        k8s={"source": "kubernetes", "ok": False, "status": "unavailable", "error_kind": "runtime", "error": "kubectl unavailable"},
+    )
+    snapshot = web_app_hub.build_snapshot(provider)
+    assert snapshot["sources"]["hub"]["ok"] is True, "Hub data must remain visible when MCP/K8s fail"
+    assert len(snapshot["rounds"]) > 0
+    assert snapshot["sources"]["mcp"]["ok"] is False
+    assert snapshot["sources"]["kubernetes"]["ok"] is False
+    assert snapshot["readiness"] == "degraded"
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

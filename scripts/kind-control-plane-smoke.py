@@ -448,6 +448,74 @@ def check_mcp_status(payload: dict[str, Any]) -> None:
     )
 
 
+def check_web_app_autorefresh(*, url: str) -> None:
+    """Verify the web app automatic update endpoints are reachable and read-only."""
+    base = url.rstrip("/")
+
+    try:
+        with urllib.request.urlopen(f"{base}/api/snapshot", timeout=5) as response:
+            body = response.read(65536).decode(errors="replace")
+        data = json.loads(body)
+    except Exception as exc:
+        raise SmokeFailure(
+            "web_app",
+            f"web app /api/snapshot failed: {exc}",
+            hint="Check web app logs:\n  task kind:web-app:logs",
+        )
+
+    rounds = data.get("rounds") if isinstance(data.get("rounds"), list) else []
+    if rounds:
+        round_id = str(rounds[0].get("round_id") or "")
+        if round_id:
+            encoded = urllib.parse.quote(round_id, safe="")
+            events_url = f"{base}/api/rounds/{encoded}/events"
+            try:
+                with urllib.request.urlopen(events_url, timeout=5) as response:
+                    events_body = response.read(65536).decode(errors="replace")
+                events_data = json.loads(events_body)
+                if not isinstance(events_data, dict):
+                    raise SmokeFailure(
+                        "web_app",
+                        "events endpoint returned non-object JSON",
+                        hint="Check web app logs:\n  task kind:web-app:logs",
+                    )
+            except SmokeFailure:
+                raise
+            except Exception as exc:
+                raise SmokeFailure(
+                    "web_app",
+                    f"web app events endpoint failed for round {round_id}: {exc}",
+                    hint="Check web app logs:\n  task kind:web-app:logs",
+                )
+
+    try:
+        req = urllib.request.Request(
+            f"{base}/api/snapshot",
+            data=b"{}",
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            raise SmokeFailure(
+                "web_app",
+                f"web app accepted POST request (status {resp.status}) — automatic update path must be read-only",
+                hint="The web app hub should reject write operations with HTTP 405",
+            )
+    except urllib.error.HTTPError as exc:
+        if exc.code not in (405, 403, 400):
+            raise SmokeFailure(
+                "web_app",
+                f"web app POST returned unexpected status {exc.code} (expected 405)",
+                hint="Check web app logs:\n  task kind:web-app:logs",
+            )
+    except SmokeFailure:
+        raise
+    except OSError:
+        pass
+
+    log("web app automatic update path smoke passed")
+
+
 def ensure_web_app(*, url: str, timeout_seconds: int) -> None:
     overview_url = url.rstrip("/") + "/api/overview"
     deadline = time.monotonic() + timeout_seconds
@@ -743,6 +811,7 @@ async def smoke(args: argparse.Namespace) -> None:
                     url=args.web_app_url,
                     timeout_seconds=args.startup_timeout,
                 )
+                check_web_app_autorefresh(url=args.web_app_url)
 
             log(f"dispatch {agent} through kind Hub broker {args.broker}")
             start_args = [
