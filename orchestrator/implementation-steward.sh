@@ -61,7 +61,7 @@ agent_path_for() {
 }
 
 AGENT_PROJECT_ROOT="${SCION_OPS_AGENT_PROJECT_ROOT:-.}"
-AGENT_SCION_OPS_ROOT="${SCION_OPS_AGENT_SCION_OPS_ROOT:-$(agent_path_for "$SCION_OPS_ROOT")}"
+AGENT_SCION_OPS_ROOT="${SCION_OPS_AGENT_SCION_OPS_ROOT:-$AGENT_PROJECT_ROOT}"
 
 SESSION_ID="${SCION_OPS_SESSION_ID:-${ROUND_ID:-$(date -u +%Y%m%dt%H%M%Sz)-$(printf '%04x' "$RANDOM")}}"
 SESSION_ID="$(printf '%s' "$SESSION_ID" | tr '[:upper:]' '[:lower:]')"
@@ -98,13 +98,33 @@ BASE_BRANCH="${BASE_BRANCH:-$(default_base_branch)}"
 if [[ "$BASE_BRANCH_EXPLICIT" == "0" && "$BASE_BRANCH" == round-* && "${SCION_OPS_ALLOW_IMPLICIT_ROUND_BASE:-0}" != "1" ]]; then
   die "implicit base branch resolved to a round branch ($BASE_BRANCH); set BASE_BRANCH explicitly, usually BASE_BRANCH=main"
 fi
-if ! git -C "$PROJECT_ROOT" rev-parse --verify --quiet "${BASE_BRANCH}^{commit}" >/dev/null &&
-  ! git -C "$PROJECT_ROOT" rev-parse --verify --quiet "origin/${BASE_BRANCH}^{commit}" >/dev/null; then
+if ! scion_ops_resolve_base_ref "$PROJECT_ROOT" "$BASE_BRANCH" >/dev/null; then
   die "base branch does not resolve locally or on origin: $BASE_BRANCH"
 fi
 
+VALIDATION_PROJECT_ROOT="$PROJECT_ROOT"
+VALIDATION_TMP_DIR=""
+STATE_INIT_TMP_DIR=""
+cleanup_tmp_dirs() {
+  if [[ -n "$VALIDATION_TMP_DIR" ]]; then
+    rm -rf "$VALIDATION_TMP_DIR"
+  fi
+  if [[ -n "$STATE_INIT_TMP_DIR" ]]; then
+    rm -rf "$STATE_INIT_TMP_DIR"
+  fi
+}
+trap cleanup_tmp_dirs EXIT
+
+if [[ "$BASE_BRANCH_EXPLICIT" == "1" ]]; then
+  VALIDATION_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/scion-openspec-validation.XXXXXX")"
+  if ! scion_ops_export_base_branch_to_temp_root "$PROJECT_ROOT" "$BASE_BRANCH" "$VALIDATION_TMP_DIR"; then
+    die "base branch does not resolve locally or on origin: $BASE_BRANCH"
+  fi
+  VALIDATION_PROJECT_ROOT="$VALIDATION_TMP_DIR"
+fi
+
 VALIDATION_JSON="$(python3 "$SCION_OPS_ROOT/scripts/validate-openspec-change.py" \
-  --project-root "$PROJECT_ROOT" \
+  --project-root "$VALIDATION_PROJECT_ROOT" \
   --change "$CHANGE" \
   --json)" || {
   printf '%s\n' "$VALIDATION_JSON"
@@ -113,14 +133,70 @@ VALIDATION_JSON="$(python3 "$SCION_OPS_ROOT/scripts/validate-openspec-change.py"
 
 STEWARD_NAME="round-${SESSION_ID}-implementation-steward"
 STEWARD_BRANCH="$STEWARD_NAME"
+IMPLEMENTER_NAME="round-${SESSION_ID}-impl-codex"
+SECOND_IMPLEMENTER_NAME="round-${SESSION_ID}-impl-claude"
+FINAL_REVIEW_NAME="round-${SESSION_ID}-final-review"
 FINAL_BRANCH="round-${SESSION_ID}-integration"
 SESSION_STATE_ROOT=".scion-ops/sessions/${SESSION_ID}"
 
 precreate_session_branches() {
   local suffix
-  for suffix in implementation-steward impl-codex impl-claude final-review integration; do
+  for suffix in implementation-steward impl-codex impl-claude integration; do
     scion_ops_ensure_remote_branch "$PROJECT_ROOT" "round-${SESSION_ID}-${suffix}" "$BASE_BRANCH"
   done
+}
+
+initialize_steward_state_branch() {
+  [[ "${SCION_OPS_INITIALIZE_STEWARD_STATE:-1}" != "0" ]] || return 0
+
+  local remote push_remote state_file
+  remote="$(git -C "$PROJECT_ROOT" remote get-url origin 2>/dev/null || true)"
+  [[ -n "$remote" ]] || die "origin remote is required to initialize steward state"
+  push_remote="$(scion_ops_github_authenticated_remote "$remote")"
+
+  scion_ops_ensure_remote_branch "$PROJECT_ROOT" "$STEWARD_BRANCH" "$BASE_BRANCH"
+
+  STATE_INIT_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/scion-implementation-state.XXXXXX")"
+  if ! GIT_TERMINAL_PROMPT=0 git clone --quiet --no-tags --single-branch --branch "$STEWARD_BRANCH" "$push_remote" "$STATE_INIT_TMP_DIR"; then
+    die "failed to clone steward branch for state initialization: $STEWARD_BRANCH"
+  fi
+
+  state_file="$STATE_INIT_TMP_DIR/$SESSION_STATE_ROOT/state.json"
+  if [[ -f "$state_file" ]]; then
+    printf 'Steward state already exists on branch: %s\n' "$STEWARD_BRANCH"
+    return 0
+  fi
+
+  git -C "$STATE_INIT_TMP_DIR" config user.email "${GIT_AUTHOR_EMAIL:-scion-ops@example.invalid}"
+  git -C "$STATE_INIT_TMP_DIR" config user.name "${GIT_AUTHOR_NAME:-scion-ops}"
+
+  python3 "$SCION_OPS_ROOT/scripts/steward-state.py" implementation-init \
+    --project-root "$STATE_INIT_TMP_DIR" \
+    --session-id "$SESSION_ID" \
+    --change "$CHANGE" \
+    --base-branch "$BASE_BRANCH" \
+    --integration-branch "$FINAL_BRANCH"
+
+  cat >"$STATE_INIT_TMP_DIR/$SESSION_STATE_ROOT/brief.md" <<EOF
+# Implementation Steward Session $SESSION_ID
+
+Change: $CHANGE
+Base branch: $BASE_BRANCH
+Final branch: $FINAL_BRANCH
+
+Goal:
+$GOAL
+EOF
+
+  git -C "$STATE_INIT_TMP_DIR" add "$SESSION_STATE_ROOT/state.json" "$SESSION_STATE_ROOT/brief.md"
+  if git -C "$STATE_INIT_TMP_DIR" diff --cached --quiet; then
+    return 0
+  fi
+  git -C "$STATE_INIT_TMP_DIR" commit --quiet -m "Initialize implementation steward state for $SESSION_ID"
+  if ! GIT_TERMINAL_PROMPT=0 git -C "$STATE_INIT_TMP_DIR" push "$push_remote" "HEAD:refs/heads/$STEWARD_BRANCH" >/dev/null; then
+    die "failed to push initial steward state to $STEWARD_BRANCH"
+  fi
+  printf 'Initialized steward state on branch: %s\n' "$STEWARD_BRANCH"
 }
 
 if [[ "${SCION_OPS_ROUND_PREFLIGHT:-1}" != "0" && "${SCION_OPS_DRY_RUN:-0}" != "1" ]]; then
@@ -141,6 +217,10 @@ scion_ops_root: $AGENT_SCION_OPS_ROOT
 collection_recipient: $COLLECTION_RECIPIENT
 session_state_root: $SESSION_STATE_ROOT
 final_branch: $FINAL_BRANCH
+steward_agent: $STEWARD_NAME
+implementer_agent: $IMPLEMENTER_NAME
+secondary_implementer_agent: $SECOND_IMPLEMENTER_NAME
+final_review_agent: $FINAL_REVIEW_NAME
 
 approved_spec_artifacts:
 - openspec/changes/$CHANGE/proposal.md
@@ -154,10 +234,97 @@ $VALIDATION_JSON
 implementation_goal:
 $GOAL
 
+required_first_actions:
+1. Confirm $SESSION_STATE_ROOT/state.json already exists on the steward branch.
+   The launcher pre-initialized it before starting you. If it is missing, create
+   it immediately, commit it to $STEWARD_BRANCH, push it, and do no product work.
+2. Read the approved artifacts, then write a concise implementation brief under
+   $SESSION_STATE_ROOT/brief.md on the steward branch. The brief must list
+   task groups, owned paths, verification commands, and which implementer branch
+   owns each group. Commit and push the brief before starting product work.
+3. Start implementer agents before any implementation edits. Do not hand a broad
+   multi-area change to a single implementer. If the approved tasks span more
+   than one area, split them into bounded implementer prompts with explicit
+   owned paths and out-of-scope paths. For changes that touch both application
+   code and kind/kustomize install or smoke coverage, use at least two
+   implementer branches.
+4. Before every implementer start, including replacement branches you invent,
+   pre-create and verify the remote child branch from the accepted base. Scion
+   may fall back to the repository default branch when a requested branch is
+   missing; that is invalid. Use this guard with CHILD_BRANCH set to the
+   branch you will pass to --branch:
+
+   BASE_SHA="\$(git ls-remote --heads origin "$BASE_BRANCH" | awk '{print \$1}')"
+   test -n "\$BASE_SHA" || { echo "base branch does not exist on origin: $BASE_BRANCH" >&2; exit 1; }
+   if ! git ls-remote --exit-code --heads origin "\$CHILD_BRANCH" >/dev/null 2>&1; then
+     git push origin "\$BASE_SHA:refs/heads/\$CHILD_BRANCH"
+   fi
+   CHILD_SHA="\$(git ls-remote --heads origin "\$CHILD_BRANCH" | awk '{print \$1}')"
+   test "\$CHILD_SHA" = "\$BASE_SHA" || { echo "child branch \$CHILD_BRANCH is not at base $BASE_BRANCH" >&2; exit 1; }
+
+   If the guard fails, record the blocker in state and do not start that child.
+5. Use $IMPLEMENTER_NAME for the first bounded implementation branch. Substitute
+   the actual bounded scope, owned paths, and out-of-scope paths in the prompt:
+
+   scion --profile "$SCION_PROFILE" start "$IMPLEMENTER_NAME" --type impl-codex --branch "$IMPLEMENTER_NAME" --broker "$BROKER" --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
+change: $CHANGE
+base_branch: $BASE_BRANCH
+collection_recipient: $COLLECTION_RECIPIENT
+steward_agent: $STEWARD_NAME
+expected_branch: $IMPLEMENTER_NAME
+scope: <bounded task group from $SESSION_STATE_ROOT/brief.md>
+owned_paths: <paths this branch may edit>
+out_of_scope: <paths this branch must not edit>
+artifact_boundary: implement only the assigned slice of the approved OpenSpec change under openspec/changes/$CHANGE
+expected_summary: branch pushed, changed files, tasks updated, tests run, blockers
+
+Read proposal.md, design.md, tasks.md, and all delta specs under openspec/changes/$CHANGE/specs/. Implement only your assigned slice, update only task checkboxes you complete, commit and push your branch, then send a concise completion summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT."
+
+6. If an implementer cannot be started or exits without branch movement, record
+   it in state. Start a replacement only with a narrower prompt. If no
+   implementer can produce a non-empty branch, finish blocked. Do not implement
+   the approved change in the steward checkout.
+7. After implementation branches are accepted and integrated into $FINAL_BRANCH,
+   create or update the final-review branch from the pushed integration commit,
+   not from the accepted spec base. If $FINAL_REVIEW_NAME already exists at the
+   accepted base and has no review commits, advance it to the integration SHA.
+   If it has review commits or cannot be advanced safely, choose a fresh review
+   branch name and record it in state before starting the reviewer.
+
+   Use this guard before final review:
+
+   INTEGRATION_SHA="\$(git ls-remote --heads origin "$FINAL_BRANCH" | awk '{print \$1}')"
+   test -n "\$INTEGRATION_SHA" || { echo "integration branch does not exist on origin: $FINAL_BRANCH" >&2; exit 1; }
+   REVIEW_SHA="\$(git ls-remote --heads origin "$FINAL_REVIEW_NAME" | awk '{print \$1}')"
+   if test -z "\$REVIEW_SHA"; then
+     git push origin "\$INTEGRATION_SHA:refs/heads/$FINAL_REVIEW_NAME"
+   elif test "\$REVIEW_SHA" != "\$INTEGRATION_SHA"; then
+     git fetch origin "$FINAL_BRANCH" "$FINAL_REVIEW_NAME" "$BASE_BRANCH"
+     if git merge-base --is-ancestor "\$REVIEW_SHA" "\$INTEGRATION_SHA"; then
+       git push --force-with-lease=refs/heads/$FINAL_REVIEW_NAME:"\$REVIEW_SHA" origin "\$INTEGRATION_SHA:refs/heads/$FINAL_REVIEW_NAME"
+     else
+       echo "final-review branch has unique commits; choose a fresh review branch" >&2
+       exit 1
+     fi
+   fi
+
+   Then start final review with:
+
+   scion --profile "$SCION_PROFILE" start "$FINAL_REVIEW_NAME" --type final-reviewer-codex --branch "$FINAL_REVIEW_NAME" --broker "$BROKER" --harness-config codex-exec --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
+change: $CHANGE
+base_branch: $BASE_BRANCH
+review_branch: $FINAL_BRANCH
+collection_recipient: $COLLECTION_RECIPIENT
+steward_agent: $STEWARD_NAME
+verdict_file: $SESSION_STATE_ROOT/reviews/final-review.json
+expected_summary: verdict accept/reject/blocked, blocking issues, verification gaps, PR readiness
+
+Review only $FINAL_BRANCH against the approved OpenSpec artifacts. Do not edit product files. Write, commit, and push $SESSION_STATE_ROOT/reviews/final-review.json on your review branch, then send a concise verdict summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT."
+
 Start the implementation steward playbook. Coordinate specialist implementers
-and reviewers, keep durable state under $SESSION_STATE_ROOT, implement only the
-approved OpenSpec change, and finish ready only when $FINAL_BRANCH exists and is
-pushed with passing verification and an accepting final-review verdict.
+and reviewers, keep durable state under $SESSION_STATE_ROOT, use implementer
+agents for product changes, and finish ready only when $FINAL_BRANCH exists and
+is pushed with passing verification and an accepting final-review verdict.
 EOF
 )
 
@@ -190,6 +357,7 @@ if [[ "${SCION_OPS_PRECREATE_SESSION_BRANCHES:-1}" != "0" ]]; then
   scion_ops_load_github_token_for_branch_precreate
   precreate_session_branches
 fi
+initialize_steward_state_branch
 
 "$SCION_BIN" --profile "$SCION_PROFILE" --grove "$PROJECT_ROOT" start "$STEWARD_NAME" \
   --type implementation-steward \

@@ -6,7 +6,7 @@ implementation rounds.
 The preferred workflow is Scion-native stewardship: a long-running steward owns
 the session, records durable state, delegates bounded work to specialist agents,
 and uses deterministic validation/review gates before declaring a branch ready.
-The older one-shot round commands remain available for compact automation.
+For OpenSpec work, steward sessions are the documented path.
 
 ## Artifact Contract
 
@@ -69,6 +69,17 @@ task steward:validate -- \
   --require-ready
 ```
 
+Create or return the review PR after validation succeeds:
+
+```bash
+task steward:pr -- \
+  --project-root /path/to/project \
+  --session-id <session-id> \
+  --kind spec \
+  --change add-widget \
+  --json
+```
+
 Start implementation after the spec PR is merged or after the approved spec
 branch is selected:
 
@@ -76,14 +87,14 @@ branch is selected:
 task bootstrap -- /path/to/project
 
 SCION_OPS_PROJECT_ROOT=/path/to/project \
-task spec:implement:steward -- --change add-widget "Implement the approved change."
+task spec:implement -- --change add-widget "Implement the approved change."
 ```
 
 Render the implementation prompt without starting agents:
 
 ```bash
 SCION_OPS_PROJECT_ROOT=/path/to/project \
-task spec:implement:steward:dry-run -- --change add-widget "Implement the approved change."
+task spec:implement:dry-run -- --change add-widget "Implement the approved change."
 ```
 
 Validate implementation steward state:
@@ -97,6 +108,17 @@ task steward:validate -- \
   --require-ready
 ```
 
+Create or return the implementation PR after validation succeeds:
+
+```bash
+task steward:pr -- \
+  --project-root /path/to/project \
+  --session-id <session-id> \
+  --kind implementation \
+  --change add-widget \
+  --json
+```
+
 Archive after the implementation PR is merged:
 
 ```bash
@@ -106,22 +128,6 @@ task spec:archive -- --project-root /path/to/project --change add-widget --yes
 
 The archive command syncs accepted delta specs into `openspec/specs/` and moves
 the change folder under `openspec/changes/archive/`.
-
-## Legacy Shell Workflow
-
-The one-shot runner tasks are still supported:
-
-```bash
-SCION_OPS_PROJECT_ROOT=/path/to/project \
-SCION_OPS_SPEC_CHANGE=add-widget \
-task spec:round -- "Specify the widget behavior."
-
-SCION_OPS_PROJECT_ROOT=/path/to/project \
-task spec:implement -- --change add-widget "Implement the approved change."
-```
-
-Use these when a compact start-and-watch automation loop is more important than
-durable steward state.
 
 ## MCP Workflow
 
@@ -134,19 +140,14 @@ Run a spec round for change=add-widget:
 "Specify the widget behavior."
 ```
 
-The preferred external-agent tool is `scion_ops_start_spec_steward`. Monitor the
-session with `scion_ops_watch_round_events` and validate readiness with
-`scion_ops_validate_steward_session`.
+The external-agent tool for spec work is `scion_ops_start_spec_steward`. Monitor
+the session with `scion_ops_watch_round_events` and validate readiness with
+`scion_ops_validate_steward_session`. After readiness validation passes, call
+`scion_ops_finalize_steward_pr` to create or return the GitHub PR.
 
 When `base_branch` is omitted, steward MCP tools choose the repository's origin
 default branch, then `main`/`master`. This keeps new steward sessions off stale
 round branches while preserving explicit caller control.
-
-`scion_ops_run_spec_round` remains available for the legacy compact loop. It
-starts or resumes a one-shot round, watches for progress, validates the artifact
-branch, and returns the PR-ready branch when done. Re-call it with `next.args`
-until `done=true`. Legacy compact tools keep the checkout-based default unless
-`base_branch` is passed explicitly.
 
 Implementation request:
 
@@ -158,8 +159,10 @@ approved spec:
 "Implement the approved change."
 ```
 
-The preferred tool is `scion_ops_start_implementation_steward`. Validate the
-final state with `scion_ops_validate_steward_session`.
+The implementation tool is `scion_ops_start_impl_round`. It starts the
+implementation steward path and validates the approved change before launch.
+Validate the final state with `scion_ops_validate_steward_session`, then call
+`scion_ops_finalize_steward_pr`.
 
 Archive request:
 

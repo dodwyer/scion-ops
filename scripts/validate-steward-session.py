@@ -117,12 +117,25 @@ def _git_bytes(project_root: Path, args: list[str]) -> subprocess.CompletedProce
     )
 
 
+def _remote_branch_name(ref: str) -> str:
+    if not ref or ref.startswith("-"):
+        return ""
+    if ref.startswith("origin/"):
+        return ref.removeprefix("origin/")
+    if ref.startswith("refs/heads/"):
+        return ref.removeprefix("refs/heads/")
+    if ref.startswith("refs/") or "^" in ref or ":" in ref:
+        return ""
+    return ref
+
+
 def _fetch_remote_branch(project_root: Path, branch: str) -> None:
-    if not branch or branch.startswith("-") or "/" in branch and branch.startswith("refs/"):
+    branch_name = _remote_branch_name(branch)
+    if not branch_name:
         return
     _git(
         project_root,
-        ["fetch", "origin", f"refs/heads/{branch}:refs/remotes/origin/{branch}"],
+        ["fetch", "origin", f"refs/heads/{branch_name}:refs/remotes/origin/{branch_name}"],
     )
 
 
@@ -135,23 +148,29 @@ def _resolve_commit(project_root: Path, ref: str) -> tuple[str | None, str | Non
     if not ref:
         return None, None
 
-    for candidate in (ref, f"origin/{ref}"):
+    remote_branch = _remote_branch_name(ref)
+    if remote_branch:
+        result = _git(project_root, ["ls-remote", "--heads", "origin", remote_branch])
+        if result.returncode == 0:
+            first = result.stdout.strip().splitlines()
+            if first:
+                sha = first[0].split()[0]
+                _fetch_remote_branch(project_root, remote_branch)
+                fetched = _git(project_root, ["rev-parse", "--verify", "--quiet", f"origin/{remote_branch}^{{commit}}"])
+                fetched_sha = fetched.stdout.strip()
+                if fetched.returncode == 0 and fetched_sha:
+                    return fetched_sha, f"origin/{remote_branch}"
+                return sha, f"origin/{remote_branch}"
+
+    candidates = [ref]
+    if remote_branch and not ref.startswith("origin/"):
+        candidates.append(f"origin/{remote_branch}")
+
+    for candidate in candidates:
         result = _git(project_root, ["rev-parse", "--verify", "--quiet", f"{candidate}^{{commit}}"])
         sha = result.stdout.strip()
         if result.returncode == 0 and sha:
             return sha, candidate
-
-    result = _git(project_root, ["ls-remote", "--heads", "origin", ref])
-    if result.returncode == 0:
-        first = result.stdout.strip().splitlines()
-        if first:
-            sha = first[0].split()[0]
-            _fetch_remote_branch(project_root, ref)
-            fetched = _git(project_root, ["rev-parse", "--verify", "--quiet", f"origin/{ref}^{{commit}}"])
-            fetched_sha = fetched.stdout.strip()
-            if fetched.returncode == 0 and fetched_sha:
-                return fetched_sha, f"origin/{ref}"
-            return sha, f"origin/{ref}"
 
     return None, None
 
@@ -274,6 +293,38 @@ def _agent_role_completion(state: dict[str, Any], markers: tuple[str, ...]) -> t
     if saw_incomplete:
         return False, "incomplete"
     return False, "missing_status"
+
+
+def _implementation_accepting_final_review(state: dict[str, Any]) -> tuple[bool, str]:
+    final_review = state.get("final_review")
+    if isinstance(final_review, dict):
+        verdict = _normalize_status(final_review.get("verdict"))
+        if verdict in ACCEPT_VERDICTS:
+            return True, "state.final_review.verdict"
+
+        for key, value in final_review.items():
+            if not key.endswith("verdict") or key == "verdict":
+                continue
+            if _normalize_status(value) in ACCEPT_VERDICTS:
+                status_key = key.removesuffix("verdict") + "status"
+                status = _normalize_status(final_review.get(status_key))
+                if not status or status in READY_STATUSES or status in ACCEPT_VERDICTS:
+                    return True, f"state.final_review.{key}"
+
+    for name, payload in _agent_entries(state):
+        if not _agent_matches(name, payload, IMPLEMENTATION_REQUIRED_AGENT_MARKERS["final_review"]):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if _normalize_status(payload.get("verdict")) not in ACCEPT_VERDICTS:
+            continue
+        statuses = _agent_status_values(payload)
+        if _has_status_token(statuses, FAILED_AGENT_STATUS_TOKENS):
+            continue
+        if _has_status_token(statuses, COMPLETED_AGENT_STATUS_TOKENS) or _normalize_status(payload.get("status")) in ACCEPT_VERDICTS:
+            return True, f"state.agents.{name}.verdict"
+
+    return False, "state.final_review.verdict"
 
 
 def _openspec_validation_from_worktree_or_branch(
@@ -402,7 +453,11 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
             if base_sha is None:
                 warnings.append(Finding("base_branch", f"base branch could not be resolved: {base_branch}"))
             elif branch_sha == base_sha:
-                warnings.append(Finding("branch", "branch resolves to the same commit as base"))
+                finding = Finding("branch", "branch resolves to the same commit as base")
+                if args.require_ready and args.kind == "implementation":
+                    errors.append(finding)
+                else:
+                    warnings.append(finding)
     elif args.require_ready:
         errors.append(Finding("branch", "ready steward sessions must name a final branch"))
 
@@ -431,6 +486,8 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
 
         if args.kind == "implementation":
             for role, markers in IMPLEMENTATION_REQUIRED_AGENT_MARKERS.items():
+                if role == "final_review":
+                    continue
                 completed, reason = _agent_role_completion(state, markers)
                 if not completed:
                     errors.append(
@@ -439,9 +496,9 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
                             f"ready implementation sessions must record this agent with a successful completion status ({reason})",
                         )
                     )
-            final_verdict = _normalize_status(_get_path(state, "final_review.verdict"))
-            if final_verdict not in ACCEPT_VERDICTS:
-                errors.append(Finding("state.final_review.verdict", "implementation sessions require an accepting final review"))
+            has_final_accept, final_accept_path = _implementation_accepting_final_review(state)
+            if not has_final_accept:
+                errors.append(Finding(final_accept_path, "implementation sessions require an accepting final review"))
 
             verification_status = _normalize_status(_get_path(state, "verification.status"))
             if verification_status not in PASSING_STATUSES:

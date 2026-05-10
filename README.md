@@ -158,7 +158,7 @@ task spec:steward -- "Specify the widget behavior."
 task spec:validate -- --project-root /home/david/workspace/github/example/project --change add-widget
 
 SCION_OPS_PROJECT_ROOT=/home/david/workspace/github/example/project \
-task spec:implement:steward -- --change add-widget "Implement the approved change."
+task spec:implement -- --change add-widget "Implement the approved change."
 
 task steward:validate -- \
   --project-root /home/david/workspace/github/example/project \
@@ -169,14 +169,12 @@ task steward:validate -- \
 ```
 
 MCP callers can use `scion_ops_start_spec_steward`,
-`scion_ops_start_implementation_steward`, and
-`scion_ops_validate_steward_session`. The older `spec:round`,
-`spec:implement`, and `scion_ops_run_spec_round` commands remain available for
-one-shot automation.
+`scion_ops_start_impl_round`, and `scion_ops_validate_steward_session`.
+Implementation starts always create steward sessions; compatibility aliases route
+to the same path.
 
 When `base_branch` is omitted, steward launchers prefer the repository's origin
-default branch, then `main`/`master`. Legacy one-shot commands keep their
-checkout-based default unless `base_branch` is passed explicitly.
+default branch, then `main`/`master`.
 
 The MCP runtime uses the official OpenSpec CLI for validation and status when
 available, with the repo-local validator kept as the local fallback.

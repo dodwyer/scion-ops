@@ -36,6 +36,7 @@ REQUIRED_TOOLS = {
     "scion_ops_start_impl_round",
     "scion_ops_start_implementation_steward",
     "scion_ops_validate_steward_session",
+    "scion_ops_finalize_steward_pr",
     "scion_ops_look",
 }
 

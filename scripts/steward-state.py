@@ -28,6 +28,16 @@ def branch_names(session_id: str) -> dict[str, str]:
     }
 
 
+def implementation_branch_names(session_id: str) -> dict[str, str]:
+    return {
+        "steward": f"round-{session_id}-implementation-steward",
+        "implementer": f"round-{session_id}-impl-codex",
+        "secondary_implementer": f"round-{session_id}-impl-claude",
+        "final_review": f"round-{session_id}-final-review",
+        "integration": f"round-{session_id}-integration",
+    }
+
+
 def spec_agent_records(session_id: str) -> dict[str, dict[str, str]]:
     branches = branch_names(session_id)
     return {
@@ -55,6 +65,45 @@ def spec_agent_records(session_id: str) -> dict[str, dict[str, str]]:
             "template": "spec-ops-reviewer",
             "status": "completed",
         },
+    }
+
+
+def implementation_base_state(args: argparse.Namespace, status: str, phase: str) -> dict[str, Any]:
+    path = state_path(Path(args.project_root).resolve(), args.session_id)
+    existing = load_existing(path)
+    branches = implementation_branch_names(args.session_id)
+    branches.update(existing.get("branches") if isinstance(existing.get("branches"), dict) else {})
+    if getattr(args, "integration_branch", ""):
+        branches["integration"] = args.integration_branch
+
+    implementation = existing.get("implementation") if isinstance(existing.get("implementation"), dict) else {}
+    implementation.setdefault("branch", "")
+    implementation.setdefault("base_branch", args.base_branch)
+    implementation.setdefault("integration_branch", branches["integration"])
+
+    verification = existing.get("verification") if isinstance(existing.get("verification"), dict) else {}
+    verification.setdefault("status", "pending")
+    final_review = existing.get("final_review") if isinstance(existing.get("final_review"), dict) else {}
+    blockers = existing.get("blockers") if isinstance(existing.get("blockers"), list) else []
+    next_actions = existing.get("next_actions") if isinstance(existing.get("next_actions"), list) else []
+
+    return {
+        "version": 1,
+        "session_id": args.session_id,
+        "round_id": args.session_id,
+        "kind": "implementation",
+        "change": args.change,
+        "base_branch": args.base_branch,
+        "status": status,
+        "phase": phase,
+        "branches": branches,
+        "agents": existing.get("agents") if isinstance(existing.get("agents"), dict) else {},
+        "implementation": implementation,
+        "reviews": existing.get("reviews") if isinstance(existing.get("reviews"), list) else [],
+        "final_review": final_review,
+        "verification": verification,
+        "blockers": blockers,
+        "next_actions": next_actions,
     }
 
 
@@ -146,6 +195,19 @@ def spec_blocked(args: argparse.Namespace) -> None:
     write_state(state_path(root, args.session_id), state)
 
 
+def implementation_init(args: argparse.Namespace) -> None:
+    root = Path(args.project_root).resolve()
+    state = implementation_base_state(args, "running", args.phase)
+    if not state["next_actions"]:
+        state["next_actions"] = [
+            "Write implementation brief and bounded task groups",
+            "Start bounded implementer agents",
+            "Integrate the accepted implementation branch",
+            "Run verification and final review",
+        ]
+    write_state(state_path(root, args.session_id), state)
+
+
 def add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project-root", required=True)
     parser.add_argument("--session-id", required=True)
@@ -176,6 +238,12 @@ def build_parser() -> argparse.ArgumentParser:
     blocked_parser.add_argument("--blocker", required=True)
     blocked_parser.add_argument("--next-action", required=True)
     blocked_parser.set_defaults(func=spec_blocked)
+
+    implementation_init_parser = subparsers.add_parser("implementation-init")
+    add_common(implementation_init_parser)
+    implementation_init_parser.add_argument("--integration-branch", required=True)
+    implementation_init_parser.add_argument("--phase", default="starting")
+    implementation_init_parser.set_defaults(func=implementation_init)
 
     return parser
 

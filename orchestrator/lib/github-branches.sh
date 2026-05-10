@@ -30,6 +30,40 @@ scion_ops_github_authenticated_remote() {
   printf '%s' "$remote"
 }
 
+scion_ops_resolve_base_ref() {
+  local project_root="$1"
+  local base_branch="$2"
+  local remote fetch_remote ref
+
+  remote="$(git -C "$project_root" remote get-url origin 2>/dev/null || true)"
+  if [[ -n "$remote" ]]; then
+    scion_ops_load_github_token_for_branch_precreate
+    fetch_remote="$(scion_ops_github_authenticated_remote "$remote")"
+    GIT_TERMINAL_PROMPT=0 git -C "$project_root" fetch --quiet "$fetch_remote" \
+      "+refs/heads/${base_branch}:refs/remotes/origin/${base_branch}" >/dev/null 2>&1 || true
+  fi
+
+  for ref in "origin/$base_branch" "$base_branch"; do
+    if git -C "$project_root" rev-parse --verify --quiet "${ref}^{commit}" >/dev/null; then
+      printf '%s\n' "$ref"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+scion_ops_export_base_branch_to_temp_root() {
+  local project_root="$1"
+  local base_branch="$2"
+  local target_root="$3"
+  local base_ref
+
+  base_ref="$(scion_ops_resolve_base_ref "$project_root" "$base_branch")" || return 1
+  mkdir -p "$target_root"
+  git -C "$project_root" archive "$base_ref" | tar -x -C "$target_root"
+}
+
 scion_ops_ensure_remote_branch() {
   local project_root="$1"
   local branch="$2"
@@ -47,11 +81,7 @@ scion_ops_ensure_remote_branch() {
     return 0
   fi
 
-  base_ref="$base_branch"
-  if ! git -C "$project_root" rev-parse --verify --quiet "${base_ref}^{commit}" >/dev/null; then
-    base_ref="origin/$base_branch"
-  fi
-  if ! git -C "$project_root" rev-parse --verify --quiet "${base_ref}^{commit}" >/dev/null; then
+  if ! base_ref="$(scion_ops_resolve_base_ref "$project_root" "$base_branch")"; then
     base_ref="HEAD"
   fi
 

@@ -84,6 +84,17 @@ def _git(root: Path, *args: str) -> None:
     )
 
 
+def _git_output(root: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(root), *args],
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    return result.stdout.strip()
+
+
 def _init_repo(root: Path) -> None:
     _git(root, "init", "-b", "main")
     _git(root, "config", "user.email", "test@example.com")
@@ -182,6 +193,14 @@ def main() -> int:
         assert code == 0, payload
         assert payload["ok"] is True, payload
 
+        unchanged_branch = _implementation_state()
+        unchanged_branch["base_branch"] = "round-s1-spec-integration"
+        _write_state(root, unchanged_branch)
+        code, payload = _run(root, "implementation", "--require-ready")
+        assert code == 1, payload
+        assert payload["ok"] is False, payload
+        assert any(item["path"] == "branch" and "same commit" in item["message"] for item in payload["errors"]), payload
+
         blocked = _implementation_state()
         blocked["final_review"] = {"verdict": "reject"}
         _write_state(root, blocked)
@@ -189,6 +208,56 @@ def main() -> int:
         assert code == 1, payload
         assert payload["ok"] is False, payload
         assert any("final_review" in item["path"] for item in payload["errors"]), payload
+
+        repaired_review = _implementation_state()
+        repaired_review["agents"]["round-s1-final-review"] = {
+            "template": "final-reviewer-codex",
+            "status": "rejected",
+            "verdict": "reject",
+        }
+        repaired_review["agents"]["round-s1-final-review-r2"] = {
+            "template": "final-reviewer-codex",
+            "status": "accepted",
+            "verdict": "accept",
+        }
+        repaired_review["final_review"] = {
+            "verdict": "reject",
+            "status": "rejected",
+            "replacement_verdict": "accept",
+            "replacement_status": "accepted",
+            "accepted_review_branch": "round-s1-final-review-r2",
+        }
+        _write_state(root, repaired_review)
+        code, payload = _run(root, "implementation", "--require-ready")
+        assert code == 0, payload
+        assert payload["ok"] is True, payload
+
+        origin = root.parent / f"{root.name}-origin.git"
+        origin.mkdir()
+        _git(origin, "init", "--bare")
+        _git(root, "remote", "add", "origin", str(origin))
+        _git(root, "push", "origin", "main", "round-s1-spec-integration")
+        _git(root, "fetch", "origin", "round-s1-spec-integration")
+        stale_remote_tracking = _git_output(root, "rev-parse", "origin/round-s1-spec-integration")
+
+        other = root.parent / f"{root.name}-other"
+        subprocess.run(["git", "clone", str(origin), str(other)], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        _git(other, "config", "user.email", "test@example.com")
+        _git(other, "config", "user.name", "Test User")
+        _git(other, "checkout", "round-s1-spec-integration")
+        _write(other / "README.md", "# Test\n\nRemote update\n")
+        _git(other, "add", "README.md")
+        _git(other, "commit", "-m", "remote update")
+        _git(other, "push", "origin", "round-s1-spec-integration")
+        remote_head = _git_output(root, "ls-remote", "--heads", "origin", "round-s1-spec-integration").split()[0]
+        assert stale_remote_tracking != remote_head
+
+        _write_state(root, _implementation_state())
+        code, payload = _run(root, "implementation", "--require-ready")
+        assert code == 0, payload
+        assert payload["ok"] is True, payload
+        assert payload["branch"]["resolved_ref"] == "origin/round-s1-spec-integration", payload
+        assert payload["branch"]["commit"] == remote_head, payload
 
     return 0
 

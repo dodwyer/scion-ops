@@ -89,8 +89,10 @@ Run a spec round for change=add-widget:
 ```
 
 `spec round` already means OpenSpec artifacts only. The external agent should
-call `scion_ops_run_spec_round` and re-call it with `next.args` until
-`done=true`.
+call `scion_ops_start_spec_steward`, monitor with
+`scion_ops_watch_round_events`, and validate with
+`scion_ops_validate_steward_session`. When validation succeeds, finish by
+calling `scion_ops_finalize_steward_pr`.
 
 ## Start Implementation From Spec
 
@@ -102,7 +104,9 @@ Validate change=add-widget, then start an implementation round from that approve
 ```
 
 The external agent should call `scion_ops_start_impl_round`, then monitor with
-`scion_ops_watch_round_events`.
+`scion_ops_watch_round_events`. That tool starts the implementation steward
+path. When `scion_ops_validate_steward_session` succeeds, finish by calling
+`scion_ops_finalize_steward_pr`.
 
 ## Archive Accepted Spec
 

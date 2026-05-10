@@ -6,7 +6,7 @@
 #   "PyYAML>=6,<7",
 # ]
 # ///
-"""MCP server for operating the local scion-ops consensus harness.
+"""MCP server for operating the local scion-ops control plane.
 
 The server intentionally keeps local repo inspection close to the existing
 Taskfile/orchestrator workflow, while Hub-mode control and monitoring use the
@@ -95,8 +95,8 @@ def _env_port(name: str, default: int) -> int:
 mcp = FastMCP(
     "scion-ops",
     instructions=(
-        "Use these tools to start and monitor scion-ops consensus rounds, "
-        "inspect Scion agents, and review the resulting git branches. "
+        "Use these tools to start and monitor scion-ops rounds and steward "
+        "sessions, inspect Scion agents, and review the resulting git branches. "
         "Pass project_root for the project being changed; if omitted, the "
         "server uses its current working checkout."
     ),
@@ -2417,7 +2417,6 @@ def scion_ops_spec_status(project_root: str, change: str = "") -> dict[str, Any]
             "draft_spec_steward_tool": "scion_ops_start_spec_steward",
             "validate_tool": "scion_ops_validate_spec_change",
             "start_implementation_tool": "scion_ops_start_impl_round",
-            "start_implementation_steward_tool": "scion_ops_start_implementation_steward",
             "archive_tool": "scion_ops_archive_spec_change",
             "watch_tool": "scion_ops_watch_round_events",
         },
@@ -2518,6 +2517,7 @@ def scion_ops_start_spec_steward(
             "events_tool": "scion_ops_round_events",
             "artifacts_tool": "scion_ops_round_artifacts",
             "validate_tool": "scion_ops_validate_steward_session",
+            "finalize_pr_tool": "scion_ops_finalize_steward_pr",
             "abort_tool": "scion_ops_abort_round",
         },
     )
@@ -3183,126 +3183,14 @@ def scion_ops_run_spec_round(
             return response
 
 
-def _start_impl_round(
+def _start_implementation_steward_session(
     *,
     goal: str,
     project_root: str,
     change: str,
-    round_id: str,
-    max_minutes: int,
-    max_review_rounds: int,
+    session_id: str,
     base_branch: str,
-    final_reviewer: str,
 ) -> dict[str, Any]:
-    target_root = _project_root(project_root)
-    change = _clean_name(change, "change")
-    effective_base_branch = _clean_name(base_branch, "base_branch") if base_branch else _default_base_branch(str(target_root))
-    validation_ref_branch = effective_base_branch if base_branch else ""
-    validation_result, validation = _validate_spec_change_for_start(target_root, change, validation_ref_branch)
-    if not validation.get("ok"):
-        return {
-            **validation_result,
-            "project_root": str(target_root),
-            "change": change,
-            "base_branch": effective_base_branch,
-            "validation": validation,
-            "next": {
-                "draft_spec_tool": "scion_ops_start_spec_round",
-                "spec_status_tool": "scion_ops_spec_status",
-            },
-        }
-    env: dict[str, str] = {
-        **_target_round_env(target_root),
-        "MAX_MINUTES": str(_clamp(max_minutes, 1, 240)),
-        "MAX_REVIEW_ROUNDS": str(_clamp(max_review_rounds, 1, 10)),
-    }
-    if round_id:
-        env["ROUND_ID"] = _clean_name(round_id, "round_id")
-    env["BASE_BRANCH"] = effective_base_branch
-    if final_reviewer:
-        final_reviewer = final_reviewer.strip().lower()
-        if final_reviewer not in {"gemini", "codex"}:
-            raise ValueError("final_reviewer must be 'gemini' or 'codex'")
-        env["FINAL_REVIEWER"] = final_reviewer
-    args = ["task", "spec:implement", "--", "--change", change]
-    if goal.strip():
-        args.append(goal.strip())
-    result = _run(args, timeout=60, env=env)
-    parsed_round_id = _parse_started_round_id(result["output"], env.get("ROUND_ID", ""))
-    runner = f"round-{parsed_round_id.lower()}-consensus" if parsed_round_id else ""
-    response = _start_round_response(
-        result,
-        target_root=target_root,
-        parsed_round_id=parsed_round_id,
-        runner=runner,
-        next_hints={
-            "status_tool": "scion_ops_round_status",
-            "watch_tool": "scion_ops_watch_round_events",
-            "events_tool": "scion_ops_round_events",
-            "artifacts_tool": "scion_ops_round_artifacts",
-            "abort_tool": "scion_ops_abort_round",
-        },
-    )
-    return {**response, "change": change, "base_branch": effective_base_branch, "validation": validation}
-
-
-@mcp.tool()
-def scion_ops_start_impl_round(
-    project_root: str,
-    change: str,
-    goal: str = "",
-    round_id: str = "",
-    max_minutes: int = 90,
-    max_review_rounds: int = 3,
-    base_branch: str = "",
-    final_reviewer: str = "",
-) -> dict[str, Any]:
-    """Start an implementation round from an approved OpenSpec change."""
-    return _start_impl_round(
-        goal=goal,
-        project_root=project_root,
-        change=change,
-        round_id=round_id,
-        max_minutes=max_minutes,
-        max_review_rounds=max_review_rounds,
-        base_branch=base_branch,
-        final_reviewer=final_reviewer,
-    )
-
-
-@mcp.tool()
-def scion_ops_start_implementation_round(
-    project_root: str,
-    change: str,
-    goal: str = "",
-    round_id: str = "",
-    max_minutes: int = 90,
-    max_review_rounds: int = 3,
-    base_branch: str = "",
-    final_reviewer: str = "",
-) -> dict[str, Any]:
-    """Alias for scion_ops_start_impl_round."""
-    return _start_impl_round(
-        goal=goal,
-        project_root=project_root,
-        change=change,
-        round_id=round_id,
-        max_minutes=max_minutes,
-        max_review_rounds=max_review_rounds,
-        base_branch=base_branch,
-        final_reviewer=final_reviewer,
-    )
-
-
-@mcp.tool()
-def scion_ops_start_implementation_steward(
-    project_root: str,
-    change: str,
-    goal: str = "",
-    session_id: str = "",
-    base_branch: str = "",
-) -> dict[str, Any]:
-    """Start a Scion-native implementation steward session from an approved OpenSpec change."""
     target_root = _project_root(project_root)
     change = _clean_name(change, "change")
     effective_base_branch = _clean_name(base_branch, "base_branch") if base_branch else _default_steward_base_branch(str(target_root))
@@ -3320,13 +3208,11 @@ def scion_ops_start_implementation_steward(
                 "spec_status_tool": "scion_ops_spec_status",
             },
         }
-
     env: dict[str, str] = _target_round_env(target_root)
     if session_id:
         env["SCION_OPS_SESSION_ID"] = _clean_name(session_id, "session_id")
     env["BASE_BRANCH"] = effective_base_branch
-
-    args = ["task", "spec:implement:steward", "--", "--change", change]
+    args = ["task", "spec:implement", "--", "--change", change]
     if goal.strip():
         args.append(goal.strip())
     result = _run(args, timeout=60, env=env)
@@ -3342,10 +3228,71 @@ def scion_ops_start_implementation_steward(
             "events_tool": "scion_ops_round_events",
             "artifacts_tool": "scion_ops_round_artifacts",
             "validate_tool": "scion_ops_validate_steward_session",
+            "finalize_pr_tool": "scion_ops_finalize_steward_pr",
             "abort_tool": "scion_ops_abort_round",
         },
     )
     return {**response, "change": change, "base_branch": effective_base_branch, "validation": validation}
+
+
+@mcp.tool()
+def scion_ops_start_impl_round(
+    project_root: str,
+    change: str,
+    goal: str = "",
+    round_id: str = "",
+    max_minutes: int = 90,
+    max_review_rounds: int = 3,
+    base_branch: str = "",
+    final_reviewer: str = "",
+) -> dict[str, Any]:
+    """Start an implementation steward session from an approved OpenSpec change."""
+    return _start_implementation_steward_session(
+        goal=goal,
+        project_root=project_root,
+        change=change,
+        session_id=round_id,
+        base_branch=base_branch,
+    )
+
+
+@mcp.tool()
+def scion_ops_start_implementation_round(
+    project_root: str,
+    change: str,
+    goal: str = "",
+    round_id: str = "",
+    max_minutes: int = 90,
+    max_review_rounds: int = 3,
+    base_branch: str = "",
+    final_reviewer: str = "",
+) -> dict[str, Any]:
+    """Compatibility alias for scion_ops_start_impl_round."""
+    return _start_implementation_steward_session(
+        goal=goal,
+        project_root=project_root,
+        change=change,
+        session_id=round_id,
+        base_branch=base_branch,
+    )
+
+
+@mcp.tool()
+def scion_ops_start_implementation_steward(
+    project_root: str,
+    change: str,
+    goal: str = "",
+    session_id: str = "",
+    base_branch: str = "",
+) -> dict[str, Any]:
+    """Compatibility alias for scion_ops_start_impl_round."""
+    return _start_implementation_steward_session(
+        goal=goal,
+        project_root=project_root,
+        change=change,
+        session_id=session_id,
+        base_branch=base_branch,
+    )
 
 
 @mcp.tool()
@@ -3399,6 +3346,63 @@ def scion_ops_validate_steward_session(
         "session_id": session_id,
         "kind": kind,
         "error": "validator did not return JSON",
+    }
+
+
+@mcp.tool()
+def scion_ops_finalize_steward_pr(
+    project_root: str,
+    session_id: str,
+    kind: str,
+    change: str = "",
+    branch: str = "",
+    state_branch: str = "",
+    base_branch: str = "",
+    draft: bool = False,
+    title: str = "",
+) -> dict[str, Any]:
+    """Create or return the GitHub PR for a ready Scion OpenSpec steward session."""
+    target_root = _project_root(project_root)
+    session_id = _clean_name(session_id, "session_id")
+    kind = kind.strip().lower()
+    if kind not in {"spec", "implementation"}:
+        raise ValueError("kind must be 'spec' or 'implementation'")
+
+    args = [
+        "python3",
+        str(_repo_root() / "scripts" / "finalize-steward-pr.py"),
+        "--project-root",
+        str(target_root),
+        "--session-id",
+        session_id,
+        "--kind",
+        kind,
+        "--json",
+    ]
+    if change:
+        args.extend(["--change", _clean_name(change, "change")])
+    if branch:
+        args.extend(["--branch", _clean_name(branch, "branch")])
+    if state_branch:
+        args.extend(["--state-branch", _clean_name(state_branch, "state_branch")])
+    if base_branch:
+        args.extend(["--base-branch", _clean_name(base_branch, "base_branch")])
+    if draft:
+        args.append("--draft")
+    if title.strip():
+        args.extend(["--title", title.strip()])
+
+    result = _run(args, timeout=90, cwd=_repo_root())
+    payload = _parse_json_result(result)
+    if payload:
+        return {**_command_result(result), "source": "steward_pr_finalizer", "finalizer": payload}
+    return {
+        **_command_result(result),
+        "source": "steward_pr_finalizer",
+        "project_root": str(target_root),
+        "session_id": session_id,
+        "kind": kind,
+        "error": "PR finalizer did not return JSON",
     }
 
 
@@ -3491,19 +3495,18 @@ def read_taskfile() -> str:
 
 @mcp.prompt()
 def monitor_scion_round(round_id: str) -> str:
-    """Prompt an agent to monitor a Scion consensus round."""
+    """Prompt an agent to monitor a Scion round or steward session."""
     round_id = _clean_name(round_id, "round_id")
     return (
-        f"Use the scion-ops MCP tools to monitor round `{round_id}`. For new "
-        "spec rounds, prefer scion_ops_run_spec_round so start, progress "
-        "snapshots, artifact collection, and validation use one repeatable "
-        "tool. Re-call it with returned next.args until done=true. For existing "
-        "rounds, start with "
+        f"Use the scion-ops MCP tools to monitor round/session `{round_id}`. "
+        "For new OpenSpec work, start with scion_ops_start_spec_steward or "
+        "scion_ops_start_impl_round. For existing rounds, start with "
         "scion_ops_round_events(include_existing=true), then call "
         "scion_ops_watch_round_events with the returned cursor until it reports "
-        "a terminal status or blocker. Use scion_ops_look only when an event "
-        "needs transcript context. Summarize phase, blockers, final branch, "
-        "verification, and any cleanup issues."
+        "a terminal status or blocker. If a steward session validates ready, "
+        "call scion_ops_finalize_steward_pr before reporting completion. Use "
+        "scion_ops_look only when an event needs transcript context. Summarize "
+        "phase, blockers, final branch, PR, verification, and any cleanup issues."
     )
 
 
