@@ -439,7 +439,7 @@ def run_command(args: list[str], *, timeout: int = 12) -> dict[str, Any]:
             env=os.environ.copy(),
             text=True,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stderr=subprocess.PIPE,
             timeout=timeout,
             check=False,
         )
@@ -465,8 +465,10 @@ def run_command(args: list[str], *, timeout: int = 12) -> dict[str, Any]:
         "output": result.stdout,
     }
     if not payload["ok"]:
-        payload["error"] = result.stdout.strip() or f"command exited {result.returncode}"
-        payload["error_kind"] = classify_command_failure(args, result.stdout)
+        stderr = result.stderr.strip()
+        payload["stderr"] = result.stderr
+        payload["error"] = stderr or result.stdout.strip() or f"command exited {result.returncode}"
+        payload["error_kind"] = classify_command_failure(args, f"{result.stdout}\n{result.stderr}")
     return payload
 
 

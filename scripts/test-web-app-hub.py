@@ -264,6 +264,19 @@ def test_kubernetes_normalization_reports_missing_control_plane():
     assert "scion-ops-web-app" in status["missing_endpoints"]
 
 
+def test_run_command_keeps_kubectl_warnings_out_of_json_stdout():
+    result = web_app_hub.run_command(
+        [
+            web_app_hub.sys.executable,
+            "-c",
+            "import sys; sys.stderr.write('Warning: deprecated\\n'); print('{\"ok\": true}')",
+        ]
+    )
+    assert result["ok"] is True
+    assert result["output"].strip() == '{"ok": true}'
+    assert json.loads(result["output"]) == {"ok": True}
+
+
 def test_web_app_component_participates_in_readiness():
     k8s = healthy_k8s()
     k8s["deployments"] = [item for item in k8s["deployments"] if item["name"] != "scion-ops-web-app"]
