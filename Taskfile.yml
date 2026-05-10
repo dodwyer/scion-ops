@@ -394,7 +394,7 @@ tasks:
     cmds:
       - git diff --check
       - task --list
-      - python3 -c "import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in ('mcp_servers/scion_ops.py', 'scripts/hub-managed-templates.py', 'scripts/steward-state.py', 'scripts/kind-control-plane-smoke.py', 'scripts/smoke-mcp-server.py', 'scripts/validate-openspec-change.py', 'scripts/validate-steward-session.py', 'scripts/finalize-steward-pr.py', 'scripts/archive-openspec-change.py', 'scripts/final_review_repair.py', 'scripts/wait-for-review-artifact.py', 'scripts/web_app_hub.py', 'scripts/test-openspec-change-validator.py', 'scripts/test-steward-session-validator.py', 'scripts/test-steward-pr-finalizer.py', 'scripts/test-openspec-archive.py', 'scripts/test-mcp-openspec-cli.py', 'scripts/test-mcp-progress-lines.py', 'scripts/test-mcp-base-branch.py', 'scripts/test-mcp-implementation-base-branch.py', 'scripts/test-steward-basic-loop.py', 'scripts/test-web-app-hub.py', 'scripts/test-verdict-schema.py', 'scripts/test-final-review-repair.py', 'scripts/test-wait-for-review-artifact.py')]"
+      - python3 -c "import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in ('mcp_servers/scion_ops.py', 'scripts/hub-managed-templates.py', 'scripts/steward-state.py', 'scripts/kind-control-plane-smoke.py', 'scripts/smoke-mcp-server.py', 'scripts/validate-openspec-change.py', 'scripts/validate-steward-session.py', 'scripts/finalize-steward-pr.py', 'scripts/archive-openspec-change.py', 'scripts/final_review_repair.py', 'scripts/wait-for-review-artifact.py', 'scripts/precreate-agent-branch.py', 'scripts/web_app_hub.py', 'scripts/test-openspec-change-validator.py', 'scripts/test-steward-session-validator.py', 'scripts/test-steward-pr-finalizer.py', 'scripts/test-openspec-archive.py', 'scripts/test-mcp-openspec-cli.py', 'scripts/test-mcp-progress-lines.py', 'scripts/test-mcp-base-branch.py', 'scripts/test-mcp-implementation-base-branch.py', 'scripts/test-steward-basic-loop.py', 'scripts/test-web-app-hub.py', 'scripts/test-verdict-schema.py', 'scripts/test-final-review-repair.py', 'scripts/test-wait-for-review-artifact.py', 'tests/test_impl_orchestration.py')]"
       - python3 scripts/test-openspec-change-validator.py
       - python3 scripts/test-steward-session-validator.py
       - python3 scripts/test-steward-pr-finalizer.py
@@ -405,7 +405,8 @@ tasks:
       - uv run scripts/test-mcp-implementation-base-branch.py
       - python3 scripts/test-steward-basic-loop.py
       - python3 scripts/test-wait-for-review-artifact.py
+      - python3 tests/test_impl_orchestration.py
       - uv run scripts/test-web-app-hub.py
       - python3 scripts/test-verdict-schema.py
       - python3 scripts/test-final-review-repair.py
-      - bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh scripts/scion-runtime-patches.sh scripts/storage-status.sh deploy/kind/control-plane/config/broker-entrypoint.sh orchestrator/lib/github-branches.sh orchestrator/spec-steward.sh orchestrator/implementation-steward.sh orchestrator/abort.sh
+      - bash -n scripts/build-images.sh scripts/kind-bootstrap.sh scripts/kind-round-preflight.sh scripts/scion-runtime-patches.sh scripts/storage-status.sh scripts/impl-publish-handoff.sh deploy/kind/control-plane/config/broker-entrypoint.sh orchestrator/lib/github-branches.sh orchestrator/spec-steward.sh orchestrator/implementation-steward.sh orchestrator/abort.sh

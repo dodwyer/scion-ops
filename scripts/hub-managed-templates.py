@@ -23,8 +23,11 @@ EXPECTED_HARNESS = {
     "spec-steward": "codex-exec",
     "implementation-steward": "codex-exec",
     "impl-codex": "codex-exec",
+    "impl-claude": "claude",
     "reviewer-codex": "codex-exec",
+    "reviewer-claude": "claude",
     "final-reviewer-codex": "codex-exec",
+    "final-reviewer-gemini": "gemini",
 }
 
 DEPRECATED_TEMPLATE_NAMES = {

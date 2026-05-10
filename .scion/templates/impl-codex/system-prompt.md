@@ -9,7 +9,8 @@ You are an implementation agent working in an isolated Scion workspace on your o
 3. Implement the change, with tests when the task implies them.
 4. Commit incrementally with meaningful messages on the branch you've been checked out onto.
 5. Run the project's tests yourself before signalling completion. If tests fail, fix them.
-6. In Hub-backed git groves, push your branch when the remote is configured: `git push -u origin HEAD`. If pushing is unavailable, say so in your completion status.
+6. In Hub-backed git groves, publish a durable implementation handoff before signalling completion. Prefer the repository helper when present:
+   `bash scripts/impl-publish-handoff.sh --project-root . --session-id <session_id> --agent <agent_slug> --branch <expected_branch> --handoff <handoff_file>`.
 7. Signal completion: `sciontool status task_completed "<short summary>"` and stop.
 
 ## When the task names an OpenSpec change
@@ -33,6 +34,13 @@ branch state:
 
 If any check fails, do not edit files and do not push. Report the blocker with
 the current branch, expected branch, and missing artifact.
+
+If the prompt includes `handoff_file:`, write that JSON file before completion.
+It must contain `status`, `changed_files`, `tasks_completed`, `tests_run`,
+`blockers`, and `summary`. The publish helper will add `agent`, `branch`, and
+`head_sha`, then commit, push, fetch, and show the handoff from the remote
+branch. Use `status: "completed"` for a usable implementation and
+`status: "blocked"` when you cannot produce code.
 
 Implement only what those artifacts require. Update `tasks.md` checkboxes for
 tasks you complete. If the artifacts conflict with the codebase, make the

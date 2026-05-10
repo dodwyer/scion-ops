@@ -73,6 +73,13 @@ def read_artifact(project_root: Path, branch: str, artifact: str) -> tuple[bool,
     return True, text, parsed
 
 
+def is_ancestor(project_root: Path, ancestor: str, descendant: str) -> bool:
+    if not ancestor or not descendant:
+        return False
+    result = run_command(["git", "merge-base", "--is-ancestor", ancestor, descendant], cwd=project_root, timeout=15)
+    return bool(result["ok"])
+
+
 def agent_status(profile: str, agent: str) -> dict[str, Any]:
     if not profile or not shutil.which("scion"):
         return {}
@@ -140,21 +147,53 @@ def wait_for_artifact(args: argparse.Namespace) -> int:
     last_fetch: dict[str, Any] = {}
     last_head = ""
     last_error = ""
+    required_fields = list(args.require_json_fields or [])
 
     while True:
         checked_at = utc_now()
         last_fetch = fetch_branch(project_root, args.branch)
         last_head = branch_head(project_root, args.branch)
         found, artifact_text, parsed = read_artifact(project_root, args.branch, args.artifact)
+        artifact_valid = found
+        validation_errors: list[str] = []
+        if found and required_fields:
+            if not isinstance(parsed, dict):
+                artifact_valid = False
+                validation_errors.append("artifact is not a JSON object")
+            else:
+                missing = [field for field in required_fields if field not in parsed]
+                if missing:
+                    artifact_valid = False
+                    validation_errors.append("artifact is missing required fields: " + ", ".join(missing))
+        if found and args.require_head_sha_match:
+            if not isinstance(parsed, dict):
+                artifact_valid = False
+                validation_errors.append("artifact is not a JSON object")
+            elif str(parsed.get("head_sha") or "") != last_head:
+                artifact_valid = False
+                validation_errors.append(
+                    f"artifact head_sha {parsed.get('head_sha') or '<empty>'} does not match branch head {last_head}"
+                )
+        if found and args.require_head_sha_ancestor:
+            if not isinstance(parsed, dict):
+                artifact_valid = False
+                validation_errors.append("artifact is not a JSON object")
+            elif not is_ancestor(project_root, str(parsed.get("head_sha") or ""), last_head):
+                artifact_valid = False
+                validation_errors.append(
+                    f"artifact head_sha {parsed.get('head_sha') or '<empty>'} is not an ancestor of branch head {last_head}"
+                )
         attempts.append(
             {
                 "checked_at": checked_at,
                 "branch_head": last_head,
                 "artifact_found": found,
+                "artifact_valid": artifact_valid,
+                "validation_errors": validation_errors,
                 "fetch_ok": bool(last_fetch.get("ok")),
             }
         )
-        if found:
+        if found and artifact_valid:
             payload = {
                 "ok": True,
                 "source": "review_artifact_wait",
@@ -171,7 +210,7 @@ def wait_for_artifact(args: argparse.Namespace) -> int:
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
 
-        last_error = artifact_text
+        last_error = "; ".join(validation_errors) if validation_errors else artifact_text
         if time.monotonic() >= deadline:
             break
         time.sleep(min(args.poll_interval_seconds, max(deadline - time.monotonic(), 0)))
@@ -212,6 +251,9 @@ def main() -> int:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--kube-context", default="kind-scion-ops")
     parser.add_argument("--kube-namespace", default="scion-agents")
+    parser.add_argument("--require-json-fields", nargs="*", default=[])
+    parser.add_argument("--require-head-sha-match", action="store_true")
+    parser.add_argument("--require-head-sha-ancestor", action="store_true")
     args = parser.parse_args()
     if args.poll_interval_seconds <= 0:
         parser.error("--poll-interval-seconds must be positive")

@@ -138,6 +138,8 @@ SECOND_IMPLEMENTER_NAME="round-${SESSION_ID}-impl-claude"
 FINAL_REVIEW_NAME="round-${SESSION_ID}-final-review"
 FINAL_BRANCH="round-${SESSION_ID}-integration"
 SESSION_STATE_ROOT=".scion-ops/sessions/${SESSION_ID}"
+IMPLEMENTER_HANDOFF="$SESSION_STATE_ROOT/findings/$IMPLEMENTER_NAME.json"
+SECOND_IMPLEMENTER_HANDOFF="$SESSION_STATE_ROOT/findings/$SECOND_IMPLEMENTER_NAME.json"
 
 precreate_session_branches() {
   local suffix
@@ -221,6 +223,8 @@ steward_agent: $STEWARD_NAME
 implementer_agent: $IMPLEMENTER_NAME
 secondary_implementer_agent: $SECOND_IMPLEMENTER_NAME
 final_review_agent: $FINAL_REVIEW_NAME
+implementer_handoff: $IMPLEMENTER_HANDOFF
+secondary_implementer_handoff: $SECOND_IMPLEMENTER_HANDOFF
 
 approved_spec_artifacts:
 - openspec/changes/$CHANGE/proposal.md
@@ -251,16 +255,10 @@ required_first_actions:
 4. Before every implementer start, including replacement branches you invent,
    pre-create and verify the remote child branch from the accepted base. Scion
    may fall back to the repository default branch when a requested branch is
-   missing; that is invalid. Use this guard with CHILD_BRANCH set to the
-   branch you will pass to --branch:
+   missing; that is invalid. Use the checked-in helper instead of open-coded
+   shell so quoting, refspecs, and shallow checkouts are handled consistently:
 
-   BASE_SHA="\$(git ls-remote --heads origin "$BASE_BRANCH" | awk '{print \$1}')"
-   test -n "\$BASE_SHA" || { echo "base branch does not exist on origin: $BASE_BRANCH" >&2; exit 1; }
-   if ! git ls-remote --exit-code --heads origin "\$CHILD_BRANCH" >/dev/null 2>&1; then
-     git push origin "\$BASE_SHA:refs/heads/\$CHILD_BRANCH"
-   fi
-   CHILD_SHA="\$(git ls-remote --heads origin "\$CHILD_BRANCH" | awk '{print \$1}')"
-   test "\$CHILD_SHA" = "\$BASE_SHA" || { echo "child branch \$CHILD_BRANCH is not at base $BASE_BRANCH" >&2; exit 1; }
+   python3 "$AGENT_SCION_OPS_ROOT/scripts/precreate-agent-branch.py" --project-root "$AGENT_PROJECT_ROOT" --branch "<child branch>" --base-branch "$BASE_BRANCH" --output "$SESSION_STATE_ROOT/validation/<child branch>-branch.json"
 
    If the guard fails, record the blocker in state and do not start that child.
 5. Use $IMPLEMENTER_NAME for the first bounded implementation branch. Substitute
@@ -272,18 +270,32 @@ base_branch: $BASE_BRANCH
 collection_recipient: $COLLECTION_RECIPIENT
 steward_agent: $STEWARD_NAME
 expected_branch: $IMPLEMENTER_NAME
+handoff_file: $IMPLEMENTER_HANDOFF
 scope: <bounded task group from $SESSION_STATE_ROOT/brief.md>
 owned_paths: <paths this branch may edit>
 out_of_scope: <paths this branch must not edit>
 artifact_boundary: implement only the assigned slice of the approved OpenSpec change under openspec/changes/$CHANGE
 expected_summary: branch pushed, changed files, tasks updated, tests run, blockers
+completion_contract: before final response or task_completed, write $IMPLEMENTER_HANDOFF as JSON with status, changed_files, tasks_completed, tests_run, blockers, and summary, then run bash scripts/impl-publish-handoff.sh --project-root . --session-id $SESSION_ID --agent $IMPLEMENTER_NAME --branch $IMPLEMENTER_NAME --handoff $IMPLEMENTER_HANDOFF
 
-Read proposal.md, design.md, tasks.md, and all delta specs under openspec/changes/$CHANGE/specs/. Implement only your assigned slice, update only task checkboxes you complete, commit and push your branch, then send a concise completion summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT."
+Read proposal.md, design.md, tasks.md, and all delta specs under openspec/changes/$CHANGE/specs/. Implement only your assigned slice, update only task checkboxes you complete, publish the handoff with the helper, then send a concise completion summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT."
 
-6. If an implementer cannot be started or exits without branch movement, record
-   it in state. Start a replacement only with a narrower prompt. If no
-   implementer can produce a non-empty branch, finish blocked. Do not implement
-   the approved change in the steward checkout.
+6. After every implementer start, wait for the durable handoff artifact before
+   accepting the branch. For the default implementer:
+
+   python3 "$AGENT_SCION_OPS_ROOT/scripts/wait-for-review-artifact.py" --project-root "$AGENT_PROJECT_ROOT" --branch "$IMPLEMENTER_NAME" --artifact "$IMPLEMENTER_HANDOFF" --agent "$IMPLEMENTER_NAME" --scion-profile "$SCION_PROFILE" --timeout-seconds "900" --poll-interval-seconds "20" --output "$SESSION_STATE_ROOT/validation/$IMPLEMENTER_NAME-handoff-wait.json" --require-head-sha-ancestor --require-json-fields agent status branch head_sha changed_files tasks_completed tests_run blockers summary
+
+   Use the same command shape for the secondary implementer and replacements,
+   substituting their branch, agent, and handoff file. If an implementer cannot
+   be started, times out without a valid handoff, reports status "blocked", or
+   exits without branch movement, record a structured blocker cause such as
+   agent_start_failed, artifact_timeout, branch_guard_failed, pod_missing,
+   hub_stale_state, or no_branch_movement. The wait output already captures
+   scion look, pod JSON, and Kubernetes logs on timeout; commit that diagnostic
+   file before stopping idle workers. Start a replacement only with a narrower
+   prompt. If no implementer can produce a non-empty branch and completed
+   handoff, finish blocked. Do not implement the approved change in the steward
+   checkout.
 7. After implementation branches are accepted and integrated into $FINAL_BRANCH,
    create or update the final-review branch from the pushed integration commit,
    not from the accepted spec base. If $FINAL_REVIEW_NAME already exists at the

@@ -201,7 +201,9 @@ def main() -> int:
             assert "Base branch: accepted-spec" in dry_run_output, dry_run_output
             assert '"ok": true' in dry_run_output, dry_run_output
             assert "pre-create and verify the remote child branch" in dry_run_output, dry_run_output
-            assert "git ls-remote --exit-code --heads origin" in dry_run_output, dry_run_output
+            assert "scripts/precreate-agent-branch.py" in dry_run_output, dry_run_output
+            assert "scripts/impl-publish-handoff.sh" in dry_run_output, dry_run_output
+            assert "--require-head-sha-ancestor" in dry_run_output, dry_run_output
 
             steward_output = _run_script(
                 [

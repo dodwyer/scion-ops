@@ -89,8 +89,11 @@ declare -A expected_template_harness=(
   [spec-steward]=codex-exec
   [implementation-steward]=codex-exec
   [impl-codex]=codex-exec
+  [impl-claude]=claude
   [reviewer-codex]=codex-exec
+  [reviewer-claude]=claude
   [final-reviewer-codex]=codex-exec
+  [final-reviewer-gemini]=gemini
 )
 
 for template in "${required_templates[@]}"; do
