@@ -159,13 +159,11 @@ def healthy_k8s():
         "pods": [],
         "services": [
             {"name": "scion-hub", "type": "ClusterIP"},
-            {"name": "scion-broker", "type": "ClusterIP"},
             {"name": "scion-ops-mcp", "type": "ClusterIP"},
             {"name": "scion-ops-web-app", "type": "ClusterIP"},
         ],
         "endpoints": [
             {"name": "scion-hub", "address_count": 1, "ready": True},
-            {"name": "scion-broker", "address_count": 1, "ready": True},
             {"name": "scion-ops-mcp", "address_count": 1, "ready": True},
             {"name": "scion-ops-web-app", "address_count": 1, "ready": True},
         ],
@@ -303,7 +301,7 @@ def test_kubernetes_normalization_requires_web_app_service_and_endpoint():
                 "metadata": {"name": name, "labels": {"app.kubernetes.io/part-of": "scion-control-plane"}},
                 "spec": {"type": "ClusterIP"},
             }
-            for name in sorted(web_app_hub.CONTROL_PLANE_NAMES - {"scion-ops-web-app"})
+            for name in sorted(web_app_hub.CONTROL_PLANE_SERVICES - {"scion-ops-web-app"})
         ]
         + [
             {
@@ -311,7 +309,7 @@ def test_kubernetes_normalization_requires_web_app_service_and_endpoint():
                 "metadata": {"name": name, "labels": {"app.kubernetes.io/part-of": "scion-control-plane"}},
                 "subsets": [{"addresses": [{"ip": "10.0.0.1"}]}],
             }
-            for name in sorted(web_app_hub.CONTROL_PLANE_NAMES - {"scion-ops-web-app"})
+            for name in sorted(web_app_hub.CONTROL_PLANE_SERVICES - {"scion-ops-web-app"})
         ]
     }
     status = web_app_hub.normalize_kubernetes(payload, namespace="scion-agents")

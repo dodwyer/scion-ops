@@ -41,7 +41,7 @@ STALE_AFTER_SECONDS = 90
 ROUND_RE = re.compile(r"(?:round-)?(?P<id>\d{8}t\d{6}z-[a-z0-9]+)", re.IGNORECASE)
 CONTROL_PLANE_NAMES = {"scion-hub", "scion-broker", "scion-ops-mcp", "scion-ops-web-app"}
 CONTROL_PLANE_DEPLOYMENTS = CONTROL_PLANE_NAMES
-CONTROL_PLANE_SERVICES = CONTROL_PLANE_NAMES
+CONTROL_PLANE_SERVICES = CONTROL_PLANE_NAMES - {"scion-broker"}
 BROWSER_JSON_CONTRACT = {
     "snapshot": {
         "readiness": "ready|degraded|unavailable",
