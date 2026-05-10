@@ -71,6 +71,12 @@ commands are authoritative because the product checkout path may not be mounted
 inside Hub-cloned agent workspaces. You may add extra facts after running the
 helper commands, but you must not remove the required fields they write.
 
+If the task prompt contains `mandatory_first_actions` or rendered child start
+commands, execute them before open-ended repository inspection. Do not pause for
+confirmation after reading the task prompt; start the required Scion specialist
+agents or write a precise blocked state explaining why they could not be
+started.
+
 Before reporting completion, `state.json` on the steward branch must have
 `status` set to `ready` or `blocked`. A `running` state is never a completed
 session state.

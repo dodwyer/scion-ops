@@ -384,6 +384,11 @@ def _assert_fake_scion_covered(fake_log: Path, spec_session: str, implementation
     log = fake_log.read_text()
     assert f"round-{spec_session}-spec-steward" in log, log
     assert "--type spec-steward" in log, log
+    assert "mandatory_first_actions:" in log, log
+    assert "start_clarifier:" in log, log
+    assert "start_explorer:" in log, log
+    assert f'scion --profile "kind" start "round-{spec_session}-spec-clarifier"' in log, log
+    assert f'scion --profile "kind" start "round-{spec_session}-spec-explorer"' in log, log
     assert "wait_review:" in log, log
     assert '--timeout-seconds "420"' in log, log
     assert f"round-{spec_session}-spec-ops-review" in log, log

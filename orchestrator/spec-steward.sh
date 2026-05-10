@@ -172,9 +172,38 @@ required_commands:
   finalize_pr: python3 "$AGENT_SCION_OPS_ROOT/scripts/finalize-steward-pr.py" --project-root "$AGENT_PROJECT_ROOT" --session-id "$SESSION_ID" --kind spec --change "$CHANGE" --branch "$FINAL_BRANCH" --state-branch "$STEWARD_BRANCH" --base-branch "$BASE_BRANCH" --record-state --json > "$SESSION_STATE_ROOT/pr.json"
   validate_ready: python3 "$AGENT_SCION_OPS_ROOT/scripts/validate-steward-session.py" --project-root "$AGENT_PROJECT_ROOT" --session-id "$SESSION_ID" --kind spec --change "$CHANGE" --base-branch "$BASE_BRANCH" --branch "$FINAL_BRANCH" --state-branch "$STEWARD_BRANCH" --require-ready --require-pr$SPEC_REQUIRE_MULTI_HARNESS_FLAG
 
+mandatory_first_actions:
+- Run init_state now, then commit and push "$SESSION_STATE_ROOT/state.json" on "$STEWARD_BRANCH".
+- Start the clarifier and explorer with the exact scion commands below before
+  detailed repo inspection. If either command fails, write blocked_state with
+  the command output as the blocker and push it on "$STEWARD_BRANCH".
+
+start_clarifier:
+  scion --profile "$SCION_PROFILE" start "$CLARIFIER_NAME" --type "$SPEC_CLARIFIER_TEMPLATE" --branch "$CLARIFIER_NAME" --broker "$BROKER" --harness-config "$SPEC_CLARIFIER_HARNESS" --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
+  change: $CHANGE
+  base_branch: $BASE_BRANCH
+  steward_agent: $STEWARD_NAME
+  collection_recipient: $COLLECTION_RECIPIENT
+  expected_branch: $CLARIFIER_NAME
+  artifact: $SESSION_STATE_ROOT/findings/clarifier.md
+  role: clarify the requested OpenSpec outcome, scope boundaries, and operator-facing acceptance questions.
+  goal: $GOAL"
+
+start_explorer:
+  scion --profile "$SCION_PROFILE" start "$EXPLORER_NAME" --type "$SPEC_EXPLORER_TEMPLATE" --branch "$EXPLORER_NAME" --broker "$BROKER" --harness-config "$SPEC_EXPLORER_HARNESS" --harness-auth auth-file --no-upload --non-interactive --notify "session_id: $SESSION_ID
+  change: $CHANGE
+  base_branch: $BASE_BRANCH
+  steward_agent: $STEWARD_NAME
+  collection_recipient: $COLLECTION_RECIPIENT
+  expected_branch: $EXPLORER_NAME
+  artifact: $SESSION_STATE_ROOT/findings/explorer.md
+  role: inspect existing framework and identify the lowest-risk OpenSpec files and constraints.
+  goal: $GOAL"
+
 execution_notes:
 - Follow the spec-steward system prompt as the authoritative protocol.
-- Start clarifier and explorer before detailed repo inspection or authoring.
+- Do not pause for confirmation. Execute the mandatory first actions before
+  detailed repo inspection or authoring.
 - Child prompts must include the original goal, expected branch, artifact path,
   steward agent, and collection recipient.
 - Create the integration branch from the author branch before review.
