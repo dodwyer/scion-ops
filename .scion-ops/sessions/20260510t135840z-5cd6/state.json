@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "session_id": "20260510t135840z-5cd6",
+  "round_id": "20260510t135840z-5cd6",
+  "kind": "implementation",
+  "change": "autorefresh-web-app",
+  "base_branch": "main",
+  "status": "running",
+  "phase": "starting",
+  "branches": {
+    "steward": "round-20260510t135840z-5cd6-implementation-steward",
+    "implementer": "round-20260510t135840z-5cd6-impl-codex",
+    "secondary_implementer": "round-20260510t135840z-5cd6-impl-claude",
+    "final_review": "round-20260510t135840z-5cd6-final-review",
+    "integration": "round-20260510t135840z-5cd6-integration"
+  },
+  "agents": {},
+  "implementation": {
+    "branch": "",
+    "base_branch": "main",
+    "integration_branch": "round-20260510t135840z-5cd6-integration"
+  },
+  "reviews": [],
+  "final_review": {},
+  "verification": {
+    "status": "pending"
+  },
+  "blockers": [],
+  "next_actions": [
+    "Write implementation brief and bounded task groups",
+    "Start bounded implementer agents",
+    "Integrate the accepted implementation branch",
+    "Run verification and final review"
+  ]
+}
