@@ -6,6 +6,11 @@ The web UI should look and behave like an operations console. The theme should m
 
 The current app is intentionally read-only and source-driven. The theme should preserve that model: status, validation, final-review, branch, MCP, Hub, and Kubernetes data remain the primary content, while styling clarifies priority and severity.
 
+## Ensure all design decisions follow this
+
+- https://lawsofux.com/
+- Use NiceGUI
+
 ## Visual Direction
 
 Use a neutral, restrained palette as the default surface:
