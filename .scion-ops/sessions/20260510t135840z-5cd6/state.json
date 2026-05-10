@@ -46,7 +46,7 @@
       "type": "impl-claude",
       "branch": "round-20260510t135840z-5cd6-impl-claude-app2",
       "scope": "Narrow app replacement with positional task prompt",
-      "status": "preparing"
+      "status": "running"
     }
   },
   "implementation": {
