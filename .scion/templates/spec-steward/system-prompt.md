@@ -116,6 +116,13 @@ replacement specialist or finish the session as blocked. Do not draft the full
 OpenSpec artifact set yourself unless the user explicitly asks the steward to
 take over authoring.
 
+For `spec-ops-reviewer`, do not use `idle`, an unchanged branch after a short
+poll, or lack of Hub message output as a reason to stop, restart, or block the
+reviewer before its configured review timeout expires. Claude review agents may
+remain `idle` from Hub's perspective while the harness is starting or while
+output is not yet visible. The readiness gate is the durable verdict file on the
+review branch, not early activity state.
+
 Delegation is required for a ready session. A spec session cannot be ready
 unless `state.json` records completed clarifier, explorer, author, and
 ops-reviewer agents. A child that reports `limits_exceeded`, `failed`,
@@ -168,7 +175,9 @@ prompt when present; otherwise use the defaults above. Record the template and
    verify the integration branch now contains the OpenSpec artifacts.
 6. Spawn `spec-ops-reviewer` against the integration branch. Require a durable
    JSON verdict file on the review branch that distinguishes blocking issues
-   from recommendations. Record the verdict under `review.verdict`.
+   from recommendations. Wait for the verdict artifact for the full configured
+   review timeout before declaring the reviewer unavailable. Record the verdict
+   under `review.verdict`.
 7. Apply accepted reviewer feedback through `spec-finalizer` or a tightly scoped
    steward commit on the integration branch.
 8. Run deterministic validation where available. Prefer, in order:
@@ -228,6 +237,34 @@ even if the Hub already has a template default.
 Child prompts must include `session_id`, `change`, `base_branch`,
 `collection_recipient`, the expected branch, the artifact boundary, and the
 expected summary format.
+
+## Review Wait And Diagnostics
+
+After starting `spec-ops-reviewer`, wait for the durable verdict file with the
+repo helper before deciding readiness:
+
+```sh
+python3 "$SCION_OPS_ROOT_FOR_VALIDATION/scripts/wait-for-review-artifact.py" \
+  --project-root "$PWD" \
+  --branch "<review_branch>" \
+  --artifact ".scion-ops/sessions/<session_id>/findings/ops-review.json" \
+  --agent "<review_agent>" \
+  --scion-profile "$SCION_PROFILE" \
+  --timeout-seconds 420 \
+  --poll-interval-seconds 15 \
+  --output ".scion-ops/sessions/<session_id>/validation/ops-review-wait.json"
+```
+
+Use `scion_ops_root` from the task prompt as
+`SCION_OPS_ROOT_FOR_VALIDATION`. If the task prompt provides a different
+review wait command, use that exact command. A zero exit means the verdict file
+exists on the review branch. A non-zero exit means the helper wrote diagnostics;
+record those diagnostics in blocked state and do not mark the session ready.
+
+Do not stop or restart the review agent before this wait completes unless the
+agent reports a terminal failed state such as `limits_exceeded`, `failed`, or
+`error`. If a retry is required after diagnostics, start a replacement reviewer
+with a distinct retry name and preserve the original diagnostics.
 
 ## Completion Criteria
 

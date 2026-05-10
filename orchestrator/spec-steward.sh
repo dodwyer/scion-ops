@@ -66,6 +66,8 @@ SPEC_AUTHOR_TEMPLATE="${SCION_OPS_SPEC_AUTHOR_TEMPLATE:-spec-author}"
 SPEC_AUTHOR_HARNESS="${SCION_OPS_SPEC_AUTHOR_HARNESS:-codex-exec}"
 SPEC_OPS_REVIEW_TEMPLATE="${SCION_OPS_SPEC_OPS_REVIEW_TEMPLATE:-spec-ops-reviewer-claude}"
 SPEC_OPS_REVIEW_HARNESS="${SCION_OPS_SPEC_OPS_REVIEW_HARNESS:-claude}"
+SPEC_OPS_REVIEW_WAIT_SECONDS="${SCION_OPS_SPEC_OPS_REVIEW_WAIT_SECONDS:-420}"
+SPEC_OPS_REVIEW_POLL_SECONDS="${SCION_OPS_SPEC_OPS_REVIEW_POLL_SECONDS:-15}"
 SPEC_REQUIRE_MULTI_HARNESS="${SCION_OPS_SPEC_REQUIRE_MULTI_HARNESS:-1}"
 SPEC_REQUIRE_MULTI_HARNESS_ENABLED=1
 case "${SPEC_REQUIRE_MULTI_HARNESS,,}" in
@@ -276,6 +278,28 @@ verdict_file: $SESSION_STATE_ROOT/findings/ops-review.json
 expected_summary: verdict accept/reject/blocked, blocking issues, recommendations, and test gaps
 
 Review the OpenSpec artifacts on $FINAL_BRANCH. Do not review the author branch. Write, commit, and push $SESSION_STATE_ROOT/findings/ops-review.json on your review branch, then send a concise verdict summary to $STEWARD_NAME and copy $COLLECTION_RECIPIENT."
+
+   After starting the review agent, do not stop or restart it just because Hub
+   reports idle activity or because the review branch has not moved after a
+   short poll. Wait for the durable verdict artifact for the configured review
+   timeout with this exact command from the steward checkout:
+
+   python3 "$AGENT_SCION_OPS_ROOT/scripts/wait-for-review-artifact.py" \
+     --project-root "$AGENT_PROJECT_ROOT" \
+     --branch "$OPS_REVIEW_NAME" \
+     --artifact "$SESSION_STATE_ROOT/findings/ops-review.json" \
+     --agent "$OPS_REVIEW_NAME" \
+     --scion-profile "$SCION_PROFILE" \
+     --timeout-seconds "$SPEC_OPS_REVIEW_WAIT_SECONDS" \
+     --poll-interval-seconds "$SPEC_OPS_REVIEW_POLL_SECONDS" \
+     --output "$SESSION_STATE_ROOT/validation/ops-review-wait.json"
+
+   If this command exits non-zero, commit and push
+   $SESSION_STATE_ROOT/validation/ops-review-wait.json on the steward branch,
+   update state as blocked with the diagnostic summary, and do not finalize a
+   PR. Do not stop the review agent before this wait completes unless it has
+   already reported a terminal failed state such as limits_exceeded, failed, or
+   error.
 
 6. After the integration branch validates and the ops review verdict is
    accepted, run this exact inline command on the steward branch before the
