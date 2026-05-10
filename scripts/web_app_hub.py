@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html
 import json
 import os
@@ -66,6 +67,30 @@ BROWSER_JSON_CONTRACT = {
             "terminal": "structured terminal status when present",
         },
         "final_review": "structured final-review verdict, normalized verdict, display label, source, and blockers",
+    },
+    "live_updates": {
+        "endpoint": "/api/live?cursor=<last_cursor>&round_id=<optional-round>",
+        "transports": ["application/json long poll", "text/event-stream"],
+        "cursor": "opaque stable digest of the latest emitted snapshot/detail state",
+        "heartbeat_seconds": 15,
+        "event_types": [
+            "snapshot.initial",
+            "overview.updated",
+            "rounds.updated",
+            "round.detail.updated",
+            "timeline.appended",
+            "inbox.updated",
+            "runtime.updated",
+            "source.error",
+            "heartbeat",
+        ],
+        "idempotency": "every event has a stable id; timeline and inbox records preserve source ids when present and deterministic fallback ids otherwise",
+        "source_errors": "source.error carries source, status, error_kind, error, and last known data remains valid for unrelated sources",
+        "read_only": "subscribe, reconnect, cursor resume, and fallback polling only read existing Hub, MCP, Kubernetes, git, and OpenSpec status",
+        "snapshot": "automatic read-only GET /api/snapshot refresh with preserved selected view and scroll context",
+        "round_events": "cursor-based read-only GET /api/rounds/{round_id}/events polling for selected round timelines",
+        "states": ["connected", "reconnecting", "stale", "fallback", "failed"],
+        "manual_refresh": "secondary troubleshooting-only control; ordinary monitoring uses automatic updates",
     },
 }
 BRANCH_FIELD_NAMES = {
@@ -523,6 +548,281 @@ def source_stale(latest: str, now: datetime | None = None) -> bool:
         return False
     current = now or datetime.now(timezone.utc)
     return (current - parsed).total_seconds() > STALE_AFTER_SECONDS
+
+
+def stable_digest(value: Any) -> str:
+    data = json.dumps(value, sort_keys=True, default=str, separators=(",", ":")).encode()
+    return hashlib.sha256(data).hexdigest()[:16]
+
+
+def stable_source_id(kind: str, item: dict[str, Any], *, round_id: str = "") -> str:
+    source_id = item.get("id") or item.get("source_id") or item.get("messageId") or item.get("notificationId")
+    if source_id:
+        return f"{kind}:{source_id}"
+    fallback = {
+        "round_id": round_id,
+        "time": event_time(item),
+        "actor": item.get("agentId") or item.get("sender") or item.get("senderId") or item.get("name") or "",
+        "summary": short_text(item.get("msg") or item.get("message") or item.get("summary") or item.get("taskSummary") or item.get("activity"), 360),
+    }
+    return f"{kind}:fallback:{stable_digest(fallback)}"
+
+
+def snapshot_cursor(snapshot: dict[str, Any], detail: dict[str, Any] | None = None) -> str:
+    payload: dict[str, Any] = {
+        "readiness": snapshot.get("readiness"),
+        "overview": snapshot.get("overview"),
+        "rounds": [
+            {
+                "round_id": row.get("round_id"),
+                "status": row.get("status"),
+                "visible_status": row.get("visible_status"),
+                "latest_update": row.get("latest_update"),
+                "branches": row.get("branches"),
+                "mcp": row.get("mcp"),
+                "final_review": row.get("final_review"),
+            }
+            for row in snapshot.get("rounds", [])
+            if isinstance(row, dict)
+        ],
+        "inbox": snapshot.get("inbox"),
+        "sources": {
+            name: {
+                "ok": source.get("ok"),
+                "status": source.get("status"),
+                "error_kind": source.get("error_kind"),
+                "error": source.get("error"),
+            }
+            for name, source in (snapshot.get("sources") or {}).items()
+            if isinstance(source, dict)
+        },
+    }
+    if detail:
+        payload["round_detail"] = {
+            "round_id": detail.get("round_id"),
+            "visible_status": detail.get("visible_status"),
+            "cursor": detail.get("cursor"),
+            "timeline": [
+                {"id": item.get("id"), "type": item.get("type"), "time": item.get("time"), "summary": item.get("summary")}
+                for item in detail.get("timeline", [])
+                if isinstance(item, dict)
+            ],
+            "mcp": detail.get("mcp"),
+            "final_review": detail.get("final_review"),
+        }
+    return f"live:{stable_digest(payload)}"
+
+
+def live_event(event_type: str, data: dict[str, Any], *, cursor: str, source: str, event_id: str = "") -> dict[str, Any]:
+    event_id = event_id or f"{event_type}:{source}:{stable_digest(data)}"
+    return {
+        "id": event_id,
+        "type": event_type,
+        "source": source,
+        "cursor": cursor,
+        "generated_at": utc_now(),
+        "data": data,
+    }
+
+
+def source_error_events(snapshot: dict[str, Any], *, cursor: str) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for name, source in (snapshot.get("sources") or {}).items():
+        if not isinstance(source, dict) or source.get("ok", True):
+            continue
+        payload = {
+            "source": name,
+            "status": source.get("status") or "unavailable",
+            "error_kind": source.get("error_kind") or "runtime",
+            "error": source.get("error") or f"{name} unavailable",
+        }
+        events.append(live_event("source.error", payload, cursor=cursor, source=name, event_id=f"source.error:{name}:{stable_digest(payload)}"))
+    return events
+
+
+def timeline_entry(event: dict[str, Any], *, round_id: str) -> dict[str, Any]:
+    item = event.get("message") or event.get("notification") or event.get("agent") or {}
+    if not isinstance(item, dict):
+        item = {}
+    entry_type = str(event.get("type") or "event")
+    source_id = stable_source_id(entry_type, item, round_id=round_id)
+    return {
+        "id": source_id,
+        "source_id": source_id,
+        "type": entry_type,
+        "time": event_time(item),
+        "summary": short_text(item.get("msg") or item.get("message") or item.get("summary") or item.get("taskSummary") or item.get("activity"), 360),
+        "raw": item,
+    }
+
+
+def build_live_update_batch(provider: RuntimeProvider | Any, *, cursor: str = "", round_id: str = "") -> dict[str, Any]:
+    snapshot = build_snapshot(provider)
+    detail = build_round_detail(provider, round_id) if round_id else None
+    next_cursor = snapshot_cursor(snapshot, detail)
+    events: list[dict[str, Any]] = []
+    mode = "cursor_resume" if cursor else "initial_snapshot"
+    if cursor != next_cursor:
+        events.append(live_event("snapshot.initial" if not cursor else "snapshot.updated", {"snapshot": snapshot}, cursor=next_cursor, source="snapshot", event_id=f"snapshot:{next_cursor}"))
+        events.append(live_event("overview.updated", snapshot.get("overview") or {}, cursor=next_cursor, source="overview"))
+        events.append(live_event("rounds.updated", {"rounds": snapshot.get("rounds") or []}, cursor=next_cursor, source="rounds"))
+        events.append(live_event("inbox.updated", {"inbox": snapshot.get("inbox") or []}, cursor=next_cursor, source="inbox"))
+        events.append(live_event("runtime.updated", {"sources": snapshot.get("sources") or {}}, cursor=next_cursor, source="runtime"))
+        events.extend(source_error_events(snapshot, cursor=next_cursor))
+        if detail:
+            events.append(live_event("round.detail.updated", {"round": detail}, cursor=next_cursor, source="round_detail", event_id=f"round.detail:{round_id}:{next_cursor}"))
+            for entry in detail.get("timeline", []):
+                if isinstance(entry, dict):
+                    events.append(live_event("timeline.appended", {"round_id": round_id, "entry": entry}, cursor=next_cursor, source="round_timeline", event_id=f"timeline:{round_id}:{entry.get('id') or stable_digest(entry)}"))
+    heartbeat = live_event(
+        "heartbeat",
+        {
+            "cursor": next_cursor,
+            "stale_after_seconds": snapshot.get("stale_after_seconds", STALE_AFTER_SECONDS),
+            "snapshot_generated_at": snapshot.get("generated_at"),
+            "round_id": round_id,
+        },
+        cursor=next_cursor,
+        source="web_app",
+        event_id=f"heartbeat:{next_cursor}",
+    )
+    events.append(heartbeat)
+    return {
+        "ok": True,
+        "mode": mode,
+        "cursor": next_cursor,
+        "previous_cursor": cursor,
+        "generated_at": utc_now(),
+        "events": events,
+        "snapshot": snapshot,
+        "round": detail or {},
+    }
+
+
+def snapshot_source_failed(snapshot: dict[str, Any], source: str) -> bool:
+    payload = (snapshot.get("sources") or {}).get(source)
+    return isinstance(payload, dict) and payload.get("ok") is False
+
+
+def merge_rows_by_key(previous: list[Any], current: list[Any], key: str) -> list[Any]:
+    merged: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for collection in (previous, current):
+        for item in collection:
+            if not isinstance(item, dict):
+                continue
+            item_key = str(item.get(key) or "")
+            if not item_key:
+                continue
+            if item_key not in merged:
+                order.append(item_key)
+            merged[item_key] = item
+    return [merged[item_key] for item_key in order]
+
+
+def merge_inbox_groups(previous: list[Any], current: list[Any]) -> list[dict[str, Any]]:
+    groups: dict[str, dict[str, Any]] = {}
+    for group in previous + current:
+        if not isinstance(group, dict):
+            continue
+        round_id = str(group.get("round_id") or "ungrouped")
+        target = groups.setdefault(round_id, {"round_id": round_id, "items": [], "latest_update": ""})
+        target["latest_update"] = max(str(target.get("latest_update") or ""), str(group.get("latest_update") or ""))
+        seen = {
+            (str(item.get("type") or ""), str(item.get("source_id") or ""), str(item.get("time") or ""), str(item.get("summary") or ""))
+            for item in target["items"]
+            if isinstance(item, dict)
+        }
+        for item in group.get("items", []) if isinstance(group.get("items"), list) else []:
+            if not isinstance(item, dict):
+                continue
+            item_key = (str(item.get("type") or ""), str(item.get("source_id") or ""), str(item.get("time") or ""), str(item.get("summary") or ""))
+            if item_key in seen:
+                continue
+            seen.add(item_key)
+            target["items"].append(item)
+            target["latest_update"] = max(str(target.get("latest_update") or ""), str(item.get("time") or ""))
+        target["items"].sort(key=lambda item: item.get("time") or "", reverse=True)
+    return sorted(groups.values(), key=lambda item: item.get("latest_update") or "", reverse=True)
+
+
+def merge_snapshot_preserving_source_failures(previous: dict[str, Any] | None, current: dict[str, Any]) -> dict[str, Any]:
+    if not previous:
+        return current
+    merged = dict(current)
+    item_source_failed = snapshot_source_failed(current, "messages") or snapshot_source_failed(current, "notifications")
+    if item_source_failed:
+        merged["rounds"] = sorted(
+            merge_rows_by_key(previous.get("rounds", []), current.get("rounds", []), "round_id"),
+            key=lambda item: item.get("latest_update") or "",
+            reverse=True,
+        )
+        merged["inbox"] = merge_inbox_groups(previous.get("inbox", []), current.get("inbox", []))
+        overview = dict(current.get("overview") or {})
+        rounds = merged.get("rounds") or []
+        overview["active_round_count"] = len([item for item in rounds if item.get("status") in {"running", "waiting", "blocked"}])
+        overview["recent_round_count"] = len(rounds)
+        overview["latest_update"] = max((str(item.get("latest_update") or "") for item in rounds), default=overview.get("latest_update") or current.get("generated_at"))
+        merged["overview"] = overview
+    return merged
+
+
+def merge_round_detail_preserving_source_failures(previous: dict[str, Any] | None, current: dict[str, Any]) -> dict[str, Any]:
+    if not previous:
+        return current
+    events = current.get("events") if isinstance(current.get("events"), dict) else {}
+    if events.get("ok", True) is not False:
+        return current
+    merged = dict(current)
+    merged["timeline"] = previous.get("timeline", [])
+    return merged
+
+
+def merge_live_events(state: dict[str, Any], events: list[dict[str, Any]]) -> dict[str, Any]:
+    seen = state.setdefault("_seen_event_ids", set())
+    if not isinstance(seen, set):
+        seen = set(seen)
+        state["_seen_event_ids"] = seen
+    for event in events:
+        event_id = str(event.get("id") or stable_digest(event))
+        if event_id in seen:
+            continue
+        seen.add(event_id)
+        event_type = event.get("type")
+        data = event.get("data") if isinstance(event.get("data"), dict) else {}
+        state["cursor"] = event.get("cursor") or state.get("cursor", "")
+        if event_type in {"snapshot.initial", "snapshot.updated"} and isinstance(data.get("snapshot"), dict):
+            state["snapshot"] = merge_snapshot_preserving_source_failures(state.get("snapshot"), data["snapshot"])
+        elif event_type == "overview.updated":
+            state["overview"] = data
+        elif event_type == "rounds.updated":
+            if state.get("snapshot") and (snapshot_source_failed(state["snapshot"], "messages") or snapshot_source_failed(state["snapshot"], "notifications")):
+                state["rounds"] = state["snapshot"].get("rounds", [])
+            else:
+                state["rounds"] = data.get("rounds", [])
+        elif event_type == "inbox.updated":
+            if state.get("snapshot") and (snapshot_source_failed(state["snapshot"], "messages") or snapshot_source_failed(state["snapshot"], "notifications")):
+                state["inbox"] = state["snapshot"].get("inbox", [])
+            else:
+                state["inbox"] = data.get("inbox", [])
+        elif event_type == "runtime.updated":
+            state["sources"] = data.get("sources", {})
+        elif event_type == "round.detail.updated" and isinstance(data.get("round"), dict):
+            details = state.setdefault("rounds_detail", {})
+            round_id = data["round"].get("round_id", "")
+            details[round_id] = merge_round_detail_preserving_source_failures(details.get(round_id), data["round"])
+        elif event_type == "timeline.appended" and isinstance(data.get("entry"), dict):
+            timelines = state.setdefault("timelines", {})
+            timeline = timelines.setdefault(data.get("round_id", ""), [])
+            entry_id = data["entry"].get("id")
+            if entry_id and any(existing.get("id") == entry_id for existing in timeline if isinstance(existing, dict)):
+                continue
+            timeline.append(data["entry"])
+        elif event_type == "source.error":
+            state.setdefault("source_errors", {})[data.get("source", event.get("source"))] = data
+        elif event_type == "heartbeat":
+            state["last_heartbeat"] = data
+    return state
 
 
 class RuntimeProvider:
@@ -1040,12 +1340,7 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
                 review = final_review_from_item(item, source=str(event.get("type") or "event"))
                 if review:
                     final_reviews.append(review)
-            timeline.append({
-                "type": event.get("type") or "event",
-                "time": event_time(item),
-                "summary": short_text(item.get("msg") or item.get("message") or item.get("summary") or item.get("taskSummary") or item.get("activity"), 360),
-                "raw": item,
-            })
+            timeline.append(timeline_entry(event, round_id=round_id))
     artifacts: dict[str, Any] = {}
     try:
         artifacts = provider.round_artifacts(round_id)
@@ -1120,13 +1415,16 @@ INDEX_HTML = r"""<!doctype html>
     button.active { background:#202225; color:#fff; border-color:#202225; }
     main { max-width:1280px; margin:0 auto; padding:18px 20px 32px; }
     .bar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; color:var(--muted); }
+    .live-bar { align-items:flex-start; }
+    .live-state { display:flex; flex-direction:column; gap:3px; }
+    .secondary { font-size:12px; padding:5px 8px; color:var(--muted); }
     .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
     .card, .table-wrap, .detail { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; }
     .status { display:inline-flex; align-items:center; gap:6px; font-weight:650; text-transform:capitalize; }
     .dot { width:9px; height:9px; border-radius:50%; background:var(--muted); display:inline-block; }
-    .ready .dot, .healthy .dot, .completed .dot, .accepted .dot { background:var(--good); }
-    .degraded .dot, .waiting .dot, .stale .dot, .observed .dot { background:var(--warn); }
-    .unavailable .dot, .blocked .dot, .error .dot, .changes-requested .dot { background:var(--bad); }
+    .ready .dot, .healthy .dot, .completed .dot, .accepted .dot, .connected .dot, .fallback-polling .dot { background:var(--good); }
+    .degraded .dot, .waiting .dot, .stale .dot, .observed .dot, .reconnecting .dot { background:var(--warn); }
+    .unavailable .dot, .blocked .dot, .error .dot, .changes-requested .dot, .failed .dot { background:var(--bad); }
     .running .dot { background:var(--info); }
     .muted { color:var(--muted); }
     table { width:100%; border-collapse:collapse; }
@@ -1154,7 +1452,7 @@ INDEX_HTML = r"""<!doctype html>
     </nav>
   </header>
   <main>
-    <div class="bar"><div id="refresh-state">Loading...</div><button id="refresh">Refresh</button></div>
+    <div class="bar live-bar"><div id="refresh-state" class="live-state">Loading...</div><button id="refresh" class="secondary" title="Troubleshooting snapshot refresh">Refresh snapshot</button></div>
     <section id="overview"></section>
     <section id="rounds" class="hidden"></section>
     <section id="round-detail" class="hidden"></section>
@@ -1162,7 +1460,20 @@ INDEX_HTML = r"""<!doctype html>
     <section id="runtime" class="hidden"></section>
   </main>
   <script>
-    const state = { view: "overview", snapshot: null, selectedRound: "", cursors: {} };
+    const state = {
+      view: "overview",
+      snapshot: null,
+      selectedRound: "",
+      roundDetails: {},
+      cursors: {},
+      timelineKeys: {},
+      live: { state: "reconnecting", mode: "fallback", lastOk: "", error: "", source: "snapshot" },
+      poll: { snapshot: null, detail: null, stale: null },
+      stream: null
+    };
+    const SNAPSHOT_POLL_MS = 15000;
+    const ROUND_EVENT_POLL_MS = 5000;
+    const STALE_GRACE_MS = 45000;
     const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
     const status = value => {
       const label = String(value || "unknown");
@@ -1183,19 +1494,231 @@ INDEX_HTML = r"""<!doctype html>
       ${listBlock("Warnings", mcp.warnings)}
       ${mcp.protocol && Object.keys(mcp.protocol).length ? `<pre class="mono">${esc(JSON.stringify(mcp.protocol, null, 2))}</pre>` : ""}`;
     const fmt = value => value ? new Date(value).toLocaleString() : "unknown";
+    const sourceErrorBanner = names => names
+      .map(name => state.snapshot?.sources?.[name])
+      .filter(source => source?.ok === false)
+      .map(source => `<div class="error-box">${esc(source.source || "source")}: ${esc(source.error_kind || "unavailable")} - ${esc(source.error || "source unavailable; showing last known data")}</div>`)
+      .join("");
     async function getJson(url) {
       const response = await fetch(url, { cache: "no-store" });
       if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
       return await response.json();
     }
-    async function refresh() {
-      document.getElementById("refresh-state").textContent = "Loading...";
+    const captureScroll = () => ({ x: window.scrollX, y: window.scrollY });
+    const restoreScroll = scroll => requestAnimationFrame(() => window.scrollTo(scroll.x, scroll.y));
+    const liveLabel = () => state.live.state === "fallback" ? "fallback polling" : state.live.state;
+    function updateLiveState(next) {
+      state.live = { ...state.live, ...next };
+      const fresh = state.live.lastOk ? `Last update ${fmt(state.live.lastOk)}` : "Waiting for first update";
+      const detail = state.live.error ? `${state.live.source}: ${state.live.error}` : `${fresh} via ${state.live.mode}`;
+      document.getElementById("refresh-state").innerHTML = `<div>${status(liveLabel())}</div><div class="muted">${esc(detail)}</div>`;
+    }
+    function markLiveOk(source) {
+      updateLiveState({ state: "fallback", mode: "fallback polling", lastOk: new Date().toISOString(), error: "", source });
+    }
+    function markStreamOk(source) {
+      updateLiveState({ state: "connected", mode: "stream", lastOk: new Date().toISOString(), error: "", source });
+    }
+    function markLiveError(source, err) {
+      updateLiveState({ state: state.live.lastOk ? "reconnecting" : "failed", source, error: err.message || String(err) });
+    }
+    const snapshotSourceFailed = (snapshot, source) => snapshot?.sources?.[source]?.ok === false;
+    const itemSourcesFailed = snapshot => snapshotSourceFailed(snapshot, "messages") || snapshotSourceFailed(snapshot, "notifications");
+    function mergeRowsByKey(previous = [], current = [], key) {
+      const rows = new Map();
+      for (const item of [...previous, ...current]) {
+        if (!item || !item[key]) continue;
+        rows.set(String(item[key]), item);
+      }
+      return [...rows.values()].sort((a, b) => String(b.latest_update || "").localeCompare(String(a.latest_update || "")));
+    }
+    function mergeInboxGroups(previous = [], current = []) {
+      const groups = new Map();
+      for (const group of [...previous, ...current]) {
+        const roundId = String(group?.round_id || "ungrouped");
+        const target = groups.get(roundId) || { round_id: roundId, items: [], latest_update: "" };
+        const seen = new Set(target.items.map(item => [item.type, item.source_id, item.time, item.summary].map(value => String(value || "")).join("|")));
+        for (const item of group?.items || []) {
+          const key = [item.type, item.source_id, item.time, item.summary].map(value => String(value || "")).join("|");
+          if (seen.has(key)) continue;
+          seen.add(key);
+          target.items.push(item);
+          if (String(item.time || "") > String(target.latest_update || "")) target.latest_update = item.time || "";
+        }
+        if (String(group?.latest_update || "") > String(target.latest_update || "")) target.latest_update = group.latest_update;
+        target.items.sort((a, b) => String(b.time || "").localeCompare(String(a.time || "")));
+        groups.set(roundId, target);
+      }
+      return [...groups.values()].sort((a, b) => String(b.latest_update || "").localeCompare(String(a.latest_update || "")));
+    }
+    function mergeSnapshot(nextSnapshot) {
+      if (!state.snapshot || !itemSourcesFailed(nextSnapshot)) return nextSnapshot;
+      const merged = { ...nextSnapshot };
+      merged.rounds = mergeRowsByKey(state.snapshot.rounds || [], nextSnapshot.rounds || [], "round_id");
+      merged.inbox = mergeInboxGroups(state.snapshot.inbox || [], nextSnapshot.inbox || []);
+      merged.overview = { ...(nextSnapshot.overview || {}) };
+      merged.overview.active_round_count = merged.rounds.filter(item => ["running", "waiting", "blocked"].includes(item.status)).length;
+      merged.overview.recent_round_count = merged.rounds.length;
+      merged.overview.latest_update = merged.rounds.reduce((latest, item) => String(item.latest_update || "") > latest ? String(item.latest_update || "") : latest, merged.overview.latest_update || nextSnapshot.generated_at || "");
+      return merged;
+    }
+    function setRoundDetail(roundId, detail) {
+      const previous = state.roundDetails[roundId];
+      if (previous && detail?.events?.ok === false) {
+        detail = { ...detail, timeline: previous.timeline || [] };
+      }
+      state.roundDetails[roundId] = detail;
+      state.cursors[roundId] = detail.cursor || state.cursors[roundId] || "";
+      delete state.timelineKeys[roundId];
+      seedTimelineKeys(roundId);
+    }
+    function checkStaleness() {
+      if (!state.live.lastOk) return;
+      const age = Date.now() - new Date(state.live.lastOk).getTime();
+      if (age > Math.max(STALE_GRACE_MS, (state.snapshot?.stale_after_seconds || 0) * 1000)) {
+        updateLiveState({ state: "stale", error: "automatic updates are stale" });
+      }
+    }
+    async function refresh({ manual = false } = {}) {
+      if (manual) updateLiveState({ state: "reconnecting", source: "snapshot", error: "manual troubleshooting refresh" });
       try {
-        state.snapshot = await getJson("/api/snapshot");
+        const scroll = captureScroll();
+        state.snapshot = mergeSnapshot(await getJson("/api/snapshot"));
+        markLiveOk("snapshot");
         render();
-        document.getElementById("refresh-state").textContent = `Last refresh ${fmt(state.snapshot.generated_at)}${state.snapshot.stale ? " - stale data" : ""}`;
+        restoreScroll(scroll);
       } catch (err) {
-        document.getElementById("refresh-state").innerHTML = `<span class="error-box">Snapshot unavailable: ${esc(err.message)}</span>`;
+        markLiveError("snapshot", err);
+      }
+    }
+    const timelineKey = item => [item.type, item.time, item.summary, item.raw?.id || item.raw?.agentId || item.raw?.sender || ""].map(value => String(value || "")).join("|");
+    const eventToTimeline = event => {
+      const item = event.message || event.notification || event.agent || {};
+      return {
+        type: event.type || "event",
+        time: item.createdAt || item.created || item.updatedAt || item.updated || item.timestamp || item.time || "",
+        summary: item.msg || item.message || item.summary || item.taskSummary || item.activity || "",
+        raw: item
+      };
+    };
+    function seedTimelineKeys(roundId) {
+      const detail = state.roundDetails[roundId];
+      if (!detail || state.timelineKeys[roundId]) return;
+      state.timelineKeys[roundId] = new Set((detail.timeline || []).map(timelineKey));
+    }
+    function mergeTimelineEvents(roundId, eventsPayload) {
+      const detail = state.roundDetails[roundId];
+      if (!detail || !eventsPayload?.ok) return false;
+      seedTimelineKeys(roundId);
+      let changed = false;
+      for (const event of eventsPayload.events || []) {
+        const item = eventToTimeline(event);
+        const key = timelineKey(item);
+        if (state.timelineKeys[roundId].has(key)) continue;
+        state.timelineKeys[roundId].add(key);
+        detail.timeline.push(item);
+        changed = true;
+      }
+      detail.timeline.sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+      if (eventsPayload.cursor) state.cursors[roundId] = eventsPayload.cursor;
+      return changed;
+    }
+    function applyLiveEvent(payload) {
+      if (!payload || typeof payload !== "object") return;
+      if (payload.type === "heartbeat") {
+        markStreamOk(payload.source || "stream");
+        return;
+      }
+      const data = payload.data || {};
+      if ((payload.type === "snapshot.initial" || payload.type === "snapshot.updated") && data.snapshot) {
+        const scroll = captureScroll();
+        state.snapshot = mergeSnapshot(data.snapshot);
+        markStreamOk("snapshot");
+        render();
+        restoreScroll(scroll);
+        return;
+      }
+      if (payload.type === "source.error") {
+        const source = data.source || payload.source || "source";
+        markLiveError(source, new Error(data.error || `${source} unavailable`));
+        return;
+      }
+      if (payload.type === "round.detail.updated" && data.round?.round_id) {
+        setRoundDetail(data.round.round_id, data.round);
+        markStreamOk("round-detail");
+        if (state.selectedRound === data.round.round_id) renderRoundDetail();
+        return;
+      }
+      if (payload.type === "timeline.appended" && data.round_id && data.entry) {
+        const detail = state.roundDetails[data.round_id];
+        if (!detail) return;
+        seedTimelineKeys(data.round_id);
+        const key = timelineKey(data.entry);
+        if (!state.timelineKeys[data.round_id].has(key)) {
+          state.timelineKeys[data.round_id].add(key);
+          detail.timeline.push(data.entry);
+          detail.timeline.sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+          if (state.selectedRound === data.round_id) renderRoundDetail();
+        }
+        markStreamOk("round-timeline");
+        return;
+      }
+      if ((payload.type === "rounds.updated" || payload.type === "inbox.updated" || payload.type === "overview.updated" || payload.type === "runtime.updated") && state.snapshot) {
+        if (payload.type === "rounds.updated" && !itemSourcesFailed(state.snapshot)) state.snapshot.rounds = data.rounds || [];
+        if (payload.type === "inbox.updated" && !itemSourcesFailed(state.snapshot)) state.snapshot.inbox = data.inbox || [];
+        if (payload.type === "overview.updated" && !itemSourcesFailed(state.snapshot)) state.snapshot.overview = data;
+        if (payload.type === "runtime.updated") state.snapshot.sources = data.sources || state.snapshot.sources;
+        markStreamOk(payload.source || "stream");
+        render();
+        return;
+      }
+      if (payload.type === "snapshot" && payload.snapshot) {
+        const scroll = captureScroll();
+        state.snapshot = mergeSnapshot(payload.snapshot);
+        markStreamOk("snapshot");
+        render();
+        restoreScroll(scroll);
+        return;
+      }
+      if (payload.type === "round_events" && payload.round_id) {
+        const changed = mergeTimelineEvents(payload.round_id, payload);
+        markStreamOk("round-events");
+        if (changed && state.selectedRound === payload.round_id) renderRoundDetail();
+        return;
+      }
+      if (payload.type === "round_detail" && payload.round_id && payload.detail) {
+        setRoundDetail(payload.round_id, payload.detail);
+        markStreamOk("round-detail");
+        if (state.selectedRound === payload.round_id) renderRoundDetail();
+      }
+    }
+    function startLiveUpdates() {
+      if (!("EventSource" in window)) {
+        updateLiveState({ state: "fallback", mode: "fallback polling", source: "snapshot", error: "" });
+        return;
+      }
+      try {
+        const stream = new EventSource("/api/live");
+        state.stream = stream;
+        stream.onopen = () => markStreamOk("stream");
+        stream.onmessage = event => applyLiveEvent(JSON.parse(event.data));
+        stream.addEventListener("snapshot.initial", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("snapshot.updated", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("overview.updated", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("rounds.updated", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("inbox.updated", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("runtime.updated", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("source.error", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("round.detail.updated", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("timeline.appended", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.addEventListener("heartbeat", event => applyLiveEvent(JSON.parse(event.data)));
+        stream.onerror = () => {
+          stream.close();
+          state.stream = null;
+          updateLiveState({ state: "fallback", mode: "fallback polling", source: "stream", error: "stream unavailable; using automatic polling" });
+        };
+      } catch (err) {
+        updateLiveState({ state: "fallback", mode: "fallback polling", source: "stream", error: err.message || String(err) });
       }
     }
     function renderOverview() {
@@ -1213,32 +1736,69 @@ INDEX_HTML = r"""<!doctype html>
     }
     function renderRounds() {
       const rows = state.snapshot.rounds;
+      const warnings = sourceErrorBanner(["messages", "notifications"]);
       document.getElementById("rounds").innerHTML = rows.length ? `
+        ${warnings}
         <div class="table-wrap"><table><thead><tr><th>Round</th><th>Status</th><th>Phase</th><th>Agents</th><th>Latest update</th><th>Outcome</th><th>Branches</th><th>MCP</th></tr></thead><tbody>
         ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}</td><td>${esc(row.phase)}</td><td>${row.agent_count}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.outcome || "")}${row.mcp?.blockers?.length ? `<div class="error-box">${esc(row.mcp.blockers.join("; "))}</div>` : ""}</td><td>${(row.branches || []).map(branch => `<div class="mono">${esc(branch)}</div>`).join("")}${row.branch_source ? `<div class="muted">${esc(row.branch_source)}</div>` : ""}</td><td>${field("Expected", row.mcp?.expected_branch)}${field("PR-ready", row.mcp?.pr_ready_branch)}${field("Validation", row.mcp?.validation_status)}${field("Remote SHA", row.mcp?.remote_branch_sha)}</td></tr>`).join("")}
-        </tbody></table></div>` : `<div class="card"><strong>No rounds found</strong><div class="muted">Hub returned no round-identifiable agents, messages, or notifications.</div></div>`;
+        </tbody></table></div>` : `${warnings}<div class="card"><strong>No rounds found</strong><div class="muted">Hub returned no round-identifiable agents, messages, or notifications.</div></div>`;
       document.querySelectorAll("[data-round]").forEach(row => row.onclick = () => openRound(row.dataset.round));
     }
-    async function openRound(roundId) {
+    async function openRound(roundId, { force = false } = {}) {
       state.selectedRound = roundId;
       setView("round-detail");
-      document.getElementById("round-detail").innerHTML = `<div class="card">Loading ${esc(roundId)}...</div>`;
-      const detail = await getJson(`/api/rounds/${encodeURIComponent(roundId)}`);
+      if (!state.roundDetails[roundId] || force) {
+        document.getElementById("round-detail").innerHTML = `<div class="card">Loading ${esc(roundId)}...</div>`;
+        const detail = await getJson(`/api/rounds/${encodeURIComponent(roundId)}`);
+        setRoundDetail(roundId, detail);
+        markLiveOk("round-detail");
+      }
+      renderRoundDetail();
+      startRoundEventPolling();
+    }
+    async function pollSelectedRoundEvents() {
+      const roundId = state.selectedRound;
+      if (!roundId || state.view !== "round-detail") return;
+      try {
+        const cursor = state.cursors[roundId] || "";
+        const payload = await getJson(`/api/rounds/${encodeURIComponent(roundId)}/events?cursor=${encodeURIComponent(cursor)}`);
+        const changed = mergeTimelineEvents(roundId, payload);
+        markLiveOk("round-events");
+        if (changed) renderRoundDetail();
+      } catch (err) {
+        markLiveError("round-events", err);
+        try {
+          await openRound(roundId, { force: true });
+          updateLiveState({ state: "fallback", mode: "fallback snapshot", source: "round-detail", error: "" });
+        } catch (fallbackErr) {
+          markLiveError("round-detail", fallbackErr);
+        }
+      }
+    }
+    function startRoundEventPolling() {
+      if (state.poll.detail) clearInterval(state.poll.detail);
+      state.poll.detail = setInterval(pollSelectedRoundEvents, ROUND_EVENT_POLL_MS);
+    }
+    function renderRoundDetail() {
+      const roundId = state.selectedRound;
+      const detail = state.roundDetails[roundId];
+      if (!detail) return;
       const agents = detail.status.agents || [];
       const review = detail.final_review || {};
       document.getElementById("round-detail").innerHTML = `
-        <div class="bar"><button id="back-rounds">Back to rounds</button><button id="refresh-round">Refresh timeline</button></div>
+        <div class="bar"><button id="back-rounds">Back to rounds</button><button id="refresh-round" class="secondary" title="Troubleshooting detail refresh">Refresh timeline snapshot</button></div>
         <div class="split">
           <div class="detail"><h2 class="mono">${esc(roundId)}</h2><div>${status(detail.visible_status || detail.status.status || "unknown")}</div><h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div></div>`).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
           <div class="detail"><h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}${mcpBlock(detail.mcp)}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? agents.map(agent => `<div class="card"><strong>${esc(agent.name || agent.slug)}</strong><div>${status(agent.phase || "unknown")}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`).join("") : `<div class="muted">No agents found.</div>`}<h3>Runner Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No runner output available.")}</div>`}</div>
         </div>`;
       document.getElementById("back-rounds").onclick = () => setView("rounds");
-      document.getElementById("refresh-round").onclick = () => openRound(roundId);
+      document.getElementById("refresh-round").onclick = () => openRound(roundId, { force: true });
     }
     function renderInbox() {
       const groups = state.snapshot.inbox;
-      document.getElementById("inbox").innerHTML = groups.length ? groups.map(group => `
-        <div class="detail"><h2>${esc(group.round_id)}</h2>${group.items.map(item => `<div class="timeline item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)} ${esc(item.source_id)}</div><div>${esc(item.summary)}</div></div>`).join("")}</div>`).join("") : `<div class="card"><strong>No inbox updates</strong><div class="muted">Hub returned no messages or notifications.</div></div>`;
+      const warnings = sourceErrorBanner(["messages", "notifications"]);
+      document.getElementById("inbox").innerHTML = groups.length ? warnings + groups.map(group => `
+        <div class="detail"><h2>${esc(group.round_id)}</h2>${group.items.map(item => `<div class="timeline item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)} ${esc(item.source_id)}</div><div>${esc(item.summary)}</div></div>`).join("")}</div>`).join("") : `${warnings}<div class="card"><strong>No inbox updates</strong><div class="muted">Hub returned no messages or notifications.</div></div>`;
     }
     function renderRuntime() {
       const sources = state.snapshot.sources;
@@ -1254,15 +1814,21 @@ INDEX_HTML = r"""<!doctype html>
     function render() {
       if (!state.snapshot) return;
       renderOverview(); renderRounds(); renderInbox(); renderRuntime();
+      if (state.view === "round-detail") {
+        renderRoundDetail();
+        return;
+      }
       if (state.view !== "round-detail") {
         document.querySelectorAll("main > section").forEach(el => el.classList.add("hidden"));
         document.getElementById(state.view).classList.remove("hidden");
       }
     }
     document.querySelectorAll("nav button").forEach(btn => btn.onclick = () => setView(btn.dataset.view));
-    document.getElementById("refresh").onclick = refresh;
+    document.getElementById("refresh").onclick = () => refresh({ manual: true });
+    startLiveUpdates();
+    state.poll.snapshot = setInterval(refresh, SNAPSHOT_POLL_MS);
+    state.poll.stale = setInterval(checkStaleness, 5000);
     refresh();
-    setInterval(refresh, 15000);
   </script>
 </body>
 </html>
@@ -1289,6 +1855,14 @@ class HubRequestHandler(BaseHTTPRequestHandler):
                 self.respond_json(build_snapshot(self.provider))
             elif path == "/api/contract":
                 self.respond_json({"ok": True, "contract": BROWSER_JSON_CONTRACT})
+            elif path in {"/api/live", "/api/stream"}:
+                cursor = query.get("cursor", [self.headers.get("Last-Event-ID", "")])[0]
+                round_id = query.get("round_id", [""])[0]
+                accepts_sse = "text/event-stream" in self.headers.get("Accept", "") or query.get("format", [""])[0] == "sse"
+                if accepts_sse:
+                    self.respond_sse(cursor=cursor, round_id=round_id, seconds=int(query.get("seconds", ["30"])[0] or 30))
+                else:
+                    self.respond_json(build_live_update_batch(self.provider, cursor=cursor, round_id=round_id))
             elif path == "/api/overview":
                 self.respond_json(build_snapshot(self.provider)["overview"])
             elif path == "/api/rounds":
@@ -1339,6 +1913,32 @@ class HubRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def respond_sse(self, *, cursor: str = "", round_id: str = "", seconds: int = 30) -> None:
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "keep-alive")
+        self.end_headers()
+        deadline = time.monotonic() + max(1, min(seconds, 60))
+        current_cursor = cursor
+        while time.monotonic() <= deadline:
+            batch = build_live_update_batch(self.provider, cursor=current_cursor, round_id=round_id)
+            current_cursor = batch["cursor"]
+            try:
+                for event in batch["events"]:
+                    self.write_sse_event(event)
+                self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                return
+            if batch["events"] and any(event.get("type") != "heartbeat" for event in batch["events"]):
+                continue
+            time.sleep(15)
+
+    def write_sse_event(self, event: dict[str, Any]) -> None:
+        data = json.dumps(event, sort_keys=True, default=str)
+        frame = f"id: {event.get('cursor') or event.get('id') or ''}\nevent: {event.get('type') or 'message'}\ndata: {data}\n\n"
+        self.wfile.write(frame.encode())
 
 
 def serve(host: str, port: int) -> None:
