@@ -582,6 +582,45 @@ def test_round_detail_loads_openspec_status_when_progress_identifies_change():
     assert detail["spec_status"]["change"] == "update-web-app"
 
 
+def test_frontend_live_update_contract_markers_are_present():
+    contract = web_app_hub.BROWSER_JSON_CONTRACT["live_updates"]
+    html = web_app_hub.INDEX_HTML
+    assert contract["round_events"].startswith("cursor-based read-only GET")
+    assert contract["states"] == ["connected", "reconnecting", "stale", "fallback", "failed"]
+    assert "SNAPSHOT_POLL_MS" in html
+    assert "ROUND_EVENT_POLL_MS" in html
+    assert "/api/snapshot" in html
+    assert "/api/rounds/${encodeURIComponent(roundId)}/events?cursor=${encodeURIComponent(cursor)}" in html
+    assert "state.cursors[roundId]" in html
+    assert "timelineKeys" in html
+    assert "mergeTimelineEvents" in html
+    assert "EventSource" in html
+    assert "/api/updates" in html
+    assert "markStreamOk" in html
+    assert "checkStaleness" in html
+    assert "fallback polling" in html
+    assert "Refresh snapshot" in html
+    assert "Troubleshooting snapshot refresh" in html
+
+
+def test_frontend_automatic_update_fetches_are_read_only_no_spend_paths():
+    html = web_app_hub.INDEX_HTML
+    assert "fetch(url, { cache: \"no-store\" })" in html
+    assert "method:" not in html
+    assert "/api/snapshot" in html
+    assert "/api/rounds/${encodeURIComponent(roundId)}/events" in html
+    assert "/api/rounds/${encodeURIComponent(roundId)}" in html
+    for forbidden in (
+        "scion_ops_start",
+        "scion_ops_abort",
+        "scion_ops_retry",
+        "scion_ops_archive",
+        "validate_spec_change(",
+        "do_POST(",
+    ):
+        assert forbidden not in html
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

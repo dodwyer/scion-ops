@@ -67,6 +67,12 @@ BROWSER_JSON_CONTRACT = {
         },
         "final_review": "structured final-review verdict, normalized verdict, display label, source, and blockers",
     },
+    "live_updates": {
+        "snapshot": "automatic read-only GET /api/snapshot refresh with preserved selected view and scroll context",
+        "round_events": "cursor-based read-only GET /api/rounds/{round_id}/events polling for selected round timelines",
+        "states": ["connected", "reconnecting", "stale", "fallback", "failed"],
+        "manual_refresh": "secondary troubleshooting-only control; ordinary monitoring uses automatic updates",
+    },
 }
 BRANCH_FIELD_NAMES = {
     "branch",
@@ -1120,13 +1126,16 @@ INDEX_HTML = r"""<!doctype html>
     button.active { background:#202225; color:#fff; border-color:#202225; }
     main { max-width:1280px; margin:0 auto; padding:18px 20px 32px; }
     .bar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; color:var(--muted); }
+    .live-bar { align-items:flex-start; }
+    .live-state { display:flex; flex-direction:column; gap:3px; }
+    .secondary { font-size:12px; padding:5px 8px; color:var(--muted); }
     .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
     .card, .table-wrap, .detail { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; }
     .status { display:inline-flex; align-items:center; gap:6px; font-weight:650; text-transform:capitalize; }
     .dot { width:9px; height:9px; border-radius:50%; background:var(--muted); display:inline-block; }
-    .ready .dot, .healthy .dot, .completed .dot, .accepted .dot { background:var(--good); }
-    .degraded .dot, .waiting .dot, .stale .dot, .observed .dot { background:var(--warn); }
-    .unavailable .dot, .blocked .dot, .error .dot, .changes-requested .dot { background:var(--bad); }
+    .ready .dot, .healthy .dot, .completed .dot, .accepted .dot, .connected .dot, .fallback-polling .dot { background:var(--good); }
+    .degraded .dot, .waiting .dot, .stale .dot, .observed .dot, .reconnecting .dot { background:var(--warn); }
+    .unavailable .dot, .blocked .dot, .error .dot, .changes-requested .dot, .failed .dot { background:var(--bad); }
     .running .dot { background:var(--info); }
     .muted { color:var(--muted); }
     table { width:100%; border-collapse:collapse; }
@@ -1154,7 +1163,7 @@ INDEX_HTML = r"""<!doctype html>
     </nav>
   </header>
   <main>
-    <div class="bar"><div id="refresh-state">Loading...</div><button id="refresh">Refresh</button></div>
+    <div class="bar live-bar"><div id="refresh-state" class="live-state">Loading...</div><button id="refresh" class="secondary" title="Troubleshooting snapshot refresh">Refresh snapshot</button></div>
     <section id="overview"></section>
     <section id="rounds" class="hidden"></section>
     <section id="round-detail" class="hidden"></section>
@@ -1162,7 +1171,20 @@ INDEX_HTML = r"""<!doctype html>
     <section id="runtime" class="hidden"></section>
   </main>
   <script>
-    const state = { view: "overview", snapshot: null, selectedRound: "", cursors: {} };
+    const state = {
+      view: "overview",
+      snapshot: null,
+      selectedRound: "",
+      roundDetails: {},
+      cursors: {},
+      timelineKeys: {},
+      live: { state: "reconnecting", mode: "fallback", lastOk: "", error: "", source: "snapshot" },
+      poll: { snapshot: null, detail: null, stale: null },
+      stream: null
+    };
+    const SNAPSHOT_POLL_MS = 15000;
+    const ROUND_EVENT_POLL_MS = 5000;
+    const STALE_GRACE_MS = 45000;
     const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
     const status = value => {
       const label = String(value || "unknown");
@@ -1188,14 +1210,121 @@ INDEX_HTML = r"""<!doctype html>
       if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
       return await response.json();
     }
-    async function refresh() {
-      document.getElementById("refresh-state").textContent = "Loading...";
+    const captureScroll = () => ({ x: window.scrollX, y: window.scrollY });
+    const restoreScroll = scroll => requestAnimationFrame(() => window.scrollTo(scroll.x, scroll.y));
+    const liveLabel = () => state.live.state === "fallback" ? "fallback polling" : state.live.state;
+    function updateLiveState(next) {
+      state.live = { ...state.live, ...next };
+      const fresh = state.live.lastOk ? `Last update ${fmt(state.live.lastOk)}` : "Waiting for first update";
+      const detail = state.live.error ? `${state.live.source}: ${state.live.error}` : `${fresh} via ${state.live.mode}`;
+      document.getElementById("refresh-state").innerHTML = `<div>${status(liveLabel())}</div><div class="muted">${esc(detail)}</div>`;
+    }
+    function markLiveOk(source) {
+      updateLiveState({ state: "fallback", mode: "fallback polling", lastOk: new Date().toISOString(), error: "", source });
+    }
+    function markStreamOk(source) {
+      updateLiveState({ state: "connected", mode: "stream", lastOk: new Date().toISOString(), error: "", source });
+    }
+    function markLiveError(source, err) {
+      updateLiveState({ state: state.live.lastOk ? "reconnecting" : "failed", source, error: err.message || String(err) });
+    }
+    function checkStaleness() {
+      if (!state.live.lastOk) return;
+      const age = Date.now() - new Date(state.live.lastOk).getTime();
+      if (age > Math.max(STALE_GRACE_MS, (state.snapshot?.stale_after_seconds || 0) * 1000)) {
+        updateLiveState({ state: "stale", error: "automatic updates are stale" });
+      }
+    }
+    async function refresh({ manual = false } = {}) {
+      if (manual) updateLiveState({ state: "reconnecting", source: "snapshot", error: "manual troubleshooting refresh" });
       try {
+        const scroll = captureScroll();
         state.snapshot = await getJson("/api/snapshot");
+        markLiveOk("snapshot");
         render();
-        document.getElementById("refresh-state").textContent = `Last refresh ${fmt(state.snapshot.generated_at)}${state.snapshot.stale ? " - stale data" : ""}`;
+        restoreScroll(scroll);
       } catch (err) {
-        document.getElementById("refresh-state").innerHTML = `<span class="error-box">Snapshot unavailable: ${esc(err.message)}</span>`;
+        markLiveError("snapshot", err);
+      }
+    }
+    const timelineKey = item => [item.type, item.time, item.summary, item.raw?.id || item.raw?.agentId || item.raw?.sender || ""].map(value => String(value || "")).join("|");
+    const eventToTimeline = event => {
+      const item = event.message || event.notification || event.agent || {};
+      return {
+        type: event.type || "event",
+        time: item.createdAt || item.created || item.updatedAt || item.updated || item.timestamp || item.time || "",
+        summary: item.msg || item.message || item.summary || item.taskSummary || item.activity || "",
+        raw: item
+      };
+    };
+    function seedTimelineKeys(roundId) {
+      const detail = state.roundDetails[roundId];
+      if (!detail || state.timelineKeys[roundId]) return;
+      state.timelineKeys[roundId] = new Set((detail.timeline || []).map(timelineKey));
+    }
+    function mergeTimelineEvents(roundId, eventsPayload) {
+      const detail = state.roundDetails[roundId];
+      if (!detail || !eventsPayload?.ok) return false;
+      seedTimelineKeys(roundId);
+      let changed = false;
+      for (const event of eventsPayload.events || []) {
+        const item = eventToTimeline(event);
+        const key = timelineKey(item);
+        if (state.timelineKeys[roundId].has(key)) continue;
+        state.timelineKeys[roundId].add(key);
+        detail.timeline.push(item);
+        changed = true;
+      }
+      detail.timeline.sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+      if (eventsPayload.cursor) state.cursors[roundId] = eventsPayload.cursor;
+      return changed;
+    }
+    function applyLiveEvent(payload) {
+      if (!payload || typeof payload !== "object") return;
+      if (payload.type === "heartbeat") {
+        markStreamOk(payload.source || "stream");
+        return;
+      }
+      if (payload.type === "snapshot" && payload.snapshot) {
+        const scroll = captureScroll();
+        state.snapshot = payload.snapshot;
+        markStreamOk("snapshot");
+        render();
+        restoreScroll(scroll);
+        return;
+      }
+      if (payload.type === "round_events" && payload.round_id) {
+        const changed = mergeTimelineEvents(payload.round_id, payload);
+        markStreamOk("round-events");
+        if (changed && state.selectedRound === payload.round_id) renderRoundDetail();
+        return;
+      }
+      if (payload.type === "round_detail" && payload.round_id && payload.detail) {
+        state.roundDetails[payload.round_id] = payload.detail;
+        state.cursors[payload.round_id] = payload.detail.cursor || state.cursors[payload.round_id] || "";
+        delete state.timelineKeys[payload.round_id];
+        seedTimelineKeys(payload.round_id);
+        markStreamOk("round-detail");
+        if (state.selectedRound === payload.round_id) renderRoundDetail();
+      }
+    }
+    function startLiveUpdates() {
+      if (!("EventSource" in window)) {
+        updateLiveState({ state: "fallback", mode: "fallback polling", source: "snapshot", error: "" });
+        return;
+      }
+      try {
+        const stream = new EventSource("/api/updates");
+        state.stream = stream;
+        stream.onopen = () => markStreamOk("stream");
+        stream.onmessage = event => applyLiveEvent(JSON.parse(event.data));
+        stream.onerror = () => {
+          stream.close();
+          state.stream = null;
+          updateLiveState({ state: "fallback", mode: "fallback polling", source: "stream", error: "stream unavailable; using automatic polling" });
+        };
+      } catch (err) {
+        updateLiveState({ state: "fallback", mode: "fallback polling", source: "stream", error: err.message || String(err) });
       }
     }
     function renderOverview() {
@@ -1219,21 +1348,58 @@ INDEX_HTML = r"""<!doctype html>
         </tbody></table></div>` : `<div class="card"><strong>No rounds found</strong><div class="muted">Hub returned no round-identifiable agents, messages, or notifications.</div></div>`;
       document.querySelectorAll("[data-round]").forEach(row => row.onclick = () => openRound(row.dataset.round));
     }
-    async function openRound(roundId) {
+    async function openRound(roundId, { force = false } = {}) {
       state.selectedRound = roundId;
       setView("round-detail");
-      document.getElementById("round-detail").innerHTML = `<div class="card">Loading ${esc(roundId)}...</div>`;
-      const detail = await getJson(`/api/rounds/${encodeURIComponent(roundId)}`);
+      if (!state.roundDetails[roundId] || force) {
+        document.getElementById("round-detail").innerHTML = `<div class="card">Loading ${esc(roundId)}...</div>`;
+        const detail = await getJson(`/api/rounds/${encodeURIComponent(roundId)}`);
+        state.roundDetails[roundId] = detail;
+        state.cursors[roundId] = detail.cursor || state.cursors[roundId] || "";
+        delete state.timelineKeys[roundId];
+        seedTimelineKeys(roundId);
+        markLiveOk("round-detail");
+      }
+      renderRoundDetail();
+      startRoundEventPolling();
+    }
+    async function pollSelectedRoundEvents() {
+      const roundId = state.selectedRound;
+      if (!roundId || state.view !== "round-detail") return;
+      try {
+        const cursor = state.cursors[roundId] || "";
+        const payload = await getJson(`/api/rounds/${encodeURIComponent(roundId)}/events?cursor=${encodeURIComponent(cursor)}`);
+        const changed = mergeTimelineEvents(roundId, payload);
+        markLiveOk("round-events");
+        if (changed) renderRoundDetail();
+      } catch (err) {
+        markLiveError("round-events", err);
+        try {
+          await openRound(roundId, { force: true });
+          updateLiveState({ state: "fallback", mode: "fallback snapshot", source: "round-detail", error: "" });
+        } catch (fallbackErr) {
+          markLiveError("round-detail", fallbackErr);
+        }
+      }
+    }
+    function startRoundEventPolling() {
+      if (state.poll.detail) clearInterval(state.poll.detail);
+      state.poll.detail = setInterval(pollSelectedRoundEvents, ROUND_EVENT_POLL_MS);
+    }
+    function renderRoundDetail() {
+      const roundId = state.selectedRound;
+      const detail = state.roundDetails[roundId];
+      if (!detail) return;
       const agents = detail.status.agents || [];
       const review = detail.final_review || {};
       document.getElementById("round-detail").innerHTML = `
-        <div class="bar"><button id="back-rounds">Back to rounds</button><button id="refresh-round">Refresh timeline</button></div>
+        <div class="bar"><button id="back-rounds">Back to rounds</button><button id="refresh-round" class="secondary" title="Troubleshooting detail refresh">Refresh timeline snapshot</button></div>
         <div class="split">
           <div class="detail"><h2 class="mono">${esc(roundId)}</h2><div>${status(detail.visible_status || detail.status.status || "unknown")}</div><h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div></div>`).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
           <div class="detail"><h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}${mcpBlock(detail.mcp)}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? agents.map(agent => `<div class="card"><strong>${esc(agent.name || agent.slug)}</strong><div>${status(agent.phase || "unknown")}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`).join("") : `<div class="muted">No agents found.</div>`}<h3>Runner Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No runner output available.")}</div>`}</div>
         </div>`;
       document.getElementById("back-rounds").onclick = () => setView("rounds");
-      document.getElementById("refresh-round").onclick = () => openRound(roundId);
+      document.getElementById("refresh-round").onclick = () => openRound(roundId, { force: true });
     }
     function renderInbox() {
       const groups = state.snapshot.inbox;
@@ -1254,15 +1420,21 @@ INDEX_HTML = r"""<!doctype html>
     function render() {
       if (!state.snapshot) return;
       renderOverview(); renderRounds(); renderInbox(); renderRuntime();
+      if (state.view === "round-detail") {
+        renderRoundDetail();
+        return;
+      }
       if (state.view !== "round-detail") {
         document.querySelectorAll("main > section").forEach(el => el.classList.add("hidden"));
         document.getElementById(state.view).classList.remove("hidden");
       }
     }
     document.querySelectorAll("nav button").forEach(btn => btn.onclick = () => setView(btn.dataset.view));
-    document.getElementById("refresh").onclick = refresh;
+    document.getElementById("refresh").onclick = () => refresh({ manual: true });
+    startLiveUpdates();
+    state.poll.snapshot = setInterval(refresh, SNAPSHOT_POLL_MS);
+    state.poll.stale = setInterval(checkStaleness, 5000);
     refresh();
-    setInterval(refresh, 15000);
   </script>
 </body>
 </html>
