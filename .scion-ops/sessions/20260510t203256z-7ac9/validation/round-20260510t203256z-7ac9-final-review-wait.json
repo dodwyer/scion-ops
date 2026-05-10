@@ -1,0 +1,498 @@
+{
+  "agent": "round-20260510t203256z-7ac9-final-review",
+  "agent_status": {
+    "agent": {
+      "activity": "stalled",
+      "containerStatus": "Succeeded (Completed)",
+      "created": "2026-05-10T20:48:34.103487595Z",
+      "createdBy": "b466f4b0-5733-46f2-837f-93020a18a41d",
+      "deletedAt": "0001-01-01T00:00:00Z",
+      "detached": true,
+      "grove": "scion-ops",
+      "groveId": "d7e5f43d-c64a-4b3f-ac4c-f12736f75ff4",
+      "harnessAuth": "auth-file",
+      "harnessConfig": "codex-exec",
+      "id": "1329e78d-6872-4ddf-a8d8-3988d5069cde",
+      "lastSeen": "2026-05-10T21:03:36.606442304Z",
+      "name": "round-20260510t203256z-7ac9-final-review",
+      "ownerId": "b466f4b0-5733-46f2-837f-93020a18a41d",
+      "phase": "running",
+      "runtime": "kubernetes",
+      "runtimeBrokerId": "fffccda9-ecfb-4bda-964c-4397ecf5974c",
+      "runtimeBrokerName": "kind-control-plane",
+      "slug": "round-20260510t203256z-7ac9-final-review",
+      "stateVersion": 2,
+      "template": "final-reviewer-codex",
+      "updated": "2026-05-10T21:03:36.606442304Z",
+      "visibility": "private"
+    },
+    "ok": true,
+    "source": "scion list"
+  },
+  "artifact": ".scion-ops/sessions/20260510t203256z-7ac9/reviews/final-review.json",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "fa137171f9bfdc45856df3914d095a57d9b87066",
+      "checked_at": "2026-05-10T20:48:46.695154Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "fa137171f9bfdc45856df3914d095a57d9b87066",
+      "checked_at": "2026-05-10T20:49:07.124861Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "fa137171f9bfdc45856df3914d095a57d9b87066",
+      "checked_at": "2026-05-10T20:49:27.517260Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "fa137171f9bfdc45856df3914d095a57d9b87066",
+      "checked_at": "2026-05-10T20:49:47.908618Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "fa137171f9bfdc45856df3914d095a57d9b87066",
+      "checked_at": "2026-05-10T20:50:08.317278Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "fa137171f9bfdc45856df3914d095a57d9b87066",
+      "checked_at": "2026-05-10T20:50:28.715629Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "fa137171f9bfdc45856df3914d095a57d9b87066",
+      "checked_at": "2026-05-10T20:50:49.105849Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "fa137171f9bfdc45856df3914d095a57d9b87066",
+      "checked_at": "2026-05-10T20:51:09.537461Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:51:29.953240Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:51:50.508976Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:52:10.935440Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:52:31.326032Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:52:51.697118Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:53:12.085119Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:53:32.497877Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:53:52.883899Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:54:13.258187Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:54:33.677106Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:54:54.087622Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:55:14.486241Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:55:34.937992Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:55:55.349096Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:56:15.762121Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:56:36.160534Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:56:56.571350Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:57:16.967366Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:57:37.365811Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:57:57.811213Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:58:18.222598Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:58:38.614117Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:58:59.018220Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:59:19.433405Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T20:59:39.835360Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T21:00:00.235462Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T21:00:20.685641Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T21:00:41.093082Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T21:01:01.514971Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T21:01:21.903197Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T21:01:42.270669Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T21:02:02.648926Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T21:02:23.044411Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T21:02:43.445576Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T21:03:03.845792Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T21:03:24.261459Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T21:03:44.664331Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": false,
+      "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+      "checked_at": "2026-05-10T21:03:46.695310Z",
+      "fetch_ok": true,
+      "validation_errors": [
+        "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b"
+      ]
+    }
+  ],
+  "branch": "round-20260510t203256z-7ac9-final-review",
+  "branch_head": "1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+  "completed_at": "2026-05-10T21:03:47.398927Z",
+  "kubectl": {
+    "logs": "error: context \"kind-scion-ops\" does not exist\n",
+    "pod": "error: context \"kind-scion-ops\" does not exist\n"
+  },
+  "last_artifact_error": "artifact head_sha <empty> is not an ancestor of branch head 1cc51b31ca5703039c67ebb39d9b9926b2a5db1b",
+  "last_fetch": {
+    "ok": true,
+    "output": "",
+    "returncode": 0
+  },
+  "ok": false,
+  "poll_interval_seconds": 20,
+  "reason": "timeout_waiting_for_review_artifact",
+  "scion_look_tail": "Using hub: http://scion-hub:8090\n\n\u001b[41m\u001b[97m\u001b[1mError: failed to capture terminal output for agent 'round-20260510t203256z-7ac9-final-review': not_found: Action not found (status: 404)\n\nTo use local-only mode, run: scion hub disable\u001b[0m\n\nUsage:\n  scion look <agent> [flags]\n\nFlags:\n      --full            Capture the full scrollback history\n  -h, --help            help for look\n  -n, --num-lines int   Number of scrollback lines to capture (tail)\n      --plain           Strip ANSI escape sequences from output\n\nGlobal Flags:\n      --cpuprofile string   Write cpu profile to file\n      --debug               Enable debug output (equivalent to SCION_DEBUG=1)\n      --format string       Output format (e.g., json)\n      --global              Use the global grove (equivalent to --grove global)\n  -g, --grove string        Grove identifier: path, slug (with Hub), or git URL (with Hub)\n      --hub string          Hub API endpoint URL (overrides SCION_HUB_ENDPOINT)\n      --memprofile string   Write memory profile to file\n      --no-hub              Disable Hub integration for this invocation (local-only mode)\n      --non-interactive     Non-interactive mode: implies --yes, errors on ambiguous prompts\n  -p, --profile string      Configuration profile to use\n      --stats Duration      Interval between printing stats, e.g. 500ms, 60s, 5m (0 to disable) (default 1m0s)\n  -y, --yes                 Skip confirmation prompt\n",
+  "source": "review_artifact_wait",
+  "timeout_seconds": 900
+}

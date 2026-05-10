@@ -1,0 +1,65 @@
+{
+  "artifact": ".scion-ops/sessions/20260510t203256z-7ac9/findings/round-20260510t203256z-7ac9-impl-deps-fix.json",
+  "artifact_json": {
+    "agent": "round-20260510t203256z-7ac9-impl-deps-fix",
+    "blockers": [],
+    "branch": "round-20260510t203256z-7ac9-impl-deps-fix",
+    "changed_files": [
+      "deploy/kind/control-plane/web-app-deployment.yaml",
+      "scripts/test-web-app-hub.py"
+    ],
+    "head_sha": "1ae959296d292f2c5dd5f525f1bca2564d87aeba",
+    "status": "completed",
+    "summary": "Final-review dependency startup issue addressed by launching the kind NiceGUI web app through uv run instead of plain python, allowing script metadata to provide NiceGUI in the reused MCP image.",
+    "tasks_completed": [
+      "Changed the kind web app deployment launcher from plain python to uv run so scripts/web_app_hub.py installs and uses its PEP 723 NiceGUI dependency metadata at startup.",
+      "Preserved the existing scion-ops-mcp image, service identity, ports, probes, workspace mount, Hub/MCP environment, grove id setup, and RBAC resources.",
+      "Added a focused regression test that asserts the kind web app deployment uses uv run for the NiceGUI script launch path."
+    ],
+    "tests_run": [
+      "uv run scripts/test-web-app-hub.py",
+      "git diff --check",
+      "python3 inline PyYAML manifest parse check (failed: system Python environment does not include yaml; covered by uv-run test environment)"
+    ]
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "fa137171f9bfdc45856df3914d095a57d9b87066",
+      "checked_at": "2026-05-10T21:02:45.723643Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "fa137171f9bfdc45856df3914d095a57d9b87066",
+      "checked_at": "2026-05-10T21:03:06.122368Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "fa137171f9bfdc45856df3914d095a57d9b87066",
+      "checked_at": "2026-05-10T21:03:26.516632Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "db9a15b27bb7a6e8c8cd697550622dea9bd0570f",
+      "checked_at": "2026-05-10T21:03:46.918191Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260510t203256z-7ac9-impl-deps-fix",
+  "branch_head": "db9a15b27bb7a6e8c8cd697550622dea9bd0570f",
+  "completed_at": "2026-05-10T21:03:47.484003Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
