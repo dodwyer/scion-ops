@@ -19,6 +19,13 @@
       "role": "implementation",
       "branch": "round-20260510t085414z-4e4f-impl-codex",
       "scope": "Group A Web App Live Update Implementation",
+      "status": "unresponsive",
+      "blocker": "Branch stayed at base and runtime broker failed direct message with broken pipe while agent reported idle."
+    },
+    "round-20260510t085414z-4e4f-impl-codex-live": {
+      "role": "implementation",
+      "branch": "round-20260510t085414z-4e4f-impl-codex-live",
+      "scope": "Narrow replacement for Group A Web App Live Update Implementation",
       "status": "running"
     },
     "round-20260510t085414z-4e4f-impl-claude": {
