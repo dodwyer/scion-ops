@@ -1,0 +1,209 @@
+{
+  "base": "round-20260511t114424z-3da2-spec-integration",
+  "base_commit": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+  "change": "better-information-ui",
+  "created": true,
+  "draft": false,
+  "gh": {
+    "create": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "create",
+        "--base",
+        "round-20260511t114424z-3da2-spec-integration",
+        "--head",
+        "round-20260511t115659z-57a1-integration",
+        "--title",
+        "Implement OpenSpec: better-information-ui",
+        "--body",
+        "Created by scion-ops after successful implementation steward validation.\n\n- Session: `20260511t115659z-57a1`\n- Change: `better-information-ui`\n- Head: `round-20260511t115659z-57a1-integration` (`ba42e64f9977`)\n- Base: `round-20260511t114424z-3da2-spec-integration` (`5f1350801e78`)\n- Steward validation: passed\n- Final review: `accept`\n- Verification: `passed`\n\nVerification commands:\n- `{'command': 'uv run scripts/test-web-app-hub.py', 'status': 'passed'}`\n- `{'command': 'uv run scripts/validate-openspec-change.py better-information-ui', 'status': 'passed'}`\n- `{'command': 'uv run --script scripts/web_app_hub.py --help', 'status': 'passed'}`\n- `{'command': 'git diff --check', 'status': 'passed'}`"
+      ],
+      "ok": true,
+      "output": "Warning: 2 uncommitted changes\nhttps://github.com/dodwyer/scion-ops/pull/141\n",
+      "returncode": 0
+    },
+    "list": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "list",
+        "--head",
+        "round-20260511t115659z-57a1-integration",
+        "--base",
+        "round-20260511t114424z-3da2-spec-integration",
+        "--state",
+        "all",
+        "--json",
+        "number,url,state,title,baseRefName,headRefName",
+        "--limit",
+        "1"
+      ],
+      "ok": true,
+      "output": "[]\n",
+      "returncode": 0
+    }
+  },
+  "head": "round-20260511t115659z-57a1-integration",
+  "head_commit": "ba42e64f9977af91b86f4229a7be7dd4bc555cca",
+  "kind": "implementation",
+  "ok": true,
+  "pr": {
+    "base": "round-20260511t114424z-3da2-spec-integration",
+    "head": "round-20260511t115659z-57a1-integration",
+    "title": "Implement OpenSpec: better-information-ui",
+    "url": "https://github.com/dodwyer/scion-ops/pull/141"
+  },
+  "pr_url": "https://github.com/dodwyer/scion-ops/pull/141",
+  "project_root": "/workspace",
+  "session_id": "20260511t115659z-57a1",
+  "source": "steward_pr_finalizer",
+  "state_recording": {
+    "pr_path": "/workspace/.scion-ops/sessions/20260511t115659z-57a1/pr.json",
+    "state_path": "/workspace/.scion-ops/sessions/20260511t115659z-57a1/state.json"
+  },
+  "validation": {
+    "agent_harnesses": {
+      "final_review": "codex-exec",
+      "implementer": "codex-exec",
+      "repair_implementer": "codex-exec",
+      "secondary_implementer": "claude"
+    },
+    "branch": {
+      "base_branch": "round-20260511t114424z-3da2-spec-integration",
+      "base_commit": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+      "base_resolved_ref": "origin/round-20260511t114424z-3da2-spec-integration",
+      "branch": "round-20260511t115659z-57a1-integration",
+      "commit": "ba42e64f9977af91b86f4229a7be7dd4bc555cca",
+      "resolved_ref": "origin/round-20260511t115659z-57a1-integration"
+    },
+    "change": "better-information-ui",
+    "errors": [],
+    "kind": "implementation",
+    "ok": true,
+    "openspec_validation": {
+      "change": "better-information-ui",
+      "change_path": "openspec/changes/better-information-ui",
+      "errors": [],
+      "ok": true,
+      "project_root": "/workspace",
+      "required_files": {
+        "design.md": "openspec/changes/better-information-ui/design.md",
+        "proposal.md": "openspec/changes/better-information-ui/proposal.md",
+        "tasks.md": "openspec/changes/better-information-ui/tasks.md"
+      },
+      "spec_files": [
+        "openspec/changes/better-information-ui/specs/web-app-hub/spec.md"
+      ],
+      "warnings": []
+    },
+    "openspec_validation_source": "worktree",
+    "project_root": "/workspace",
+    "session_id": "20260511t115659z-57a1",
+    "state": {
+      "agents": {
+        "final_review": {
+          "agent": "round-20260511t115659z-57a1-final-review-2",
+          "artifact": ".scion-ops/sessions/20260511t115659z-57a1/reviews/final-review.json",
+          "branch": "round-20260511t115659z-57a1-final-review-2",
+          "harness_config": "codex-exec",
+          "status": "completed",
+          "template": "final-reviewer-codex",
+          "verdict": "accept"
+        },
+        "implementer": {
+          "agent": "round-20260511t115659z-57a1-impl-codex",
+          "branch": "round-20260511t115659z-57a1-impl-codex",
+          "handoff": ".scion-ops/sessions/20260511t115659z-57a1/findings/round-20260511t115659z-57a1-impl-codex.json",
+          "harness_config": "codex-exec",
+          "status": "completed",
+          "template": "impl-codex"
+        },
+        "repair_implementer": {
+          "agent": "round-20260511t115659z-57a1-impl-codex-overview-repair",
+          "branch": "round-20260511t115659z-57a1-impl-codex-overview-repair",
+          "handoff": ".scion-ops/sessions/20260511t115659z-57a1/findings/round-20260511t115659z-57a1-impl-codex-overview-repair.json",
+          "harness_config": "codex-exec",
+          "status": "completed",
+          "template": "impl-codex"
+        },
+        "secondary_implementer": {
+          "agent": "round-20260511t115659z-57a1-impl-claude",
+          "branch": "round-20260511t115659z-57a1-impl-claude",
+          "handoff": ".scion-ops/sessions/20260511t115659z-57a1/findings/round-20260511t115659z-57a1-impl-claude.json",
+          "harness_config": "claude",
+          "status": "completed",
+          "template": "impl-claude"
+        }
+      },
+      "base_branch": "round-20260511t114424z-3da2-spec-integration",
+      "blockers": [],
+      "branches": {
+        "final_review": "round-20260511t115659z-57a1-final-review-2",
+        "implementer": "round-20260511t115659z-57a1-impl-codex",
+        "integration": "round-20260511t115659z-57a1-integration",
+        "secondary_implementer": "round-20260511t115659z-57a1-impl-claude",
+        "steward": "round-20260511t115659z-57a1-implementation-steward"
+      },
+      "change": "better-information-ui",
+      "final_review": {
+        "artifact": ".scion-ops/sessions/20260511t115659z-57a1/reviews/final-review.json",
+        "blocking_issues": [],
+        "branch": "round-20260511t115659z-57a1-final-review-2",
+        "summary": "Accepting final-review verdict for repaired integration branch.",
+        "verdict": "accept"
+      },
+      "implementation": {
+        "base_branch": "round-20260511t114424z-3da2-spec-integration",
+        "branch": "round-20260511t115659z-57a1-integration",
+        "integration_branch": "round-20260511t115659z-57a1-integration",
+        "integration_head": "ba42e64f9977af91b86f4229a7be7dd4bc555cca"
+      },
+      "kind": "implementation",
+      "next_actions": [
+        "Finalize implementation pull request",
+        "Run readiness validator with PR requirement"
+      ],
+      "phase": "complete",
+      "reviews": [
+        {
+          "artifact": ".scion-ops/sessions/20260511t115659z-57a1/reviews/final-review.json",
+          "blocking_issues": [
+            "Overview render did not surface computed priority_attention and recent_activity fields."
+          ],
+          "branch": "round-20260511t115659z-57a1-final-review",
+          "repair_branch": "round-20260511t115659z-57a1-impl-codex-overview-repair",
+          "verdict": "request_changes"
+        }
+      ],
+      "round_id": "20260511t115659z-57a1",
+      "session_id": "20260511t115659z-57a1",
+      "status": "ready",
+      "verification": {
+        "commands": [
+          {
+            "command": "uv run scripts/test-web-app-hub.py",
+            "status": "passed"
+          },
+          {
+            "command": "uv run scripts/validate-openspec-change.py better-information-ui",
+            "status": "passed"
+          },
+          {
+            "command": "uv run --script scripts/web_app_hub.py --help",
+            "status": "passed"
+          },
+          {
+            "command": "git diff --check",
+            "status": "passed"
+          }
+        ],
+        "status": "passed"
+      },
+      "version": 1
+    },
+    "state_path": "/workspace/.scion-ops/sessions/20260511t115659z-57a1/state.json",
+    "state_source": "/workspace/.scion-ops/sessions/20260511t115659z-57a1/state.json",
+    "warnings": []
+  }
+}
