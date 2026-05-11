@@ -39,6 +39,7 @@ EVENT_SCHEMA_VERSION = "scion-ops-web-app.event.v1"
 FIXTURE_SCHEMA_VERSION = "scion-ops-web-app.fixture.v1"
 READ_ONLY_COMMAND_TIMEOUT_SECONDS = 2
 SNAPSHOT_HISTORY_LIMIT = 8
+DEFAULT_SERVICE_PORT = 8091
 ROUND_ID_RE = re.compile(r"(?:round-)?(?P<id>\d{8}t\d{6}z-[a-z0-9]+)", re.IGNORECASE)
 
 Mode = Literal["live", "fixture"]
@@ -224,8 +225,9 @@ def source_state(
 class LiveSourceAggregator:
     """Builds versioned snapshots from local read-only operational sources."""
 
-    def __init__(self, project_root: Path = PROJECT_ROOT):
+    def __init__(self, project_root: Path = PROJECT_ROOT, *, service_port: int = DEFAULT_SERVICE_PORT):
         self.project_root = project_root
+        self.service_port = service_port
         self.sessions_root = project_root / ".scion-ops" / "sessions"
         self.openspec_root = project_root / "openspec"
         self._scion_ops_module: Any | None = None
@@ -264,7 +266,7 @@ class LiveSourceAggregator:
                 "sources": source_health,
                 "liveService": {
                     "name": "scion-ops-web-app",
-                    "port": 8091,
+                    "port": self.service_port,
                     "healthPath": "/healthz",
                     "fixtureOnly": False,
                     "liveReadsAllowed": True,
@@ -983,8 +985,10 @@ class OperatorConsoleHandler(BaseHTTPRequestHandler):
         if head_only:
             return
         for event in batch["events"]:
-            self._write_sse_event(event)
-        self.wfile.flush()
+            if not self._write_sse_event(event):
+                return
+        if not self._flush():
+            return
         if query.get("once", ["0"])[0] == "1":
             self.close_connection = True
             return
@@ -1006,17 +1010,36 @@ class OperatorConsoleHandler(BaseHTTPRequestHandler):
             )
             try:
                 for event in events:
-                    self._write_sse_event(event)
-                self._write_sse_event(heartbeat)
-                self.wfile.flush()
+                    if not self._write_sse_event(event):
+                        return
+                if not self._write_sse_event(heartbeat):
+                    return
+                if not self._flush():
+                    return
             except (BrokenPipeError, ConnectionResetError):
                 return
         self.close_connection = True
 
-    def _write_sse_event(self, event: dict[str, Any]) -> None:
+    def _write_sse_event(self, event: dict[str, Any]) -> bool:
         data = json.dumps(event, sort_keys=True, default=str)
         frame = f"id: {event.get('cursor') or event.get('id') or ''}\nevent: {event.get('type') or 'message'}\ndata: {data}\n\n"
-        self.wfile.write(frame.encode("utf-8"))
+        return self._write_bytes(frame.encode("utf-8"))
+
+    def _write_bytes(self, body: bytes) -> bool:
+        try:
+            self.wfile.write(body)
+            return True
+        except (BrokenPipeError, ConnectionResetError):
+            self.close_connection = True
+            return False
+
+    def _flush(self) -> bool:
+        try:
+            self.wfile.flush()
+            return True
+        except (BrokenPipeError, ConnectionResetError):
+            self.close_connection = True
+            return False
 
     def _static(self, request_path: str, head_only: bool = False) -> None:
         relative = request_path.lstrip("/") or "index.html"
@@ -1040,7 +1063,7 @@ class OperatorConsoleHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         if not head_only:
-            self.wfile.write(body)
+            self._write_bytes(body)
 
     def _json(self, payload: Any, status: HTTPStatus = HTTPStatus.OK, head_only: bool = False) -> None:
         body = json.dumps(payload, indent=2, sort_keys=True).encode("utf-8")
@@ -1051,7 +1074,7 @@ class OperatorConsoleHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         if not head_only:
-            self.wfile.write(body)
+            self._write_bytes(body)
 
     def _reject_mutation(self) -> None:
         self._json(READ_ONLY_MESSAGE, status=HTTPStatus.METHOD_NOT_ALLOWED)
@@ -1063,10 +1086,11 @@ def build_server(host: str, port: int, static_root: Path, fixture_path: Path, *,
     if mode == "fixture":
         load_fixtures(fixture_path)
     server = ThreadingHTTPServer((host, port), OperatorConsoleHandler)
+    service_port = server.server_port if port == 0 else port
     server.mode = mode  # type: ignore[attr-defined]
     server.static_root = static_root  # type: ignore[attr-defined]
     server.fixture_path = fixture_path  # type: ignore[attr-defined]
-    server.aggregator = LiveSourceAggregator(project_root)  # type: ignore[attr-defined]
+    server.aggregator = LiveSourceAggregator(project_root, service_port=service_port)  # type: ignore[attr-defined]
     server.snapshot_history = {}  # type: ignore[attr-defined]
     server.snapshot_history_lock = threading.Lock()  # type: ignore[attr-defined]
     return server
@@ -1075,7 +1099,7 @@ def build_server(host: str, port: int, static_root: Path, fixture_path: Path, *,
 def main() -> None:
     parser = argparse.ArgumentParser(description="Serve the read-only scion-ops web app operator console.")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", default=8091, type=int)
+    parser.add_argument("--port", default=DEFAULT_SERVICE_PORT, type=int)
     parser.add_argument("--static-root", default=str(DEFAULT_STATIC_ROOT))
     parser.add_argument("--fixture-path", default=str(FIXTURE_PATH))
     parser.add_argument("--mode", choices=["live", "fixture"], default=os.environ.get("SCION_OPS_WEB_APP_MODE", "live"))

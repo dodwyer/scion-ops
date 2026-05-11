@@ -1,6 +1,6 @@
 import { AlertTriangle, CheckCircle2, CircleDot, Database, GitBranch, Inbox, RefreshCcw, Server, ShieldCheck, Wifi, WifiOff } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { applyLiveEvent, fixtureModeRequested, loadOperatorData, markOperatorDataStale, openLiveEventStream } from "./api";
+import { applyLiveEvent, loadOperatorData, markOperatorDataStale, openLiveEventStream } from "./api";
 import type { DiagnosticsPayload, InboxMessage, LiveConnection, LiveEvent, OperatorData, RoundDetail, RoundSummary, SourceHealth, Status } from "./types";
 
 type View = "overview" | "rounds" | "detail" | "inbox" | "runtime" | "diagnostics";
@@ -36,7 +36,6 @@ const statusClass: Record<string, string> = {
 };
 
 export function App() {
-  const fixtureMode = useMemo(() => fixtureModeRequested(), []);
   const [data, setData] = useState<OperatorData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [view, setView] = useState<View>("overview");
@@ -49,7 +48,7 @@ export function App() {
   async function refresh() {
     setLoadError(null);
     try {
-      const operatorData = await loadOperatorData({ fixtureMode });
+      const operatorData = await loadOperatorData();
       setData(operatorData);
       setSelectedRoundId((current) => (operatorData.rounds.some((round) => round.id === current) ? current : operatorData.rounds[0]?.id ?? ""));
     } catch (error) {

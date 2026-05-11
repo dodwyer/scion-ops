@@ -1,0 +1,11 @@
+.git
+.scion-ops
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/.vite
+**/coverage
+**/dist
+**/node_modules

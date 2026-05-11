@@ -136,16 +136,6 @@ describe("live UI contract", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/snapshot", expect.objectContaining({ method: "GET" }));
   });
 
-  it("uses fixture fallback only when explicitly requested", async () => {
-    const fixtureSnapshot = { ...liveSnapshot, sourceMode: "fixture", fixtureBacked: true };
-    const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(fixtureSnapshot)));
-    vi.stubGlobal("fetch", fetchMock);
-
-    await loadOperatorData({ fixtureMode: true });
-
-    expect(fetchMock).toHaveBeenCalledWith("/api/fixtures", expect.objectContaining({ method: "GET" }));
-  });
-
   it("renders live connection and source staleness from snapshot", async () => {
     const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(liveSnapshot)));
     vi.stubGlobal("fetch", fetchMock);

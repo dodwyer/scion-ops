@@ -24,14 +24,8 @@ async function getJson<T>(path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-export function fixtureModeRequested(search = window.location.search): boolean {
-  const params = new URLSearchParams(search);
-  return params.get("fixture") === "1" || params.get("mode") === "fixture";
-}
-
-export async function loadOperatorData(options: { fixtureMode?: boolean } = {}): Promise<OperatorData> {
-  const path = options.fixtureMode ? "/api/fixtures" : "/api/snapshot";
-  const snapshot = await getJson<Omit<OperatorData, "loadedAt">>(path);
+export async function loadOperatorData(): Promise<OperatorData> {
+  const snapshot = await getJson<Omit<OperatorData, "loadedAt">>("/api/snapshot");
   return {
     ...snapshot,
     loadedAt: new Date().toISOString()

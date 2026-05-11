@@ -26,10 +26,10 @@ RUN chown -R 1000:1000 /app/web-app
 
 USER 1000:1000
 
-EXPOSE 8080
+EXPOSE 8787
 
 HEALTHCHECK --interval=10s --timeout=3s \
-  CMD /opt/scion-ops-mcp/venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz', timeout=2)"
+  CMD /opt/scion-ops-mcp/venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://localhost:8787/healthz', timeout=2)"
 
 ENTRYPOINT ["/opt/scion-ops-mcp/venv/bin/python", "/app/web-app/adapter.py"]
-CMD ["--host", "0.0.0.0", "--port", "8080"]
+CMD ["--host", "0.0.0.0", "--port", "8787"]

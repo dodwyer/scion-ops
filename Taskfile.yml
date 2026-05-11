@@ -64,6 +64,10 @@ tasks:
     cmds:
       - bash scripts/build-images.sh --only mcp {{.CLI_ARGS}}
 
+  build:web-app:
+    cmds:
+      - bash scripts/build-images.sh --only web-app {{.CLI_ARGS}}
+
   build:harness:
     cmds:
       - bash scripts/build-images.sh --only {{.CLI_ARGS}}
@@ -170,7 +174,7 @@ tasks:
   update:web-app:
     desc: Reload the web app image and restart its deployment.
     cmds:
-      - task kind:load-images -- localhost/scion-ops-mcp:latest
+      - task kind:load-images -- localhost/scion-ops-web-app:latest
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-ops-web-app
       - task: kind:web-app:status
 
@@ -213,9 +217,19 @@ tasks:
       - task: storage:status
 
   web:hub:
-    desc: Run the read-only browser hub for scion-ops runtime state.
+    desc: Run the canonical React/Vite operator console adapter locally.
     cmds:
-      - uv run scripts/web_app_hub.py {{.CLI_ARGS}}
+      - |
+        set -- {{.CLI_ARGS}}
+        cd new-ui-evaluation
+        if [ ! -d node_modules ]; then
+          npm ci
+        fi
+        npm run build
+        exec python3 adapter.py \
+          --host "${SCION_OPS_WEB_HOST:-127.0.0.1}" \
+          --port "${SCION_OPS_WEB_PORT:-8091}" \
+          "$@"
 
   destroy:
     cmds:
