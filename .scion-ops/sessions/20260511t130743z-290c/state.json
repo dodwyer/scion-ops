@@ -13,7 +13,8 @@
     "secondary_implementer": "round-20260511t130743z-290c-impl-claude",
     "deploy_repair": "round-20260511t130743z-290c-impl-deploy-repair",
     "integration_repair": "round-20260511t130743z-290c-impl-integration-repair",
-    "final_review": "round-20260511t130743z-290c-final-review",
+    "final_review": "round-20260511t130743z-290c-final-review-2",
+    "previous_final_review": "round-20260511t130743z-290c-final-review",
     "integration": "round-20260511t130743z-290c-integration"
   },
   "agents": {},
@@ -21,7 +22,7 @@
     "branch": "round-20260511t130743z-290c-integration",
     "base_branch": "main",
     "integration_branch": "round-20260511t130743z-290c-integration",
-    "integration_sha": "7fbcc789ae0e0970bbccf7ea703b9185a426b712"
+    "integration_sha": "c4087a4079a4a88b16d53c225a697251de235b22"
   },
   "reviews": [
     {
@@ -36,14 +37,15 @@
     }
   ],
   "final_review": {
-    "verdict": "request_changes",
-    "branch": "round-20260511t130743z-290c-final-review",
+    "verdict": "pending",
+    "branch": "round-20260511t130743z-290c-final-review-2",
+    "previous_branch": "round-20260511t130743z-290c-final-review",
+    "previous_verdict": "request_changes",
     "artifact": ".scion-ops/sessions/20260511t130743z-290c/reviews/final-review.json",
-    "blocking_issues": [
-      "scripts/build-images.sh uses new-ui-evaluation/ as Docker context while image-build/new-ui-eval/Dockerfile copies repo-root-relative new-ui-evaluation paths."
-    ],
-    "classification": "implementation_defect",
-    "evidence": "The preview image build path is statically inconsistent; repair branch is being routed before readiness."
+    "repair": {
+      "branch": "round-20260511t130743z-290c-impl-build-context-repair",
+      "summary": "Merged build context repair so scripts/build-images.sh uses repo root for image-build/new-ui-eval/Dockerfile."
+    }
   },
   "verification": {
     "status": "passed_before_final_review",
@@ -66,13 +68,11 @@
       "cause": "final_review_request_changes",
       "classification": "implementation_defect",
       "summary": "Preview image build context mismatch between scripts/build-images.sh and image-build/new-ui-eval/Dockerfile.",
-      "repair_branch": "pending"
+      "repair_branch": "round-20260511t130743z-290c-impl-build-context-repair",
+      "resolved_by": "c4087a4079a4a88b16d53c225a697251de235b22"
     }
   ],
   "next_actions": [
-    "Start bounded repair for scripts/build-images.sh preview Docker context",
-    "Merge repair into integration",
-    "Rerun no-spend verification",
-    "Restart final review from the repaired integration SHA"
+    "Start final review from the repaired integration SHA"
   ]
 }
