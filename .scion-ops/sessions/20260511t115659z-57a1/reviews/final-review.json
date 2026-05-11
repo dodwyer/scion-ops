@@ -1,0 +1,36 @@
+{
+  "review_type": "final",
+  "scores": {
+    "correctness": 2,
+    "completeness": 3,
+    "style": 4
+  },
+  "verdict": "request_changes",
+  "blocking_issues": [
+    "The browser overview still renders only readiness/count cards and source checks, ignoring the new overview.priority_attention and overview.recent_activity fields computed in scripts/web_app_hub.py. This fails the approved Operator Overview requirement to highlight the highest-priority source or round needing attention and render recent activity with action, handoff, reason, timestamp, status, source, and a one-level-deeper diagnostics control. Evidence: openspec/changes/better-information-ui/specs/web-app-hub/spec.md:7, spec.md:13-24; scripts/web_app_hub.py:1466-1475 computes the required fields, but scripts/web_app_hub.py:2872-2883 does not render them."
+  ],
+  "final_failure_classification": "implementation_defect",
+  "final_failure_evidence": "The required overview data exists in the JSON model but is not surfaced by renderOverview(), so an operator opening the default overview cannot see priority attention or actionable recent activity as required by the approved OpenSpec artifact.",
+  "nits": [],
+  "spec": {
+    "change": "better-information-ui",
+    "conformance": 2,
+    "spec_completeness": 5,
+    "task_coverage": 3,
+    "operational_verification": 3,
+    "checked_artifacts": [
+      "openspec/changes/better-information-ui/proposal.md",
+      "openspec/changes/better-information-ui/design.md",
+      "openspec/changes/better-information-ui/tasks.md",
+      "openspec/changes/better-information-ui/specs/web-app-hub/spec.md",
+      "scripts/web_app_hub.py",
+      "scripts/test-web-app-hub.py"
+    ],
+    "unresolved_questions": [],
+    "gaps": [
+      "No browser-level or render-output test asserts that renderOverview() displays priority_attention or recent_activity.",
+      "No desktop/mobile screenshot or DOM verification was run in this review environment; responsive coverage remains static-fixture based."
+    ]
+  },
+  "summary": "Final review rejects PR readiness for round-20260511t115659z-57a1-integration. OpenSpec validation, py_compile, and scripts/test-web-app-hub.py pass, but the default overview UI does not render the required priority attention and actionable recent activity sections, leaving a blocking Operator Overview conformance gap."
+}
