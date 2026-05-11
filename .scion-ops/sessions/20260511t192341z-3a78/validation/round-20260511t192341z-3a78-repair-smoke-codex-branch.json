@@ -1,0 +1,21 @@
+{
+  "base_branch": "round-20260511t192341z-3a78-integration",
+  "base_sha": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+  "branch": "round-20260511t192341z-3a78-repair-smoke-codex",
+  "child_sha": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+  "completed_at": "2026-05-11T19:50:38.968123Z",
+  "created": true,
+  "fetch": {
+    "ok": true,
+    "output": "",
+    "returncode": 0
+  },
+  "ok": true,
+  "project_root": "/workspace",
+  "push": {
+    "ok": true,
+    "output": "remote: \nremote: Create a pull request for 'round-20260511t192341z-3a78-repair-smoke-codex' on GitHub by visiting:        \nremote:      https://github.com/dodwyer/scion-ops/pull/new/round-20260511t192341z-3a78-repair-smoke-codex        \nremote: \nTo https://github.com/dodwyer/scion-ops.git\n * [new branch]      origin/round-20260511t192341z-3a78-integration -> round-20260511t192341z-3a78-repair-smoke-codex\n",
+    "returncode": 0
+  },
+  "reason": ""
+}

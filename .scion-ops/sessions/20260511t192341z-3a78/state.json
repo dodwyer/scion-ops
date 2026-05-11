@@ -35,13 +35,20 @@
       "scope": "Narrow live web-app image and tooling naming repair",
       "head_sha": "f1620f93ac21b89a70e833e67800984ca82117d5",
       "handoff": ".scion-ops/sessions/20260511t192341z-3a78/findings/round-20260511t192341z-3a78-repair-image-codex.json"
+    },
+    "round-20260511t192341z-3a78-repair-smoke-codex": {
+      "branch": "round-20260511t192341z-3a78-repair-smoke-codex",
+      "status": "accepted",
+      "scope": "Final-review smoke contract repair",
+      "head_sha": "2c2e367e9614fb16a2a4230b76a7ee016d0dfcf1",
+      "handoff": ".scion-ops/sessions/20260511t192341z-3a78/findings/round-20260511t192341z-3a78-repair-smoke-codex.json"
     }
   },
   "implementation": {
     "branch": "round-20260511t192341z-3a78-integration",
     "base_branch": "main",
     "integration_branch": "round-20260511t192341z-3a78-integration",
-    "head_sha": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce"
+    "head_sha": "594e7bae6711b606b0ad8dbd2cdfea943d1a33e8"
   },
   "reviews": [
     {
@@ -69,6 +76,7 @@
       "npm run build (from new-ui-evaluation)",
       "python3 -m unittest discover -s tests (from new-ui-evaluation)",
       "python3 -m py_compile scripts/kind-control-plane-smoke.py",
+      "uv run scripts/kind-control-plane-smoke.py --help",
       "kubectl kustomize deploy/kind/control-plane rendered one scion-ops-web-app live UI with no scion-ops-new-ui-eval/new-ui-eval/web_app_hub/NiceGUI/previewService matches"
     ],
     "blocked": [

@@ -1,0 +1,144 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t192341z-3a78/findings/round-20260511t192341z-3a78-repair-smoke-codex.json",
+  "artifact_json": {
+    "agent": "round-20260511t192341z-3a78-repair-smoke-codex",
+    "blockers": [
+      "Live kind smoke was not run because kubectl current-context is unset in this workspace."
+    ],
+    "branch": "round-20260511t192341z-3a78-repair-smoke-codex",
+    "changed_files": [
+      "scripts/kind-control-plane-smoke.py",
+      "docs/new-ui-evaluation.md",
+      "deploy/kind/control-plane/web-app-deployment.yaml",
+      "image-build/web-app/Dockerfile"
+    ],
+    "head_sha": "66f80e7946996c6dd444d085331ca80e6a6ec4ad",
+    "status": "completed",
+    "summary": "Final-review verification_contract blocker repaired. The single live scion-ops-web-app smoke now validates the promoted live adapter contract and no longer reads mocked or runtime.previewService, while owned production-facing docs and env references use SCION_OPS_WEB_APP_MODE, local-fixtures, fixtureBacked, runtime.liveService, and scion-ops-web-app schema wording.",
+    "tasks_completed": [
+      "Updated ensure_web_app to validate the promoted scion-ops-web-app live adapter contract using fixtureBacked=false, sourceMode=live, runtime.liveService.liveReadsAllowed=true, runtime.liveService.mutationsAllowed=false, snapshotPath=/api/snapshot, and streamPath=/api/events.",
+      "Removed smoke-script reads of mocked and runtime.previewService.",
+      "Replaced stale production-facing NEW_UI_EVALUATION_MODE, preview-fixtures, previewService, mocked, and old schema wording in owned docs/deployment/Dockerfile references.",
+      "Pushed branch round-20260511t192341z-3a78-repair-smoke-codex at 66f80e7946996c6dd444d085331ca80e6a6ec4ad."
+    ],
+    "tests_run": [
+      "python3 -m py_compile scripts/kind-control-plane-smoke.py",
+      "git diff --check",
+      "kubectl kustomize deploy/kind/control-plane | rg -n \"name: scion-ops-web-app|SCION_OPS_WEB_APP_MODE|NEW_UI_EVALUATION_MODE|previewService|preview-fixtures|fixtureBacked|liveService|image: localhost/scion-ops-web-app:latest\"",
+      "python3 scripts/validate-openspec-change.py make-live-1 --json",
+      "python3 scripts/test-openspec-change-validator.py",
+      "uv run scripts/kind-control-plane-smoke.py --help",
+      "npm ci",
+      "npm run typecheck",
+      "npm test",
+      "python3 -m unittest discover -s tests",
+      "npm run build",
+      "rg -n \"NEW_UI_EVALUATION_MODE|preview-fixtures|previewService|runtime\\.previewService|mocked|new-ui-evaluation\\.live|new-ui-evaluation\\.event|preview\" docs/new-ui-evaluation.md deploy/kind/control-plane/web-app-deployment.yaml image-build/web-app/Dockerfile scripts/kind-control-plane-smoke.py",
+      "uv run --with 'mcp>=1.13,<2' python - <<'PY' ... smoke.ensure_web_app(...) against a local live-contract HTTP stub"
+    ]
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+      "checked_at": "2026-05-11T19:51:23.911584Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+      "checked_at": "2026-05-11T19:51:44.309207Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+      "checked_at": "2026-05-11T19:52:04.712099Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+      "checked_at": "2026-05-11T19:52:25.121253Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+      "checked_at": "2026-05-11T19:52:45.533083Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+      "checked_at": "2026-05-11T19:53:05.947188Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+      "checked_at": "2026-05-11T19:53:26.360980Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+      "checked_at": "2026-05-11T19:53:46.765078Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+      "checked_at": "2026-05-11T19:54:07.179302Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "66f80e7946996c6dd444d085331ca80e6a6ec4ad",
+      "checked_at": "2026-05-11T19:54:27.577307Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "66f80e7946996c6dd444d085331ca80e6a6ec4ad",
+      "checked_at": "2026-05-11T19:54:48.189276Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "2c2e367e9614fb16a2a4230b76a7ee016d0dfcf1",
+      "checked_at": "2026-05-11T19:55:08.592129Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t192341z-3a78-repair-smoke-codex",
+  "branch_head": "2c2e367e9614fb16a2a4230b76a7ee016d0dfcf1",
+  "completed_at": "2026-05-11T19:55:09.178348Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
