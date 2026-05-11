@@ -39,6 +39,11 @@
       "branch": "round-20260511t154050z-44ce-repair-live-codex",
       "status": "completed",
       "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-repair-live-codex.json"
+    },
+    "round-20260511t154050z-44ce-repair-ui-events-codex": {
+      "branch": "round-20260511t154050z-44ce-repair-ui-events-codex",
+      "status": "completed",
+      "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-repair-ui-events-codex.json"
     }
   },
   "implementation": {
@@ -88,7 +93,7 @@
       "agent": "round-20260511t154050z-44ce-final-review-2",
       "branch": "round-20260511t154050z-44ce-final-review-2",
       "cause": "final_review_request_changes",
-      "status": "repair_planned",
+      "status": "repair_completed",
       "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-2-wait.json",
       "summary": "Second final review requested changes for frontend reducer mismatch with backend timeline_entry and runtime_health SSE payloads."
     }
