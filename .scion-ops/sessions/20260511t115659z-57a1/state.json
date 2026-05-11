@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "session_id": "20260511t115659z-57a1",
+  "round_id": "20260511t115659z-57a1",
+  "kind": "implementation",
+  "change": "better-information-ui",
+  "base_branch": "round-20260511t114424z-3da2-spec-integration",
+  "status": "running",
+  "phase": "starting",
+  "branches": {
+    "steward": "round-20260511t115659z-57a1-implementation-steward",
+    "implementer": "round-20260511t115659z-57a1-impl-codex",
+    "secondary_implementer": "round-20260511t115659z-57a1-impl-claude",
+    "final_review": "round-20260511t115659z-57a1-final-review",
+    "integration": "round-20260511t115659z-57a1-integration"
+  },
+  "agents": {},
+  "implementation": {
+    "branch": "",
+    "base_branch": "round-20260511t114424z-3da2-spec-integration",
+    "integration_branch": "round-20260511t115659z-57a1-integration"
+  },
+  "reviews": [],
+  "final_review": {},
+  "verification": {
+    "status": "pending"
+  },
+  "blockers": [],
+  "next_actions": [
+    "Write implementation brief and bounded task groups",
+    "Start bounded implementer agents",
+    "Integrate the accepted implementation branch",
+    "Run verification and final review"
+  ]
+}
