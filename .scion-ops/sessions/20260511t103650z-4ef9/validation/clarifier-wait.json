@@ -1,0 +1,68 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t103650z-4ef9/findings/clarifier.md",
+  "artifact_json": null,
+  "artifact_text": "# Spec Clarifier Findings \u2014 20260511t103650z-4ef9\n**Change:** better-information-ui\n**Date:** 2026-05-11\n\n---\n\n## Understood Intent\n\nRedesign the Operator overview and round-detail timeline UI to:\n\n1. **Reduce noise** \u2014 strip fields that don't help an operator quickly understand what happened\n2. **Surface the narrative** \u2014 each timeline entry should answer: what did the agent do, who did it hand off to, and why\n3. **Allow duplicate agent entries** \u2014 back-and-forth exchanges between agents should produce visible, separate rows (no collapsing)\n4. **Modernise the layout** \u2014 adopt current NiceGUI component patterns; fix desktop overflow and ensure the page is usable on mobile\n\n---\n\n## What Exists Today\n\nThe UI is a single file: `scripts/web_app_hub.py` (~3 050 lines).\n\n- The skeleton is built with NiceGUI (`ui.element`, `ui.header`, `ui.timer`, etc.), but **all rendering is JavaScript-driven** \u2014 NiceGUI is used as a scaffold, not for component-level rendering.\n- The timeline entry currently displays: `type`, `time`, `actor`, `agent_name`, `role`, `template`, `harness_config`, `phase`, `activity`, `summary`.\n- The round-detail uses a `.split` two-column layout that likely causes overflow on narrow viewports.\n- The design predates current NiceGUI element conventions; no responsive breakpoints are applied.\n\n---\n\n## Scope Boundaries\n\n### In scope\n- `scripts/web_app_hub.py` \u2014 timeline rendering (JavaScript template `timelineItem`), CSS, and NiceGUI page structure\n- Operator overview (rounds list) and round-detail view (click-through)\n- Timeline entry data model \u2014 which fields are exposed vs. hidden\n- Layout: desktop no-overflow, mobile-friendly breakpoints\n\n### Out of scope (unless confirmed)\n- Backend data pipeline (`build_decision_flow`, `build_operator_summary`, `timeline_entry`) \u2014 data shape changes are NOT assumed\n- Other views: inbox, runtime, checks panel\n- Authentication or access control\n- Non-Operator roles (dev view, raw runtime tab)\n\n---\n\n## Acceptance Questions for Operator\n\nThe following questions must be answered before implementation begins:\n\n### Q1 \u2014 Timeline fields: what maps to \"action / hand-off / reason\"?\nThe current data model has these relevant fields per entry:\n\n| Field | Current use |\n|---|---|\n| `activity` | agent's current activity label |\n| `last_action` | last action taken by the agent |\n| `summary` | message or notification text |\n| `phase` | agent lifecycle phase |\n| `role` | agent role (e.g. spec-steward, clarifier) |\n| `type` | entry type: message / notification / agent |\n\n**Question:** Which field(s) represent \"action\"? Is it `activity`, `last_action`, or the `summary` text?  \n**Question:** \"Hand off\" \u2014 does this mean a `notification` event from one agent to another, a specific `type=message` to a named recipient, or something else?  \n**Question:** \"Reason for handoff\" \u2014 is this the `summary` field content, or a separate structured field that needs to be added to the backend?\n\n---\n\n### Q2 \u2014 Which existing fields should be removed?\nThe current entry shows `template`, `harness_config`, `phase` alongside the narrative fields. Are all three of these to be removed, or should any be kept (e.g. `role` is likely kept)?\n\n---\n\n### Q3 \u2014 \"New NiceGUI elements\" \u2014 what is the target?\nThe current page uses NiceGUI as a thin scaffold with JS rendering. Two interpretation paths:\n\n**Option A:** Keep JS rendering, just update the CSS design system (colours, spacing, typography) to match a newer aesthetic.  \n**Option B:** Replace JS rendering with NiceGUI component calls (`ui.card`, `ui.timeline`, `ui.table`, etc.) for the timeline and overview cards.\n\nOption B is a significantly larger change. Which is intended?\n\n---\n\n### Q4 \u2014 Mobile target\nWhat is the minimum viewport width to support (e.g. 375 px / iPhone SE, 390 px / iPhone 14)?  \nShould the two-column round-detail split stack vertically on mobile, or collapse to a single scrollable column?\n\n---\n\n### Q5 \u2014 Desktop overflow\nIs the overflow specific to the round-detail split layout, the agent matrix table, or both? A screenshot or viewport width where it breaks would help scope the fix.\n\n---\n\n### Q6 \u2014 Duplicate entries: current behaviour vs. desired\nThe timeline already records multiple entries per agent. Is the problem that the **UI is deduplicating or collapsing** entries, or that the visual design makes it hard to distinguish repeated entries from the same agent?\n\n---\n\n## Non-Goals (assumptions)\n\n- No changes to SSE/polling data pipeline\n- No new backend API endpoints\n- No changes to authentication or routing\n- No changes to the checks panel, inbox, or runtime views\n- No changes to how `build_decision_flow` or `build_operator_summary` compute data (unless Q1 reveals a missing field)\n\n---\n\n## Risk / Flag\n\nThe JS-rendering architecture is tightly coupled with the NiceGUI skeleton. If Q3 resolves to Option B (full NiceGUI components), the implementation scope roughly doubles and may touch the test suite (`test-web-app-hub.py`). The steward should factor this into effort estimation.\n",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "b634dd1a3ab611f52a3635b037db4b22e899a26a",
+      "checked_at": "2026-05-11T10:38:18.565910Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "b634dd1a3ab611f52a3635b037db4b22e899a26a",
+      "checked_at": "2026-05-11T10:38:33.989601Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "b634dd1a3ab611f52a3635b037db4b22e899a26a",
+      "checked_at": "2026-05-11T10:38:49.391992Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "b634dd1a3ab611f52a3635b037db4b22e899a26a",
+      "checked_at": "2026-05-11T10:39:04.803106Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "b634dd1a3ab611f52a3635b037db4b22e899a26a",
+      "checked_at": "2026-05-11T10:39:20.223020Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "b634dd1a3ab611f52a3635b037db4b22e899a26a",
+      "checked_at": "2026-05-11T10:39:35.667633Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "c6b0b78d7b96b5491930a79636a9a66e689a2bca",
+      "checked_at": "2026-05-11T10:39:51.064718Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t103650z-4ef9-spec-clarifier",
+  "branch_head": "c6b0b78d7b96b5491930a79636a9a66e689a2bca",
+  "completed_at": "2026-05-11T10:39:51.635851Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
