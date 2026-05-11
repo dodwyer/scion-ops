@@ -6,15 +6,28 @@
   "change": "wire-new-ui-1",
   "base_branch": "main",
   "status": "running",
-  "phase": "starting",
+  "phase": "implementing",
   "branches": {
     "steward": "round-20260511t154050z-44ce-implementation-steward",
     "implementer": "round-20260511t154050z-44ce-impl-codex",
     "secondary_implementer": "round-20260511t154050z-44ce-impl-claude",
     "final_review": "round-20260511t154050z-44ce-final-review",
-    "integration": "round-20260511t154050z-44ce-integration"
+    "integration": "round-20260511t154050z-44ce-integration",
+    "replacement_implementer": "round-20260511t154050z-44ce-impl-ui-codex"
   },
-  "agents": {},
+  "agents": {
+    "round-20260511t154050z-44ce-impl-codex": {
+      "branch": "round-20260511t154050z-44ce-impl-codex",
+      "status": "completed",
+      "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-impl-codex.json"
+    },
+    "round-20260511t154050z-44ce-impl-claude": {
+      "branch": "round-20260511t154050z-44ce-impl-claude",
+      "status": "artifact_timeout",
+      "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-impl-claude.json",
+      "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-impl-claude-handoff-wait.json"
+    }
+  },
   "implementation": {
     "branch": "",
     "base_branch": "main",
@@ -25,7 +38,16 @@
   "verification": {
     "status": "pending"
   },
-  "blockers": [],
+  "blockers": [
+    {
+      "agent": "round-20260511t154050z-44ce-impl-claude",
+      "branch": "round-20260511t154050z-44ce-impl-claude",
+      "cause": "artifact_timeout",
+      "status": "replacement_planned",
+      "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-impl-claude-handoff-wait.json",
+      "summary": "Secondary implementer timed out without branch movement or required handoff artifact."
+    }
+  ],
   "next_actions": [
     "Write implementation brief and bounded task groups",
     "Start bounded implementer agents",

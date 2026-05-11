@@ -1,0 +1,226 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-impl-codex.json",
+  "artifact_json": {
+    "agent": "round-20260511t154050z-44ce-impl-codex",
+    "blockers": [],
+    "branch": "round-20260511t154050z-44ce-impl-codex",
+    "changed_files": [
+      "docs/new-ui-evaluation.md",
+      "new-ui-evaluation/adapter.py",
+      "new-ui-evaluation/src/types.ts",
+      "new-ui-evaluation/tests/test_adapter.py",
+      "openspec/changes/wire-new-ui-1/tasks.md"
+    ],
+    "head_sha": "ef65cca6ed4312bef1a5280916d4348b38348d52",
+    "status": "completed",
+    "summary": "Implemented Group A live backend wiring for new-ui-evaluation: default live read-only aggregation from session findings, MCP presence, Kubernetes read status, git refs, and OpenSpec state; explicit fixture fallback mode; versioned snapshot and event TypeScript contracts; SSE /api/events with cursor-bearing events; contract and read-only safety tests; docs; and completed only the matching OpenSpec task checkboxes. React view/component implementation, deployment manifests, existing UI files, and smoke scripts were left untouched as out of scope.",
+    "tasks_completed": [
+      "Define the live snapshot schema for overview, rounds, round detail, inbox, runtime, diagnostics, and raw source views.",
+      "Define the incremental event schema, including event type, stable id, entity id, source name, timestamp, version or cursor, payload, and source error or staleness metadata.",
+      "Add a read-only live data layer for Hub, MCP, Kubernetes, git, and OpenSpec sources, with fixture mode retained only as an explicit development or test fallback.",
+      "Add a push-based browser update path using SSE, WebSocket, source-native watch bridging, or an equivalent stream-like mechanism.",
+      "Add read-only safety tests proving live loading, streaming, reconnect, resume, and fallback polling do not mutate Hub, MCP, Kubernetes, git, OpenSpec, runtime broker, secrets, PVCs, rounds, or model/provider state."
+    ],
+    "tests_run": [
+      "cd new-ui-evaluation && npm install",
+      "cd new-ui-evaluation && python3 -m unittest discover -s tests",
+      "cd new-ui-evaluation && npm run typecheck",
+      "cd new-ui-evaluation && npm test",
+      "cd new-ui-evaluation && npm run build",
+      "python3 scripts/validate-openspec-change.py wire-new-ui-1",
+      "git diff --check"
+    ]
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:43:13.352209Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:43:34.129494Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:43:54.549033Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:44:14.990532Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:44:35.416514Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:44:55.872589Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:45:16.280655Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:45:36.743994Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:45:57.183707Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:46:17.598788Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:46:38.025823Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:46:58.428139Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:47:18.849849Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:47:39.257135Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:47:59.660112Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:48:20.101768Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:48:40.550936Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:49:00.993070Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:49:21.408199Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:49:41.838681Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:50:02.226343Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "ef65cca6ed4312bef1a5280916d4348b38348d52",
+      "checked_at": "2026-05-11T15:50:22.699481Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "e3b8cf3d37280230b0fc8157c050548c01d3e821",
+      "checked_at": "2026-05-11T15:50:43.506412Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t154050z-44ce-impl-codex",
+  "branch_head": "e3b8cf3d37280230b0fc8157c050548c01d3e821",
+  "completed_at": "2026-05-11T15:50:44.114762Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

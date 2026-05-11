@@ -1,0 +1,422 @@
+{
+  "agent": "round-20260511t154050z-44ce-impl-claude",
+  "agent_status": {
+    "agent": {
+      "activity": "executing",
+      "containerStatus": "Running",
+      "created": "2026-05-11T15:42:56.589868915Z",
+      "createdBy": "c42f0669-7d93-4fdf-86ce-d596b317b8c8",
+      "deletedAt": "0001-01-01T00:00:00Z",
+      "detached": true,
+      "grove": "scion-ops",
+      "groveId": "d7e5f43d-c64a-4b3f-ac4c-f12736f75ff4",
+      "harnessAuth": "auth-file",
+      "harnessConfig": "claude",
+      "id": "10522e72-1d53-4638-8951-c715bb017602",
+      "lastSeen": "2026-05-11T15:58:02.61720375Z",
+      "name": "round-20260511t154050z-44ce-impl-claude",
+      "ownerId": "c42f0669-7d93-4fdf-86ce-d596b317b8c8",
+      "phase": "running",
+      "runtime": "kubernetes",
+      "runtimeBrokerId": "1d5f9c14-cc9d-42c0-8a69-f4cf1b396d1b",
+      "runtimeBrokerName": "kind-control-plane",
+      "slug": "round-20260511t154050z-44ce-impl-claude",
+      "stateVersion": 2,
+      "template": "impl-claude",
+      "updated": "2026-05-11T15:58:02.61720375Z",
+      "visibility": "private"
+    },
+    "ok": true,
+    "source": "scion list"
+  },
+  "artifact": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-impl-claude.json",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:43:13.356902Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:43:34.165798Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:43:54.569004Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:44:15.001672Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:44:35.415997Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:44:55.819094Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:45:16.250304Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:45:36.670147Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:45:57.073201Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:46:17.470536Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:46:37.891844Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:46:58.295185Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:47:18.698267Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:47:39.089578Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:47:59.510496Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:48:19.921950Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:48:40.352231Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:49:00.771104Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:49:21.394335Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:49:41.801483Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:50:02.221978Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:50:22.667357Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:50:43.085802Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:51:03.543639Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:51:23.965840Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:51:44.455670Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:52:04.874837Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:52:25.331326Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:52:45.741820Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:53:06.205867Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:53:26.618620Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:53:47.008136Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:54:07.399802Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:54:27.844567Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:54:48.240471Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:55:08.659580Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:55:29.090348Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:55:49.503660Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:56:09.925371Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:56:30.378132Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:56:50.820377Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:57:11.229171Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:57:31.631728Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:57:52.048078Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:58:12.464210Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:58:13.357036Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t154050z-44ce-impl-claude",
+  "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+  "completed_at": "2026-05-11T15:58:14.071463Z",
+  "kubectl": {
+    "logs": "error: context \"kind-scion-ops\" does not exist\n",
+    "pod": "error: context \"kind-scion-ops\" does not exist\n"
+  },
+  "last_artifact_error": "fatal: path '.scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-impl-claude.json' does not exist in 'origin/round-20260511t154050z-44ce-impl-claude'\n",
+  "last_fetch": {
+    "ok": true,
+    "output": "",
+    "returncode": 0
+  },
+  "ok": false,
+  "poll_interval_seconds": 20,
+  "reason": "timeout_waiting_for_review_artifact",
+  "scion_look_tail": "Using hub: http://scion-hub:8090\n\n\u001b[41m\u001b[97m\u001b[1mError: failed to capture terminal output for agent 'round-20260511t154050z-44ce-impl-claude': not_found: Action not found (status: 404)\n\nTo use local-only mode, run: scion hub disable\u001b[0m\n\nUsage:\n  scion look <agent> [flags]\n\nFlags:\n      --full            Capture the full scrollback history\n  -h, --help            help for look\n  -n, --num-lines int   Number of scrollback lines to capture (tail)\n      --plain           Strip ANSI escape sequences from output\n\nGlobal Flags:\n      --cpuprofile string   Write cpu profile to file\n      --debug               Enable debug output (equivalent to SCION_DEBUG=1)\n      --format string       Output format (e.g., json)\n      --global              Use the global grove (equivalent to --grove global)\n  -g, --grove string        Grove identifier: path, slug (with Hub), or git URL (with Hub)\n      --hub string          Hub API endpoint URL (overrides SCION_HUB_ENDPOINT)\n      --memprofile string   Write memory profile to file\n      --no-hub              Disable Hub integration for this invocation (local-only mode)\n      --non-interactive     Non-interactive mode: implies --yes, errors on ambiguous prompts\n  -p, --profile string      Configuration profile to use\n      --stats Duration      Interval between printing stats, e.g. 500ms, 60s, 5m (0 to disable) (default 1m0s)\n  -y, --yes                 Skip confirmation prompt\n",
+  "source": "review_artifact_wait",
+  "timeout_seconds": 900
+}
