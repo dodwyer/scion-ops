@@ -1,0 +1,128 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t125050z-3e38/findings/ops-review.json",
+  "artifact_json": {
+    "change": "base-framework-1",
+    "existing_ui_baseline": {
+      "container_port": 8787,
+      "deployment_name": "scion-ops-web-app",
+      "framework": "NiceGUI (Python)",
+      "node_port": 30808,
+      "service_name": "scion-ops-web-app",
+      "service_port": 8787
+    },
+    "findings": [
+      {
+        "area": "operational_safety",
+        "notes": "Spec explicitly prohibits any live Hub, MCP, Kubernetes, git, OpenSpec, or model-backed reads. No ServiceAccount, Secrets, PVC, or mutation privileges are permitted in the preview. Preview lifecycle is fully independent of the existing scion-ops-web-app.",
+        "status": "pass"
+      },
+      {
+        "area": "completeness",
+        "notes": "All required elements are present: framework decision with rationale and alternatives, deployment shape (separate Deployment + Service + distinct port), full mock data contract (overview, rounds, round detail, inbox, runtime/source health, diagnostics/raw payloads), six core views, coexistence requirements, and 11 granular actionable tasks.",
+        "status": "pass"
+      },
+      {
+        "area": "validation",
+        "notes": "Verification strategy covers TypeScript type checks, frontend build, adapter mocked endpoint tests, fixture contract shape, Kubernetes manifest separation checks, health endpoint smoke, and coexistence checks proving existing UI paths unchanged. No live provider spend required.",
+        "status": "pass"
+      },
+      {
+        "area": "coexistence",
+        "notes": "Existing scion-ops-web-app (NiceGUI Python, port 8787, NodePort 30808, Deployment/Service named scion-ops-web-app) is explicitly protected. The spec requires the preview to use distinct names, labels, container port, and service port. Preview can be started, stopped, or removed without affecting current UI.",
+        "status": "pass"
+      },
+      {
+        "area": "framework_decision",
+        "notes": "TypeScript + React + Vite + Python adapter rationale is documented with explicit tradeoffs against NiceGUI/Python-native, plain server-rendered HTML, alternative JS frameworks (Svelte/Vue/Solid), and Node-only serving. Introducing a second technology stack is a deliberate, scoped evaluation choice acknowledged in the design.",
+        "status": "pass"
+      },
+      {
+        "area": "minor_gaps",
+        "notes": "The spec does not pin a specific port number for the evaluation UI (only requires it to differ from 8787). This is acceptable to resolve at implementation time, but the implementing agent should pick and document a concrete port (e.g. 8788 or 3000) in the Kubernetes manifests. Exact resource names for the evaluation Deployment and Service are also left to implementation \u2014 they should be distinguishable (e.g. scion-ops-new-ui-eval) and documented in tasks 1.7 and 1.8.",
+        "status": "advisory"
+      }
+    ],
+    "reviewed_artifacts": [
+      "openspec/changes/base-framework-1/proposal.md",
+      "openspec/changes/base-framework-1/design.md",
+      "openspec/changes/base-framework-1/specs/new-ui-evaluation/spec.md",
+      "openspec/changes/base-framework-1/tasks.md"
+    ],
+    "reviewer_role": "ops-review",
+    "session_id": "20260511t125050z-3e38",
+    "summary": "The spec is operationally safe, complete, and correctly isolated. The evaluation UI adds a parallel Kubernetes workload with no changes to the existing scion-ops-web-app Deployment, Service (port 8787/NodePort 30808), or lifecycle. Mocked-only data and no write operations satisfy the read-only and no-spend requirements.",
+    "verdict": "accepted"
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:57:18.194079Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:57:33.641883Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:57:49.037924Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:58:04.447880Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:58:19.831689Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:58:35.237120Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:58:50.677363Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "78a7d115653e6af88c4e1787c622356cbde8012f",
+      "checked_at": "2026-05-11T12:59:06.111457Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t125050z-3e38-spec-ops-review",
+  "branch_head": "78a7d115653e6af88c4e1787c622356cbde8012f",
+  "completed_at": "2026-05-11T12:59:06.712162Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

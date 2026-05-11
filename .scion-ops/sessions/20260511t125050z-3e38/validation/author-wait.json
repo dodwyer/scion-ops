@@ -1,0 +1,84 @@
+{
+  "artifact": "openspec/changes/base-framework-1/proposal.md",
+  "artifact_json": null,
+  "artifact_text": "# Proposal: Base Framework 1\n\n## Summary\n\nCreate a new, additive UI evaluation path for scion-ops that tests a fresh operator interface without replacing or inheriting assumptions from the current UI. The evaluation UI should use TypeScript, React, and Vite for the browser application, served as static assets by a small Python HTTP/API adapter, and run in Kubernetes as a separate Deployment and Service on a distinct port from the existing UI.\n\nThe preview should use mocked, schema-faithful data to demonstrate the core operator workflows that will later be wired to real Hub, MCP, Kubernetes, git, and runtime sources.\n\n## Motivation\n\nThe next UI direction needs to be evaluated on its own merits instead of being constrained by previous implementation choices, page structure, or visual design. Operators need a clearer way to scan current control-plane state, rounds, inbox activity, runtime health, and diagnostics. At this stage, the key decision is the frontend foundation and deployment shape, not live backend wiring.\n\nTypeScript with React and Vite is the preferred evaluation stack because it gives the UI a typed component model, fast local iteration, a broad ecosystem for complex operator-console interactions, and a simple static build artifact. A small Python adapter keeps compatibility with the repository's existing operational language and deployment practices while avoiding a larger backend commitment during evaluation.\n\n## Scope\n\nIn scope:\n\n- Add a new `new-ui-evaluation` capability for a separate preview UI.\n- Use TypeScript, React, and Vite for the frontend implementation direction.\n- Serve the built frontend through a small Python HTTP/API adapter that also exposes mocked data endpoints.\n- Deploy the preview in Kubernetes as a separate pod, Deployment, Service, and port from the existing `scion-ops-web-app`.\n- Define mocked, schema-faithful data for overview, rounds, round detail and timeline, inbox and messages, runtime and source health, diagnostics, and raw payload views.\n- Mock the core views needed for current operator workflows.\n- Preserve the existing UI, its lifecycle, public endpoints, deployment, and operator access path.\n- Prohibit live Hub, MCP, Kubernetes, git, model-backed, or state-mutating behavior in the preview UI.\n\nOut of scope:\n\n- Replacing, redesigning, or deprecating the current UI.\n- Wiring the preview UI to live Hub, MCP, Kubernetes, git, OpenSpec, or model-backed reads.\n- Adding write operations such as round start, retry, abort, delete, archive, git mutation, OpenSpec mutation, or Kubernetes mutation.\n- Production authentication, authorization, user personalization, or multi-tenant behavior.\n- Committing to React/Vite as the permanent production UI before the evaluation is reviewed.\n\n## Success Criteria\n\n- A Kubernetes pod can run the evaluation UI on a port distinct from the existing UI.\n- Operators can open the preview and inspect mocked overview, rounds, round detail, inbox, runtime/source health, and diagnostics views.\n- The mock data contract is explicit enough that later backend wiring can replace fixtures without redesigning view data shapes.\n- The existing UI continues to run and be operated independently.\n- The implementation language and framework decision is documented with tradeoffs and a clear reason for choosing TypeScript, React, Vite, and a Python adapter.\n- The preview UI performs only fixture reads and local static/API serving during evaluation.\n",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:54:32.896427Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:54:48.282130Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:55:03.686215Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:55:19.097143Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:55:34.496221Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:55:49.901963Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:56:05.335108Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:56:20.755163Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "da9ae90a2e19aec737257d3bb5e7f7309e3ca779",
+      "checked_at": "2026-05-11T12:56:36.162764Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t125050z-3e38-spec-author",
+  "branch_head": "da9ae90a2e19aec737257d3bb5e7f7309e3ca779",
+  "completed_at": "2026-05-11T12:56:36.743772Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

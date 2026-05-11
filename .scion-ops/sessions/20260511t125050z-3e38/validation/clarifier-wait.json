@@ -1,0 +1,76 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t125050z-3e38/findings/clarifier.md",
+  "artifact_json": null,
+  "artifact_text": "# Clarifier Findings: base-framework-1\n\n**Session:** 20260511t125050z-3e38  \n**Change:** base-framework-1  \n**Date:** 2026-05-11  \n**Role:** Spec Clarifier\n\n---\n\n## Restated Intent\n\nBuild an evaluation-ready replacement UI for scion-ops that:\n- Selects and justifies a frontend framework and implementation language from first principles (not inheriting NiceGUI/Python)\n- Mocks the core operator views with realistic but static data\n- Runs in a separate Kubernetes pod on a different port, coexisting safely with the current UI\n- Serves as the design and architecture baseline for eventual real backend wiring\n\n---\n\n## Current State (as observed)\n\n| Dimension | Current |\n|-----------|---------|\n| Framework | NiceGUI 2.x (Python) |\n| Language | Python 3.11+ |\n| Port | 8787 (NodePort 30808) |\n| Deployment | kustomize, namespace `scion-agents` |\n| Views | Overview, Rounds list, Round detail, Inbox, Runtime |\n| Data source | Hub API (live), MCP snapshots |\n| Hosting | `localhost/scion-ops-mcp:latest` container |\n\n---\n\n## Scope Boundaries\n\n### In scope\n- Framework/language selection with written justification\n- New Dockerfile for the new UI container\n- Kubernetes deployment manifests (separate pod, new port)\n- Mocked data contract mirroring Hub API response shapes for: rounds, agents, decisions, inbox\n- Mock implementations of: Overview dashboard, Rounds list, Round detail, Inbox\n- Kustomize or Helm overlay enabling both UIs to run simultaneously\n\n### Out of scope\n- Live backend wiring (Hub API, MCP, WebSocket/SSE)\n- Authentication or access control\n- Replacing or modifying the current NiceGUI UI\n- CI/CD pipeline changes\n- State-mutating operations in the UI (this is a read-only operator console)\n- Migration of existing data or sessions\n\n---\n\n## Non-Goals\n\n- Feature parity with the current UI before evaluation is complete\n- Production-grade error handling or observability in the new UI at this stage\n- Matching the visual style of the current NiceGUI UI\n- Supporting multiple simultaneous users or session management\n\n---\n\n## Unresolved Questions (Must Resolve Before Design)\n\n### 1. Language boundary: JS/TS frontend vs Python alternative?\nThe current stack is all-Python. The ask to \"evaluate from first principles\" implies a JS/TS SPA (React, Vue, Svelte) is fair game, but it also means introducing a new language and build toolchain into the repo.\n\n**Question:** Is the evaluation explicitly open to a JS/TS frontend, or is there a preference to stay within Python (e.g., Streamlit, Gradio, or raw FastAPI+HTML)?\n\n### 2. Port assignment for the new UI\nThe current UI is on port 8787 / NodePort 30808.\n\n**Question:** What port (container) and NodePort should the new UI bind to? A concrete suggestion: container port 3000 / NodePort 30300. Confirm or provide an alternative.\n\n### 3. Mock data fidelity\nTwo options for mock data:\n- **Schema-faithful mocks** \u2014 JSON that exactly mirrors Hub API response structures, even if the field values are fabricated. This makes backend wiring a drop-in swap.\n- **Illustrative mocks** \u2014 Simplified JSON shaped for the UI's needs, not necessarily Hub API-compatible. Faster to build, but requires a mapping layer later.\n\n**Question:** Which fidelity is required? Preference is schema-faithful, but confirm.\n\n### 4. Which views are required for the evaluation?\nThe current UI has five views. For an evaluation mock, not all may be necessary.\n\n**Question:** Is the minimum viable view set: Overview + Rounds list + Round detail? Or must Inbox and Runtime also be mocked?\n\n### 5. Coexistence mechanism\nTwo options:\n- **Separate Kubernetes Deployment** \u2014 new pod, new Service, new NodePort. Completely independent lifecycle from the existing UI.\n- **Sidecar or second container in existing pod** \u2014 shares lifecycle with current UI pod.\n\n**Question:** Confirm the preference is a fully separate Deployment (recommended for clean evaluation isolation).\n\n### 6. Acceptance criteria for framework selection\nThe deliverable includes a justification for the chosen framework. Acceptance is ambiguous without criteria.\n\n**Question:** Who reviews the justification and on what basis is \"accepted\" determined? Is a written comparison matrix sufficient, or does a human operator need to sign off before implementation proceeds?\n\n### 7. Evaluation lifespan and promotion path\nIs this new UI intended to:\n- a) Replace the current NiceGUI UI once validated (old UI decommissioned), or\n- b) Run permanently in parallel as an optional interface?\n\nThis affects naming, port permanence, and how deep to invest in the deployment shape.\n\n---\n\n## Operator-Facing Acceptance Questions\n\nThese are the questions an operator reviewing this change would ask:\n\n1. Can both UIs run simultaneously without port conflicts or resource contention?\n2. Is the new UI clearly labeled as \"evaluation / mocked data\" to avoid confusion with live data?\n3. Does the new Dockerfile follow the same build conventions as existing images (base image policy, registry, tags)?\n4. Is the mock data contract documented well enough that a backend engineer can wire real data later without touching the UI?\n5. Does the new deployment use the existing Kustomize/Helm patterns, or does it introduce a new deployment mechanism that operators must learn?\n\n---\n\n## Recommended Clarifications to Seek\n\nBefore the design phase begins, the steward should resolve questions 1, 3, and 5 above as the highest-impact blockers. Questions 2 and 4 can default to reasonable values (port 3000/30300; schema-faithful mocks) if no response is received.\n",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:52:07.746671Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:52:23.167302Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:52:38.561014Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:52:53.969002Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:53:09.388078Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:53:24.788556Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:53:40.199543Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "a95b26932cd67eaa50591e9208e2a64a0ab45234",
+      "checked_at": "2026-05-11T12:53:55.648817Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t125050z-3e38-spec-clarifier",
+  "branch_head": "a95b26932cd67eaa50591e9208e2a64a0ab45234",
+  "completed_at": "2026-05-11T12:53:56.211483Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

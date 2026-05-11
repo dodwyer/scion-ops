@@ -1,0 +1,76 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t125050z-3e38/findings/explorer.md",
+  "artifact_json": null,
+  "artifact_text": "# Explorer Findings: New UI Direction\n\nSession: `20260511t125050z-3e38`\nChange: `base-framework-1`\nBranch: `round-20260511t125050z-3e38-spec-explorer`\n\n## Current Framework And Runtime Evidence\n\n- The current operator UI is implemented as a repository-local Python script, `scripts/web_app_hub.py`, with PEP 723 `uv` metadata for Python `>=3.11` and dependencies on `mcp`, `nicegui`, and `PyYAML`.\n- The existing script owns a broad browser JSON contract in `BROWSER_JSON_CONTRACT`, including readiness snapshots, round detail, final review, agent matrix, runtime state, and live update cursor semantics.\n- Existing Kubernetes deployment runs a `scion-ops-web-app` Deployment from the `localhost/scion-ops-mcp:latest` image and starts either `scripts/web_app_nicegui.py` when present or `scripts/web_app_hub.py` as fallback.\n- Existing service is named `scion-ops-web-app`, exposes container/service port `8787`, and uses NodePort `30808`.\n- Task defaults expose the current web app externally as `SCION_OPS_WEB_APP_URL` on host port `8808`, while the Kubernetes Service manifest uses NodePort `30808`; this mismatch should be treated as existing deployment context to verify before assigning the new UI port.\n- Existing control-plane lifecycle tasks include only `scion-ops-web-app` in restart/status/smoke paths. A coexistence UI must add separate lifecycle names or narrowly extend smoke checks without replacing current checks.\n\n## Prior OpenSpec Constraints\n\n- `openspec/changes/use-nicegui/design.md` already specifies a NiceGUI rebuild and says existing browser-facing contracts are compatibility boundaries: health, snapshot, round detail, event, live update, source identifiers, timestamps, statuses, branches, blockers, warnings, final review, and runtime readiness.\n- The same design requires local execution with repo tooling, the existing kind deployment model, read-only ServiceAccount/RBAC, mounted workspace, Hub dev-auth Secret convention, and smoke checks that do not start model-backed work.\n- `openspec/changes/web-ui-theme/design.md` and `better-information-ui/design.md` constrain the UI toward a restrained operations console: compact status, dense comparison tables, one-level-down diagnostics, semantic state labels, no marketing/hero treatment, and responsive desktop/mobile behavior.\n- `openspec/changes/autorefresh-web-app/specs/web-app-hub/spec.md` requires automatic update semantics to stay read-only and preserve source-of-truth fields.\n- These prior changes are about the current `web-app-hub` capability. The new request explicitly asks for a brand new UI direction and framework/language evaluation instead of inheriting current assumptions, so the lowest-risk spec should be additive rather than another modification of `web-app-hub`.\n\n## Recommended Framework And Language\n\nRecommendation: TypeScript + React + Vite for the new evaluation UI, served as static assets by a small Python HTTP/API adapter.\n\nRationale:\n\n- The new UI is a mocked-data evaluation surface, so it benefits from browser-native component iteration, typed mock data contracts, deterministic fixture rendering, and easy visual review.\n- TypeScript gives the mock data contract first-class compile-time shape. This is useful because the requested end state is a mocked operator view that later receives real backend wiring.\n- React/Vite is a conservative choice for an SPA-style operator console with tables, tabs, filters, routeable views, and fixture-driven screenshots.\n- A small Python serving layer keeps compatibility with the current repo and container environment, avoids forcing Node into the runtime pod if static assets are prebuilt, and can expose `/healthz` plus `/api/mock/*` endpoints using the same Python version already present in the base image.\n- This recommendation intentionally differs from current NiceGUI assumptions while still coexisting with them. The current NiceGUI/Python UI remains untouched on its existing Deployment/Service/port.\n\nRejected alternatives:\n\n- Extending the existing NiceGUI app is lower tooling risk but does not satisfy the instruction to evaluate a new UI direction instead of inheriting current implementation assumptions.\n- A pure static HTML/CSS/JS mock is lower dependency risk but weakens typed contracts and makes future backend wiring less disciplined.\n- A full Node runtime service is viable but adds more Kubernetes/runtime surface than needed for a mocked evaluation pod.\n\n## Lowest-Risk OpenSpec Shape\n\nCreate a new change directory:\n\n- `openspec/changes/base-framework-1/proposal.md`\n- `openspec/changes/base-framework-1/design.md`\n- `openspec/changes/base-framework-1/tasks.md`\n- `openspec/changes/base-framework-1/specs/new-ui-evaluation/spec.md`\n\nUse a new spec capability name such as `new-ui-evaluation`, `operator-ui-evaluation`, or `scion-ops-ui-preview`. Avoid modifying `specs/web-app-hub/spec.md` in this change unless the author needs to explicitly document coexistence with the old UI.\n\nExpected requirements for the delta spec:\n\n- Framework and language decision is documented, including evaluated alternatives and final rationale.\n- New UI is deployed as a separate Kubernetes pod/Deployment from `scion-ops-web-app`.\n- New UI uses a different Service and host-reachable port from the existing UI.\n- New UI serves mocked data only and does not call Hub, MCP, Kubernetes, git, OpenSpec, or model-backed work for live state.\n- Mock data contract covers current operator workflows: overview, rounds list, round detail/timeline, inbox/messages, runtime/source health, and diagnostics/raw payloads.\n- Mocked views represent ready, running, blocked, changes-requested, failed, stale, and empty states.\n- Coexistence is explicit: no replacement of current `scion-ops-web-app`, no mutation of its Deployment/Service/probes, and no shared selector labels that route traffic ambiguously.\n- Verification includes static contract checks, render checks for core views, Kubernetes manifest checks proving a distinct Deployment/Service/port, and no-spend smoke against `/healthz` and mocked data endpoints.\n\n## Implementation Constraints To Hand Off\n\n- Use distinct Kubernetes names, for example `scion-ops-ui-preview`, with labels that do not collide with `app.kubernetes.io/name: scion-ops-web-app`.\n- Choose ports after checking existing allocations. Current UI uses container/service port `8787` and Service NodePort `30808`; Taskfile defaults mention host port `8808`.\n- Keep the preview read-only by construction: mocked fixtures should be bundled or served from local JSON files, and UI controls should be filters/navigation/diagnostic expansion only.\n- Keep deployment additive in `deploy/kind/control-plane/kustomization.yaml`; do not remove current `web-app-*` resources.\n- Add a dedicated image only if necessary. Lowest risk is probably a small preview image or an explicit command in the existing image that serves prebuilt static assets, but the spec should require the author to justify this choice.\n- Preserve current `task up`, `task test`, and existing web app smoke behavior. Add preview-specific task/smoke coverage rather than repurposing `kind:web-app:*`.\n\n## Suggested Mock Data Contract\n\nTop-level fixture shape:\n\n- `generated_at`\n- `readiness`\n- `sources[]` with `id`, `label`, `status`, `latency_ms`, `last_seen`, and optional `error`\n- `rounds[]` with `round_id`, `title`, `phase`, `visible_status`, `updated_at`, `agents[]`, `branches`, `validation`, `final_review`, `blockers[]`, and `warnings[]`\n- `timeline[]` per round with `entry_id`, `timestamp`, `actor`, `role`, `action`, `handoff`, `reason_for_handoff`, `status`, `source`, and optional `detail`\n- `inbox[]` with `id`, `round_id`, `source`, `severity`, `summary`, `created_at`, and optional `payload`\n- `runtime` with deployments/services/pods/readiness for the mocked control plane and preview UI\n- `diagnostics` with raw fixture payloads and source errors\n\n## Open Questions For Author/Steward\n\n- Which exact host port should the preview use, given the current service manifest uses NodePort `30808` while Taskfile defaults expose `8808`?\n- Should the TypeScript build output be checked in for the Kubernetes pod to serve directly, or should image build include `npm ci && npm run build`?\n- Should the preview smoke test be part of the default `task test` path immediately, or separate until the evaluation UI is accepted?\n\n## Risk Summary\n\nThe main risk is accidentally replacing or coupling to the current `web-app-hub` path. Keep the OpenSpec change additive, give the preview its own capability name and Kubernetes identity, and make the mock data contract explicit enough that the later backend wiring can be specified as a separate change.\n",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:52:07.741978Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:52:23.181936Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:52:38.583223Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:52:54.003915Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:53:09.374848Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:53:24.780550Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "checked_at": "2026-05-11T12:53:40.223637Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "55f93d14d9fb090b7cd430dd3b0d5f0d5d1706f9",
+      "checked_at": "2026-05-11T12:53:55.632365Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t125050z-3e38-spec-explorer",
+  "branch_head": "55f93d14d9fb090b7cd430dd3b0d5f0d5d1706f9",
+  "completed_at": "2026-05-11T12:53:56.215468Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
