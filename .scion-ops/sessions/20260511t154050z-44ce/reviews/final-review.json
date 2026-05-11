@@ -1,0 +1,44 @@
+{
+  "review_type": "final",
+  "scores": {
+    "correctness": 2,
+    "completeness": 2,
+    "style": 4
+  },
+  "verdict": "request_changes",
+  "blocking_issues": [
+    "new-ui-evaluation/adapter.py:554 and new-ui-evaluation/adapter.py:668 only generate an initial heartbeat/source-status batch and then periodic heartbeats. The SSE path never watches Hub, MCP, Kubernetes, git, or OpenSpec state and never emits round, timeline, inbox, runtime, diagnostics, fallback, stale, or removal events when sources change. This violates the approved Push Based Update Delivery and Evaluation Verification requirements for routine source changes to reach the browser through typed incremental events without reloads or polling-heavy full snapshots.",
+    "new-ui-evaluation/adapter.py:189 builds the live snapshot from local .scion-ops finding files plus basic git/kubectl probes; MCP is treated as healthy when a Python module exists and Hub is treated as healthy when a local sessions directory exists. That does not satisfy the approved live operational data contract for read-only Hub, MCP, Kubernetes, git, and OpenSpec operational state, and it can present stale/local handoff files as live source-of-truth state."
+  ],
+  "final_failure_classification": "implementation_defect",
+  "final_failure_evidence": "The implementation handles frontend event merging and exposes an SSE endpoint, but the backend event stream is not connected to live source changes. It builds one snapshot at connection time, emits only heartbeat/source_status/snapshot_ready events, and then sleeps between heartbeat frames. The live data layer also substitutes local filesystem/session artifacts for actual Hub and MCP reads. These are implementation gaps against the approved wire-new-ui-1 OpenSpec requirements rather than integration-only or environment failures.",
+  "nits": [],
+  "spec": {
+    "change": "wire-new-ui-1",
+    "conformance": 2,
+    "spec_completeness": 5,
+    "task_coverage": 2,
+    "operational_verification": 3,
+    "checked_artifacts": [
+      "openspec/changes/wire-new-ui-1/proposal.md",
+      "openspec/changes/wire-new-ui-1/design.md",
+      "openspec/changes/wire-new-ui-1/tasks.md",
+      "openspec/changes/wire-new-ui-1/specs/new-ui-evaluation/spec.md",
+      "new-ui-evaluation/adapter.py",
+      "new-ui-evaluation/src/api.ts",
+      "new-ui-evaluation/src/App.tsx",
+      "new-ui-evaluation/src/__tests__/fixtures.test.tsx",
+      "new-ui-evaluation/tests/test_adapter.py",
+      "deploy/kind/control-plane/new-ui-evaluation-deployment.yaml",
+      "scripts/kind-control-plane-smoke.py",
+      "docs/new-ui-evaluation.md",
+      "docs/kind-control-plane.md"
+    ],
+    "unresolved_questions": [],
+    "gaps": [
+      "No verification demonstrates live source changes producing typed incremental events through the SSE path; tests only assert that heartbeat/status frames are served and that frontend merge helpers can consume synthetic events.",
+      "No verification proves source-native watch bridging, bounded fallback polling after push failure, or cursor resume against changing Hub/MCP/Kubernetes/git/OpenSpec data."
+    ]
+  },
+  "summary": "Request changes. Static OpenSpec validation, adapter unit tests, Vitest tests, and the production frontend build pass after installing npm dependencies, but the implementation does not meet the core live push-update contract: the SSE backend emits connection-time metadata and heartbeats only, with no live source watching or incremental event generation for operational changes. The live snapshot path also relies on local session files/module existence for Hub and MCP rather than live read-only operational APIs, so the UI can label local artifacts as live source-of-truth state."
+}
