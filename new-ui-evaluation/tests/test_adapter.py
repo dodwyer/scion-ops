@@ -70,7 +70,11 @@ class AdapterTests(unittest.TestCase):
                     return False, "cluster unavailable in test"
                 return False, "unexpected command"
 
-            with patch("adapter.run_read_only_command", side_effect=fake_command):
+            with (
+                patch("adapter.run_read_only_command", side_effect=fake_command),
+                patch.object(LiveSourceAggregator, "_read_hub_operational", return_value={"ok": False, "status": "degraded", "fallback": True, "error": "Hub unavailable"}),
+                patch.object(LiveSourceAggregator, "_read_mcp_operational", return_value={"ok": False, "status": "degraded", "fallback": True, "error": "MCP unavailable"}),
+            ):
                 snapshot = LiveSourceAggregator(project_root).build_snapshot()
 
         self.assertEqual(snapshot["schemaVersion"], LIVE_SCHEMA_VERSION)
@@ -82,8 +86,55 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(snapshot["rounds"][0]["id"], "20260511t154050z-44ce")
         self.assertEqual(snapshot["rounds"][0]["branchEvidence"]["headSha"], "abc123")
         self.assertIn("raw-runtime", snapshot["diagnostics"]["rawPayloads"])
+        self.assertIn("raw-hub", snapshot["diagnostics"]["rawPayloads"])
+        self.assertTrue(next(source for source in snapshot["sourceHealth"] if source["name"] == "Hub")["fallback"])
         self.assertEqual({command[0] for command in commands}, {"git", "kubectl"})
         self.assertTrue(all(command[:2] == ["git", "rev-parse"] or command[:3] == ["kubectl", "get", "pods"] for command in commands))
+
+    def test_live_snapshot_uses_hub_and_mcp_operational_reads_when_available(self):
+        hub_read = {
+            "ok": True,
+            "agent_count": 1,
+            "hub": {"endpoint": "http://hub.example", "grove_id": "grove-1"},
+            "agents": [
+                {
+                    "name": "round-20260511t154050z-44ce-implementation-steward",
+                    "phase": "running",
+                    "activity": "idle",
+                    "taskSummary": "Implement live adapter repair",
+                    "updated": "2026-05-11T15:50:00Z",
+                }
+            ],
+        }
+        mcp_read = {"ok": True, "status": "healthy", "httpStatus": 405, "url": "http://mcp.example/mcp"}
+
+        def fake_command(args, cwd):
+            if args[:2] == ["git", "rev-parse"] and "--abbrev-ref" in args:
+                return True, "round-20260511t154050z-44ce-repair-live-codex"
+            if args[:2] == ["git", "rev-parse"]:
+                return True, "def456"
+            if args[:3] == ["kubectl", "get", "pods"]:
+                return True, "pods"
+            return False, "unexpected command"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir)
+            (project_root / "openspec" / "changes" / "wire-new-ui-1").mkdir(parents=True)
+            with (
+                patch("adapter.run_read_only_command", side_effect=fake_command),
+                patch.object(LiveSourceAggregator, "_read_hub_operational", return_value=hub_read),
+                patch.object(LiveSourceAggregator, "_read_mcp_operational", return_value=mcp_read),
+            ):
+                snapshot = LiveSourceAggregator(project_root).build_snapshot()
+
+        self.assertEqual(snapshot["rounds"][0]["id"], "20260511t154050z-44ce")
+        hub_source = next(source for source in snapshot["sourceHealth"] if source["name"] == "Hub")
+        mcp_source = next(source for source in snapshot["sourceHealth"] if source["name"] == "MCP")
+        self.assertEqual(hub_source["status"], "healthy")
+        self.assertIs(hub_source["fallback"], False)
+        self.assertIn("Hub API read succeeded", hub_source["detail"])
+        self.assertEqual(mcp_source["status"], "healthy")
+        self.assertIn("operational endpoint read succeeded", mcp_source["detail"])
 
     def test_live_adapter_serves_snapshot_views_events_and_rejects_mutations(self):
         server = build_server("127.0.0.1", 0, ROOT / "dist", ROOT / "fixtures" / "preview-fixtures.json", mode="live", project_root=ROOT)
@@ -120,6 +171,80 @@ class AdapterTests(unittest.TestCase):
         finally:
             server.shutdown()
             server.server_close()
+
+    def test_sse_stream_emits_typed_incremental_events_for_source_changes(self):
+        first = {
+            "schemaVersion": LIVE_SCHEMA_VERSION,
+            "sourceMode": "live",
+            "generatedAt": "2026-05-11T15:40:00Z",
+            "cursor": "live:first",
+            "sourceHealth": [
+                {"name": "Hub", "status": "healthy", "detail": "ok", "error": None, "stale": False, "fallback": False},
+                {"name": "MCP", "status": "healthy", "detail": "ok", "error": None, "stale": False, "fallback": False},
+            ],
+            "sources": [],
+            "overview": {},
+            "rounds": [
+                {"id": "20260511t154050z-44ce", "state": "active", "updatedAt": "2026-05-11T15:40:00Z", "latestEvent": "started", "blockers": [], "branchEvidence": {"headSha": "a"}, "source": "Hub"}
+            ],
+            "roundDetails": {
+                "20260511t154050z-44ce": {
+                    "timeline": [{"id": "entry-1", "timestamp": "2026-05-11T15:40:00Z", "summary": "started"}]
+                }
+            },
+            "inbox": [],
+            "runtime": {},
+            "diagnostics": {"sourceErrors": []},
+        }
+        second = {
+            **first,
+            "generatedAt": "2026-05-11T15:40:01Z",
+            "cursor": "live:second",
+            "sourceHealth": [
+                {"name": "Hub", "status": "degraded", "detail": "Hub API unavailable; using fallback", "error": "Hub down", "stale": True, "fallback": True},
+                {"name": "MCP", "status": "healthy", "detail": "ok", "error": None, "stale": False, "fallback": False},
+            ],
+            "rounds": [
+                {"id": "20260511t154050z-44ce", "state": "blocked", "updatedAt": "2026-05-11T15:40:01Z", "latestEvent": "blocked", "blockers": ["review"], "branchEvidence": {"headSha": "b"}, "source": "Hub"}
+            ],
+            "roundDetails": {
+                "20260511t154050z-44ce": {
+                    "timeline": [
+                        {"id": "entry-1", "timestamp": "2026-05-11T15:40:00Z", "summary": "started"},
+                        {"id": "entry-2", "timestamp": "2026-05-11T15:40:01Z", "summary": "blocked"},
+                    ]
+                }
+            },
+            "inbox": [
+                {"id": "inbox-1", "source": "Hub", "timestamp": "2026-05-11T15:40:01Z", "context": "review", "readOnly": True}
+            ],
+            "diagnostics": {"sourceErrors": [{"source": "Hub", "message": "Hub down"}]},
+        }
+
+        class ChangingAggregator:
+            def __init__(self):
+                self.calls = 0
+
+            def build_snapshot(self):
+                self.calls += 1
+                return first if self.calls == 1 else second
+
+        server = build_server("127.0.0.1", 0, ROOT / "dist", ROOT / "fixtures" / "preview-fixtures.json", mode="live", project_root=ROOT)
+        server.aggregator = ChangingAggregator()
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base_url = f"http://127.0.0.1:{server.server_port}"
+        try:
+            status, content_type, body = request_text(f"{base_url}/api/events?seconds=1&interval=0.1")
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        self.assertEqual(status, 200)
+        self.assertIn("text/event-stream", content_type)
+        for event_type in ("round_updated", "timeline_entry", "inbox_item", "source_status", "stale", "fallback", "runtime_health", "diagnostic"):
+            self.assertIn(f"event: {event_type}", body)
+        self.assertNotIn("snapshot.updated", body)
 
     def test_fixture_contract_includes_required_operator_shapes(self):
         fixtures = load_fixtures(ROOT / "fixtures" / "preview-fixtures.json")

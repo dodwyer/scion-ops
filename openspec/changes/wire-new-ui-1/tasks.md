@@ -10,3 +10,5 @@
 - [x] Add tests for snapshot contracts, event contracts, idempotent frontend merging, duplicate or replayed events, reconnect behavior, stale-data handling, source-specific failures, and fixture fallback labeling.
 - [x] Add read-only safety tests proving live loading, streaming, reconnect, resume, and fallback polling do not mutate Hub, MCP, Kubernetes, git, OpenSpec, runtime broker, secrets, PVCs, rounds, or model/provider state.
 - [x] Add coexistence checks proving the existing UI deployment, service, port, routes, health checks, lifecycle, and operator access path remain unchanged.
+- [x] Repair live snapshot source health so Hub and MCP readiness comes from read-only operational API/probe results, with local metadata labeled only as fallback.
+- [x] Repair the SSE backend so source changes emit typed incremental events for rounds, timelines, inbox, runtime health, diagnostics, source status, stale state, and fallback state.
