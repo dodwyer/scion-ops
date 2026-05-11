@@ -21,6 +21,7 @@ spec:
       containers:
         - name: new-ui-eval
           image: localhost/scion-ops-new-ui-eval:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
               name: http
