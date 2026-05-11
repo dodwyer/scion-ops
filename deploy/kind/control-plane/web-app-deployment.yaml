@@ -60,7 +60,7 @@ spec:
               value: /run/config/scion-broker-kubeconfig/config
             - name: SCION_OPS_ROOT
               value: /workspace/scion-ops
-            - name: NEW_UI_EVALUATION_MODE
+            - name: SCION_OPS_WEB_APP_MODE
               value: live
             - name: SCION_OPS_HUB_ENDPOINT
               value: http://scion-hub:8090

@@ -470,19 +470,33 @@ def ensure_web_app(*, url: str, timeout_seconds: int) -> None:
                             hint="Check web app logs:\n  task kind:web-app:logs",
                             output=json.dumps(data, indent=2),
                         )
-                    if data.get("sourceMode") != "live" or data.get("mocked") is not False:
+                    if data.get("sourceMode") != "live" or data.get("fixtureBacked") is not False:
                         raise SmokeFailure(
                             "web_app",
                             "web app snapshot did not identify live source mode",
-                            hint="Check NEW_UI_EVALUATION_MODE and web app logs:\n  task kind:web-app:logs",
+                            hint="Check SCION_OPS_WEB_APP_MODE and web app logs:\n  task kind:web-app:logs",
                             output=json.dumps(data, indent=2),
                         )
-                    service = data.get("runtime", {}).get("previewService", {})
+                    service = data.get("runtime", {}).get("liveService", {})
+                    if service.get("liveReadsAllowed") is not True:
+                        raise SmokeFailure(
+                            "web_app",
+                            "web app live path did not allow live reads",
+                            hint="The adapter must report runtime.liveService.liveReadsAllowed=true",
+                            output=json.dumps(service, indent=2),
+                        )
                     if service.get("mutationsAllowed") is not False:
                         raise SmokeFailure(
                             "web_app",
                             "web app live path did not preserve read-only safeguards",
-                            hint="The adapter must report mutationsAllowed=false",
+                            hint="The adapter must report runtime.liveService.mutationsAllowed=false",
+                            output=json.dumps(service, indent=2),
+                        )
+                    if service.get("snapshotPath") != "/api/snapshot" or service.get("streamPath") != "/api/events":
+                        raise SmokeFailure(
+                            "web_app",
+                            "web app live service paths did not match the promoted contract",
+                            hint="The adapter must report runtime.liveService snapshotPath=/api/snapshot and streamPath=/api/events",
                             output=json.dumps(service, indent=2),
                         )
             with urllib.request.urlopen(events_url, timeout=5) as response:
