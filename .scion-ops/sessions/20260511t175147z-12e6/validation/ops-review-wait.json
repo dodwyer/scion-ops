@@ -1,0 +1,190 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t175147z-12e6/findings/ops-review.json",
+  "artifact_json": {
+    "blockers": [],
+    "change": "make-live-1",
+    "collection_recipient": "user:dev@localhost",
+    "dimensions": {
+      "fixture_isolation": {
+        "notes": "Fixture mode is clearly demoted. The Mocked Operator Data Contract requirement requires that fixture data not define a production preview identity or the normal live runtime path. The Fixture Fallback Is Local Only scenario requires that fixture-backed payloads and UI metadata identify themselves as fixture-backed when enabled, and that fixture mode is not exposed as a production preview service. The design section explicitly states fixture-specific metadata may remain in fixture files and tests only when clearly marked as local development or test data.",
+        "result": "pass"
+      },
+      "operational_readiness": {
+        "notes": "The spec establishes a single stable browser UI identity: scion-ops-web-app. The Deployment and Service identity is preserved from the existing live web app path, so operator access URLs, no-spend smoke checks, and any external automation that targets the stable endpoint require no reconfiguration. The old NiceGUI/server-rendered UI (scripts/web_app_hub.py) is explicitly removed from the live deployment path. The React/Vite adapter continues to expose /healthz, /api/snapshot, /api/events, and static assets \u2014 the full runtime surface operators and smoke checks depend on. No new port mappings or kubectl port-forward steps are introduced.",
+        "result": "pass"
+      },
+      "preview_reference_removal": {
+        "notes": "The spec targets all layers of preview reference removal: Kubernetes resources (Deployment, Service), kustomization entries, smoke check targets, operator documentation, task names and descriptions, runtime setup output, troubleshooting hints, production API payloads, schema versions, source identifiers, health responses, and diagnostic metadata. The Overview Avoids Old UI Framing scenario in web-app-hub/spec.md explicitly enumerates disallowed terms: NiceGUI, evaluation, preview, mocked data, non-live console. The Production Data Is Live scenario in new-ui-evaluation/spec.md requires that production payloads not carry mocked, fixture-only, evaluation-preview, or non-live identifiers.",
+        "result": "pass"
+      },
+      "read_only_contract": {
+        "notes": "Read-only boundaries are exhaustively enumerated across both spec deltas. Forbidden mutations cover: rounds (start, abort, retry, delete, archive), Kubernetes resources, Hub runtime records, MCP state, git refs and files, OpenSpec files, secrets, PVCs, runtime broker state, and model/provider state. Read-only safety is explicitly extended to automatic update recovery \u2014 reconnect, cursor resume, snapshot recovery, and fallback polling paths are all required to perform only read operations. Two independent scenarios in web-app-hub/spec.md and new-ui-evaluation/spec.md both assert this, providing cross-spec consistency.",
+        "result": "pass"
+      },
+      "scope_fit": {
+        "notes": "The goal \u2014 remove the old UI, put the new UI live, remove preview and non-live references \u2014 maps directly to the spec. The proposal explicitly names all removal targets: scion-ops-new-ui-eval Deployment, Service, NodePort, kustomization entry, task lifecycle, and smoke target. Production-facing schema, runtime, health, and diagnostic metadata are explicitly required to drop preview/evaluation naming. Fixture mode is demoted to an explicit local development and test fallback. Out-of-scope items (write operations, auth/authz, historical replay, source directory rename) are clearly bounded, preventing scope creep.",
+        "result": "pass"
+      },
+      "single_source_of_truth": {
+        "notes": "The promotion establishes a single canonical browser UI surface and a single service lifecycle. The Kind Kustomize Installation requirement in web-app-hub/spec.md mandates exactly one web app Deployment and one web app Service named scion-ops-web-app, with no separate preview UI resource. This eliminates the two-service topology that was causing operator confusion. The Source Of Truth Preservation requirement ensures browser-visible JSON contracts remain aligned with existing MCP and web app tool result contracts, preventing divergence.",
+        "result": "pass"
+      },
+      "spec_completeness": {
+        "notes": "All five spec artifacts are present: design.md, proposal.md, tasks.md, and two spec deltas (new-ui-evaluation/spec.md and web-app-hub/spec.md). Requirements use GIVEN/WHEN/THEN scenario format throughout. Success criteria in the proposal are concrete and directly verifiable. Tasks in tasks.md map to spec requirements without gaps: deployment update, old UI removal, preview service removal, smoke/runtime setup, metadata rename, fixture isolation, doc rewrite, test additions, and validation run. The two spec deltas cover the two existing spec areas that require modification, providing clean traceability from spec change to implementation task.",
+        "result": "pass"
+      },
+      "validation_sufficiency": {
+        "notes": "The verification strategy covers the core cases needed to confirm a successful promotion: OpenSpec validation script, rendered kustomize inspection (proves scion-ops-new-ui-eval resource is absent), adapter tests for health/snapshot/events/static assets/mutation rejection, frontend typecheck and build, and no-spend kind smoke against the live scion-ops-web-app endpoint. The smoke target is explicitly changed from the old preview coexistence check to a single live UI check. This is sufficient to prove the live path works and the preview path is absent.",
+        "result": "pass"
+      }
+    },
+    "integration_branch": "round-20260511t175147z-12e6-spec-integration",
+    "integration_commit": "df6a3d27bd1c37f444afff61886553329553cf0e",
+    "minor_findings": [
+      {
+        "category": "underspecification",
+        "description": "The metadata rename scope (schema version strings, source identifiers, health response field names, diagnostic field names) is not enumerated. Implementers must perform a discovery pass across Python adapter code, frontend constants, and fixture files to find all affected values. A companion audit list in the tasks or a brief callout in the design would reduce the risk of partial rename leaving isolated preview-labelled fields in production payloads.",
+        "id": "mf-1",
+        "severity": "minor"
+      },
+      {
+        "category": "verification-gap",
+        "description": "The verification strategy checks kustomize resources and adapter endpoint tests but does not include an explicit grep or audit step for residual preview/eval/mocked string references in non-kustomize artifacts such as Python scripts, shell scripts, Makefile targets, CI workflow files, and documentation. A validation step like 'grep -r new-ui-eval deploy/ scripts/ docs/' would provide a lightweight completeness check complementing the kustomize inspection.",
+        "id": "mf-2",
+        "severity": "minor"
+      },
+      {
+        "category": "task-specificity",
+        "description": "The 'Rewrite operator docs so the React/Vite console is documented as the canonical live UI' task names no specific doc files or pages. Documentation renames are low-risk but the open-ended scope could lead to incomplete completion. Naming the primary files (README, runtime setup guide, smoke check guide) in the task would give a clear done-state without requiring a spec revision.",
+        "id": "mf-3",
+        "severity": "informational"
+      }
+    ],
+    "reviewed_at": "2026-05-11T17:55:00Z",
+    "reviewer": "round-20260511t175147z-12e6-spec-ops-review",
+    "role": "ops-review",
+    "session_id": "20260511t175147z-12e6",
+    "summary": "The make-live-1 OpenSpec change is operationally ready for implementation. All seven review dimensions pass: the promotion establishes a single stable scion-ops-web-app identity, scope precisely matches the stated goal of removing the old UI and retiring preview references, the verification strategy covers kustomize resource inspection plus adapter tests plus no-spend smoke against the live endpoint, read-only contracts are exhaustively enumerated and extended to reconnect and fallback paths, all layers of preview reference removal are explicitly targeted, fixture mode is clearly demoted to a local development and test fallback, and the spec is internally complete across all five artifacts with full requirement-to-task traceability. The three minor findings are implementation guidance gaps, not specification errors or blockers.",
+    "verdict": "accepted"
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T17:59:55.420055Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T18:00:10.860870Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T18:00:26.293271Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T18:00:41.731501Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T18:00:57.159143Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T18:01:12.589168Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T18:01:28.040847Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T18:01:43.425237Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T18:01:58.867626Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T18:02:14.297812Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T18:02:29.723988Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T18:02:45.125031Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T18:03:00.557123Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "d0cd43897c448da5835fbe7e4646e1510abd2861",
+      "checked_at": "2026-05-11T18:03:15.980699Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t175147z-12e6-spec-ops-review",
+  "branch_head": "d0cd43897c448da5835fbe7e4646e1510abd2861",
+  "completed_at": "2026-05-11T18:03:16.564964Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

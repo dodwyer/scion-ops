@@ -5,8 +5,8 @@
   "kind": "spec",
   "change": "make-live-1",
   "base_branch": "main",
-  "status": "running",
-  "phase": "clarifying",
+  "status": "ready",
+  "phase": "complete",
   "branches": {
     "steward": "round-20260511t175147z-12e6-spec-steward",
     "clarifier": "round-20260511t175147z-12e6-spec-clarifier",
@@ -31,15 +31,68 @@
     },
     "required_multi_harness": true
   },
-  "agents": {},
-  "review": {},
+  "agents": {
+    "clarifier": {
+      "name": "round-20260511t175147z-12e6-spec-clarifier",
+      "branch": "round-20260511t175147z-12e6-spec-clarifier",
+      "template": "spec-goal-clarifier-claude",
+      "harness_config": "claude",
+      "status": "completed"
+    },
+    "explorer": {
+      "name": "round-20260511t175147z-12e6-spec-explorer",
+      "branch": "round-20260511t175147z-12e6-spec-explorer",
+      "template": "spec-repo-explorer",
+      "harness_config": "codex-exec",
+      "status": "completed"
+    },
+    "author": {
+      "name": "round-20260511t175147z-12e6-spec-author",
+      "branch": "round-20260511t175147z-12e6-spec-author",
+      "template": "spec-author",
+      "harness_config": "codex-exec",
+      "status": "completed"
+    },
+    "ops_review": {
+      "name": "round-20260511t175147z-12e6-spec-ops-review",
+      "branch": "round-20260511t175147z-12e6-spec-ops-review",
+      "template": "spec-ops-reviewer-claude",
+      "harness_config": "claude",
+      "status": "completed"
+    }
+  },
+  "review": {
+    "verdict": "accept",
+    "agent": "round-20260511t175147z-12e6-spec-ops-review",
+    "summary": "Accepted by ops review with no blockers; minor implementation guidance noted for metadata rename audit, residual preview/eval string audit, and doc file specificity."
+  },
   "validation": {
-    "status": "pending"
+    "status": "passed",
+    "command": "python3 scripts/validate-openspec-change.py --project-root . --change make-live-1",
+    "integration_branch": "round-20260511t175147z-12e6-spec-integration",
+    "review_agent": "round-20260511t175147z-12e6-spec-ops-review"
   },
   "blockers": [],
   "next_actions": [
-    "Start spec-goal-clarifier and spec-repo-explorer agents",
-    "Create OpenSpec artifacts on the author branch",
-    "Validate and review the integration branch"
-  ]
+    "Review pull request https://github.com/dodwyer/scion-ops/pull/146"
+  ],
+  "pull_request": {
+    "source": "steward_pr_finalizer",
+    "session_id": "20260511t175147z-12e6",
+    "kind": "spec",
+    "change": "make-live-1",
+    "head": "round-20260511t175147z-12e6-spec-integration",
+    "base": "main",
+    "head_commit": "df6a3d27bd1c37f444afff61886553329553cf0e",
+    "base_commit": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+    "created": true,
+    "draft": false,
+    "pr": {
+      "url": "https://github.com/dodwyer/scion-ops/pull/146",
+      "head": "round-20260511t175147z-12e6-spec-integration",
+      "base": "main",
+      "title": "OpenSpec: make-live-1"
+    },
+    "pr_url": "https://github.com/dodwyer/scion-ops/pull/146"
+  }
 }

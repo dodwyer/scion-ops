@@ -1,0 +1,132 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t175147z-12e6/findings/clarifier.md",
+  "artifact_json": null,
+  "artifact_text": "# Spec Clarifier Findings: make-live-1\n\n**Session:** 20260511t175147z-12e6  \n**Change:** make-live-1  \n**Date:** 2026-05-11\n\n---\n\n## Goal (as stated)\n\n> Remove the old UI and put the new UI live. Ensure the new UI removes old preview and non-live references.\n\n---\n\n## Current State\n\nTwo UIs coexist as separate Kubernetes Deployments:\n\n| | Old UI | New UI |\n|---|---|---|\n| **Name** | `scion-ops-web-app` | `scion-ops-new-ui-eval` |\n| **Framework** | NiceGUI (Python, server-rendered) | React + TypeScript + Vite + Python adapter |\n| **Port** | 8787 / NodePort 30808 | 8080 / NodePort 30880 |\n| **Entry** | `scripts/web_app_hub.py` | `new-ui-evaluation/` directory |\n| **Mode env** | N/A | `NEW_UI_EVALUATION_MODE=live` |\n\nBoth are included in `deploy/kind/control-plane/kustomization.yaml`. The new UI is already running in live mode (not fixture mode) per its deployment env var.\n\n### \"Preview/non-live\" references to remove\n\nThe new UI carries evaluation/preview framing throughout:\n- **Directory name**: `new-ui-evaluation/`\n- **Service/Deployment name**: `scion-ops-new-ui-eval`\n- **Schema version strings**: `new-ui-evaluation.live.v1`, `new-ui-evaluation.fixture.v1`\n- **Fixture mode**: `?fixture=1`, `?mode=fixture` URL params; `--mode fixture` CLI flag; `preview-fixtures.json`; `fixtureOnly`, `liveReadsAllowed`, `mocked` safety flags\n- **Docs**: `docs/new-ui-evaluation.md` \u2014 framed as an evaluation guide\n- **Test fixtures**: `src/__tests__/fixtures.test.tsx` tests fixture contract\n- **OpenSpec specs**: `openspec/changes/wire-new-ui-1/` and `openspec/changes/base-framework-1/` reference \"evaluation\" framing\n\n---\n\n## Interpreted Scope\n\n### In scope (minimum to make the new UI \"live\")\n\n1. **Remove old UI from deployment** \u2014 remove `web-app-deployment.yaml` and `web-app-service.yaml` from `kustomization.yaml`. Old port 30808 goes away.\n2. **Clean up new UI naming** \u2014 rename service/deployment from `scion-ops-new-ui-eval` to a permanent name (e.g. `scion-ops-web`).\n3. **Remove or gate fixture mode** \u2014 strip `?fixture=1` / `--mode fixture` / fixture safety metadata from the production path. Fixture mode was scaffolding for pre-live evaluation; it should not be user-accessible in the live product.\n4. **Update schema version strings** \u2014 `new-ui-evaluation.live.v1` \u2192 a non-evaluation versioned string.\n5. **Update docs** \u2014 `docs/new-ui-evaluation.md` should be rewritten as the canonical UI operations guide.\n\n### Likely out of scope (not stated, should not assume)\n\n- Deleting `scripts/web_app_hub.py` from the codebase (vs. just removing from deployment)\n- Renaming the `new-ui-evaluation/` source directory\n- Changing NodePort from 30880 (unless port standardisation is part of the change)\n- Removing OpenSpec history/change records\n\n---\n\n## Unresolved Questions for Operator\n\n1. **Permanent service name**: What should the new UI's Kubernetes Service/Deployment be named? Options: `scion-ops-web`, `scion-ops-ui`, `scion-ops-console`, or keep a variant of current.\n\n2. **Old UI source code**: Should `scripts/web_app_hub.py` be deleted from the repo entirely, or only removed from the deployment kustomization? (Deletion is irreversible without git history.)\n\n3. **NodePort**: Should the new UI take over port 30808 (old UI's port), keep 30880, or is port unimportant?\n\n4. **Fixture mode disposition**: \n   - Remove entirely from adapter and frontend (clean break)?\n   - Or keep as a dev-only flag not exposed in production deployment?\n\n5. **Schema version string**: What should replace `new-ui-evaluation.live.v1`? (e.g. `scion-ops-console.live.v1`)\n\n6. **Directory rename**: Should `new-ui-evaluation/` be renamed to match the new permanent identity?\n\n7. **Scope of \"non-live references\"**: Does this include removing the OpenSpec evaluation framing in `openspec/changes/wire-new-ui-1/` and `base-framework-1/`, or only runtime/deployment artefacts?\n\n---\n\n## Acceptance Criteria (draft)\n\n- [ ] Old UI (`scion-ops-web-app`) is no longer deployed; port 30808 is no longer exposed.\n- [ ] New UI is reachable and named consistently (no \"eval\" or \"evaluation\" in service/deployment names).\n- [ ] No user-accessible fixture/preview mode in the live deployment (URL params and CLI flags either removed or non-functional in production).\n- [ ] Schema version strings do not contain \"evaluation\".\n- [ ] Docs reflect the new UI as the canonical, live operator console.\n- [ ] `kustomization.yaml` references only the new UI resources.\n- [ ] All existing tests pass against the updated naming and schema versions.\n",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T17:53:05.214053Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T17:53:20.662912Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T17:53:36.093082Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T17:53:51.495819Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T17:54:06.901799Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T17:54:22.347342Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T17:54:37.771453Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T17:54:53.200668Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T17:55:08.614190Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T17:55:24.048498Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T17:55:39.509061Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T17:55:54.924867Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T17:56:10.413014Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "87bfc560b9c2e4877a547ffaee1b00ff1d4bc2c5",
+      "checked_at": "2026-05-11T17:56:25.844561Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "c842338c12794f7b28ffd299105d2e71558a12c0",
+      "checked_at": "2026-05-11T17:56:41.285746Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t175147z-12e6-spec-clarifier",
+  "branch_head": "c842338c12794f7b28ffd299105d2e71558a12c0",
+  "completed_at": "2026-05-11T17:56:41.846541Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
