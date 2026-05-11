@@ -1,0 +1,111 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t115659z-57a1/reviews/final-review.json",
+  "artifact_json": {
+    "blocking_issues": [
+      "The browser overview still renders only readiness/count cards and source checks, ignoring the new overview.priority_attention and overview.recent_activity fields computed in scripts/web_app_hub.py. This fails the approved Operator Overview requirement to highlight the highest-priority source or round needing attention and render recent activity with action, handoff, reason, timestamp, status, source, and a one-level-deeper diagnostics control. Evidence: openspec/changes/better-information-ui/specs/web-app-hub/spec.md:7, spec.md:13-24; scripts/web_app_hub.py:1466-1475 computes the required fields, but scripts/web_app_hub.py:2872-2883 does not render them."
+    ],
+    "final_failure_classification": "implementation_defect",
+    "final_failure_evidence": "The required overview data exists in the JSON model but is not surfaced by renderOverview(), so an operator opening the default overview cannot see priority attention or actionable recent activity as required by the approved OpenSpec artifact.",
+    "nits": [],
+    "review_type": "final",
+    "scores": {
+      "completeness": 3,
+      "correctness": 2,
+      "style": 4
+    },
+    "spec": {
+      "change": "better-information-ui",
+      "checked_artifacts": [
+        "openspec/changes/better-information-ui/proposal.md",
+        "openspec/changes/better-information-ui/design.md",
+        "openspec/changes/better-information-ui/tasks.md",
+        "openspec/changes/better-information-ui/specs/web-app-hub/spec.md",
+        "scripts/web_app_hub.py",
+        "scripts/test-web-app-hub.py"
+      ],
+      "conformance": 2,
+      "gaps": [
+        "No browser-level or render-output test asserts that renderOverview() displays priority_attention or recent_activity.",
+        "No desktop/mobile screenshot or DOM verification was run in this review environment; responsive coverage remains static-fixture based."
+      ],
+      "operational_verification": 3,
+      "spec_completeness": 5,
+      "task_coverage": 3,
+      "unresolved_questions": []
+    },
+    "summary": "Final review rejects PR readiness for round-20260511t115659z-57a1-integration. OpenSpec validation, py_compile, and scripts/test-web-app-hub.py pass, but the default overview UI does not render the required priority attention and actionable recent activity sections, leaving a blocking Operator Overview conformance gap.",
+    "verdict": "request_changes"
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "3319001751560a1c257fb95e801741e8e42b05a9",
+      "checked_at": "2026-05-11T12:15:06.854342Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "3319001751560a1c257fb95e801741e8e42b05a9",
+      "checked_at": "2026-05-11T12:15:27.290009Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "3319001751560a1c257fb95e801741e8e42b05a9",
+      "checked_at": "2026-05-11T12:15:47.738859Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "3319001751560a1c257fb95e801741e8e42b05a9",
+      "checked_at": "2026-05-11T12:16:08.158539Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "3319001751560a1c257fb95e801741e8e42b05a9",
+      "checked_at": "2026-05-11T12:16:28.607195Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "3319001751560a1c257fb95e801741e8e42b05a9",
+      "checked_at": "2026-05-11T12:16:49.078215Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "3319001751560a1c257fb95e801741e8e42b05a9",
+      "checked_at": "2026-05-11T12:17:09.481460Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "7d61ebf57285b6a017cad0827ede4cb2a663a2e2",
+      "checked_at": "2026-05-11T12:17:29.895673Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t115659z-57a1-final-review",
+  "branch_head": "7d61ebf57285b6a017cad0827ede4cb2a663a2e2",
+  "completed_at": "2026-05-11T12:17:30.459361Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
