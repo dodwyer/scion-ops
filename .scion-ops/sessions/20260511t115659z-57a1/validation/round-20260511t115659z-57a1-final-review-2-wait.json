@@ -1,0 +1,114 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t115659z-57a1/reviews/final-review.json",
+  "artifact_json": {
+    "blocking_issues": [],
+    "nits": [],
+    "review_type": "final",
+    "scores": {
+      "completeness": 5,
+      "correctness": 5,
+      "style": 5
+    },
+    "spec": {
+      "change": "better-information-ui",
+      "checked_artifacts": [
+        "openspec/changes/better-information-ui/proposal.md",
+        "openspec/changes/better-information-ui/design.md",
+        "openspec/changes/better-information-ui/tasks.md",
+        "openspec/changes/better-information-ui/specs/web-app-hub/spec.md",
+        "scripts/web_app_hub.py",
+        "scripts/test-web-app-hub.py"
+      ],
+      "conformance": 5,
+      "gaps": [
+        "No full browser screenshot pass was run in this review environment; the prior blocker was verified by executing the browser overview JavaScript render path with a DOM stub and by the focused repository tests."
+      ],
+      "operational_verification": 4,
+      "spec_completeness": 5,
+      "task_coverage": 5,
+      "unresolved_questions": []
+    },
+    "summary": "Accept. The repaired integration head conforms to the approved better-information-ui OpenSpec artifacts. The prior request_changes blocker is resolved: the browser overview renderer now consumes overview.priority_attention and overview.recent_activity and renders action, handoff, reason_for_handoff, timestamp/status/source/round metadata, and one-level-deeper detail controls. Verification performed: python3 scripts/validate-openspec-change.py better-information-ui passed; uv run --with pytest --with 'mcp>=1.13,<2' --with 'PyYAML>=6,<7' pytest scripts/test-web-app-hub.py -q passed with 47 tests; a Node DOM-stub execution of the embedded browser script rendered the priority and recent activity fields successfully. PR readiness: ready, with no blocking issues.",
+    "verdict": "accept"
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "ba42e64f9977af91b86f4229a7be7dd4bc555cca",
+      "checked_at": "2026-05-11T12:23:18.675095Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "ba42e64f9977af91b86f4229a7be7dd4bc555cca",
+      "checked_at": "2026-05-11T12:23:39.064105Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "ba42e64f9977af91b86f4229a7be7dd4bc555cca",
+      "checked_at": "2026-05-11T12:23:59.449858Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "ba42e64f9977af91b86f4229a7be7dd4bc555cca",
+      "checked_at": "2026-05-11T12:24:19.850597Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "ba42e64f9977af91b86f4229a7be7dd4bc555cca",
+      "checked_at": "2026-05-11T12:24:40.280367Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "ba42e64f9977af91b86f4229a7be7dd4bc555cca",
+      "checked_at": "2026-05-11T12:25:00.738128Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "ba42e64f9977af91b86f4229a7be7dd4bc555cca",
+      "checked_at": "2026-05-11T12:25:21.155251Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "ba42e64f9977af91b86f4229a7be7dd4bc555cca",
+      "checked_at": "2026-05-11T12:25:41.573464Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "1103819dd52bd9083cf92c47bbe9e2e7cec04048",
+      "checked_at": "2026-05-11T12:26:02.004699Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t115659z-57a1-final-review-2",
+  "branch_head": "1103819dd52bd9083cf92c47bbe9e2e7cec04048",
+  "completed_at": "2026-05-11T12:26:02.533291Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
