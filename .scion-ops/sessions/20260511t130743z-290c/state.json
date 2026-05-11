@@ -6,30 +6,73 @@
   "change": "base-framework-1",
   "base_branch": "main",
   "status": "running",
-  "phase": "starting",
+  "phase": "repair",
   "branches": {
     "steward": "round-20260511t130743z-290c-implementation-steward",
     "implementer": "round-20260511t130743z-290c-impl-codex",
     "secondary_implementer": "round-20260511t130743z-290c-impl-claude",
+    "deploy_repair": "round-20260511t130743z-290c-impl-deploy-repair",
+    "integration_repair": "round-20260511t130743z-290c-impl-integration-repair",
     "final_review": "round-20260511t130743z-290c-final-review",
     "integration": "round-20260511t130743z-290c-integration"
   },
   "agents": {},
   "implementation": {
-    "branch": "",
+    "branch": "round-20260511t130743z-290c-integration",
     "base_branch": "main",
-    "integration_branch": "round-20260511t130743z-290c-integration"
+    "integration_branch": "round-20260511t130743z-290c-integration",
+    "integration_sha": "7fbcc789ae0e0970bbccf7ea703b9185a426b712"
   },
-  "reviews": [],
-  "final_review": {},
+  "reviews": [
+    {
+      "branch": "round-20260511t130743z-290c-final-review",
+      "verdict": "request_changes",
+      "artifact": ".scion-ops/sessions/20260511t130743z-290c/reviews/final-review.json",
+      "blocking_issues": [
+        "scripts/build-images.sh uses new-ui-evaluation/ as Docker context while image-build/new-ui-eval/Dockerfile copies repo-root-relative new-ui-evaluation paths."
+      ],
+      "classification": "implementation_defect",
+      "evidence": "Final review found the targeted and full image build path cannot build the preview image because Docker would look for new-ui-evaluation/new-ui-evaluation/package*.json under the selected context."
+    }
+  ],
+  "final_review": {
+    "verdict": "request_changes",
+    "branch": "round-20260511t130743z-290c-final-review",
+    "artifact": ".scion-ops/sessions/20260511t130743z-290c/reviews/final-review.json",
+    "blocking_issues": [
+      "scripts/build-images.sh uses new-ui-evaluation/ as Docker context while image-build/new-ui-eval/Dockerfile copies repo-root-relative new-ui-evaluation paths."
+    ],
+    "classification": "implementation_defect",
+    "evidence": "The preview image build path is statically inconsistent; repair branch is being routed before readiness."
+  },
   "verification": {
-    "status": "pending"
+    "status": "passed_before_final_review",
+    "commands": [
+      "python3 scripts/validate-openspec-change.py --project-root . --change base-framework-1",
+      "python3 -m unittest discover -s tests -p 'test_*.py' (from new-ui-evaluation)",
+      "npm ci (from new-ui-evaluation)",
+      "npm run typecheck (from new-ui-evaluation)",
+      "npm test (from new-ui-evaluation)",
+      "npm run build (from new-ui-evaluation)",
+      "bash -n scripts/build-images.sh scripts/kind-scion-runtime.sh scripts/impl-publish-handoff.sh",
+      "python3 -m py_compile scripts/kind-control-plane-smoke.py new-ui-evaluation/adapter.py",
+      "kubectl kustomize deploy/kind/control-plane | rg preview/current UI resource and port checks",
+      "task --list | rg new-ui-eval/control-plane:smoke/web-app",
+      "git diff --check"
+    ]
   },
-  "blockers": [],
+  "blockers": [
+    {
+      "cause": "final_review_request_changes",
+      "classification": "implementation_defect",
+      "summary": "Preview image build context mismatch between scripts/build-images.sh and image-build/new-ui-eval/Dockerfile.",
+      "repair_branch": "pending"
+    }
+  ],
   "next_actions": [
-    "Write implementation brief and bounded task groups",
-    "Start bounded implementer agents",
-    "Integrate the accepted implementation branch",
-    "Run verification and final review"
+    "Start bounded repair for scripts/build-images.sh preview Docker context",
+    "Merge repair into integration",
+    "Rerun no-spend verification",
+    "Restart final review from the repaired integration SHA"
   ]
 }

@@ -1,0 +1,131 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t130743z-290c/reviews/final-review.json",
+  "artifact_json": {
+    "blocking_issues": [
+      "scripts/build-images.sh wires the new UI evaluation image build with context $REPO_ROOT/new-ui-evaluation (scripts/build-images.sh:181-189), but image-build/new-ui-eval/Dockerfile copies new-ui-evaluation/package*.json and new-ui-evaluation/ (image-build/new-ui-eval/Dockerfile:5-8). Those paths only exist when the Docker build context is the repository root, so `task build -- --only new-ui-eval` and full image builds through scripts/build-images.sh cannot build the required Kubernetes preview image."
+    ],
+    "final_failure_classification": "implementation_defect",
+    "final_failure_evidence": "The approved OpenSpec requires a Kubernetes pod can run the evaluation UI and verification includes deployment checks for the separate preview. The integrated Taskfile direct target uses the repository root Docker context, but the main scripts/build-images.sh path uses the new-ui-evaluation subdirectory as context while the Dockerfile expects repo-root-relative COPY sources. Docker is not installed in this review environment, but the path mismatch is statically deterministic: new-ui-evaluation/new-ui-evaluation/package*.json is absent from that context.",
+    "nits": [],
+    "review_type": "final",
+    "scores": {
+      "completeness": 3,
+      "correctness": 3,
+      "style": 4
+    },
+    "spec": {
+      "change": "base-framework-1",
+      "checked_artifacts": [
+        "openspec/changes/base-framework-1/proposal.md",
+        "openspec/changes/base-framework-1/design.md",
+        "openspec/changes/base-framework-1/tasks.md",
+        "openspec/changes/base-framework-1/specs/new-ui-evaluation/spec.md",
+        "new-ui-evaluation/adapter.py",
+        "new-ui-evaluation/src/App.tsx",
+        "new-ui-evaluation/src/api.ts",
+        "new-ui-evaluation/src/types.ts",
+        "new-ui-evaluation/fixtures/preview-fixtures.json",
+        "new-ui-evaluation/tests/test_adapter.py",
+        "new-ui-evaluation/src/__tests__/fixtures.test.tsx",
+        "deploy/kind/control-plane/new-ui-evaluation-deployment.yaml",
+        "deploy/kind/control-plane/new-ui-evaluation-service.yaml",
+        "image-build/new-ui-eval/Dockerfile",
+        "scripts/build-images.sh",
+        "scripts/kind-control-plane-smoke.py",
+        "Taskfile.yml",
+        "docs/new-ui-evaluation.md"
+      ],
+      "conformance": 3,
+      "gaps": [
+        "Docker image build was not executed because docker is not installed in the review environment.",
+        "Kubernetes apply and smoke checks were not executed because the review environment does not expose a kind cluster."
+      ],
+      "operational_verification": 3,
+      "spec_completeness": 5,
+      "task_coverage": 3,
+      "unresolved_questions": []
+    },
+    "summary": "The React/Vite frontend, Python fixture adapter, read-only safeguards, fixtures, docs, and Kubernetes manifests substantially match the approved base-framework-1 OpenSpec, and the no-spend checks pass after installing npm dependencies from the lockfile. PR readiness is blocked by the integrated image build path: scripts/build-images.sh invokes the new UI Dockerfile with the wrong build context, which prevents the required preview image from being built through the documented full/targeted build script path.",
+    "verdict": "request_changes"
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7fbcc789ae0e0970bbccf7ea703b9185a426b712",
+      "checked_at": "2026-05-11T13:34:24.625268Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7fbcc789ae0e0970bbccf7ea703b9185a426b712",
+      "checked_at": "2026-05-11T13:34:45.008576Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7fbcc789ae0e0970bbccf7ea703b9185a426b712",
+      "checked_at": "2026-05-11T13:35:05.409486Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7fbcc789ae0e0970bbccf7ea703b9185a426b712",
+      "checked_at": "2026-05-11T13:35:25.810537Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7fbcc789ae0e0970bbccf7ea703b9185a426b712",
+      "checked_at": "2026-05-11T13:35:46.242926Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7fbcc789ae0e0970bbccf7ea703b9185a426b712",
+      "checked_at": "2026-05-11T13:36:06.650752Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7fbcc789ae0e0970bbccf7ea703b9185a426b712",
+      "checked_at": "2026-05-11T13:36:27.118362Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7fbcc789ae0e0970bbccf7ea703b9185a426b712",
+      "checked_at": "2026-05-11T13:36:47.531273Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "3dfd44897fe522ce412637a5eb28af85dc925e5e",
+      "checked_at": "2026-05-11T13:37:07.945235Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t130743z-290c-final-review",
+  "branch_head": "3dfd44897fe522ce412637a5eb28af85dc925e5e",
+  "completed_at": "2026-05-11T13:37:08.555116Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
