@@ -180,6 +180,49 @@ describe("preview live contract", () => {
     expect(twice.rounds).toHaveLength(initial.rounds.length);
   });
 
+  it("replaces stale data from snapshot_ready payload snapshots", () => {
+    const initial: PreviewData = { ...liveSnapshot, loadedAt: "2026-05-11T15:40:51Z" };
+    const recoveredSnapshot: LiveSnapshot = {
+      ...liveSnapshot,
+      generatedAt: "2026-05-11T15:41:30Z",
+      cursor: "snapshot-cursor",
+      rounds: [{ ...liveSnapshot.rounds[0], id: "round-recovered", goal: "Recovered round from snapshot" }],
+      roundDetails: {},
+      inbox: [],
+      connection: {
+        ...liveSnapshot.connection,
+        status: "reconnecting",
+        lastEventId: "snapshot-cursor",
+        reconnect: { ...liveSnapshot.connection.reconnect, attempt: 3, nextDelaySeconds: 10 },
+        error: "previous snapshot error"
+      }
+    };
+    const event: LiveEvent<{ snapshot: LiveSnapshot }> = {
+      schemaVersion: "new-ui-evaluation.event.v1",
+      type: "snapshot_ready",
+      id: "evt-snapshot-ready",
+      eventId: "evt-snapshot-ready",
+      source: "Adapter",
+      timestamp: "2026-05-11T15:41:31Z",
+      cursor: "cursor-recovery",
+      payload: { snapshot: recoveredSnapshot }
+    };
+
+    const next = applyLiveEvent(initial, event);
+
+    expect(next.loadedAt).toBe(initial.loadedAt);
+    expect(next.generatedAt).toBe(recoveredSnapshot.generatedAt);
+    expect(next.rounds).toEqual(recoveredSnapshot.rounds);
+    expect(next.roundDetails).toEqual({});
+    expect(next.inbox).toEqual([]);
+    expect(next.cursor).toBe("cursor-recovery");
+    expect(next.connection.status).toBe("live");
+    expect(next.connection.lastEventId).toBe("cursor-recovery");
+    expect(next.connection.reconnect.attempt).toBe(0);
+    expect(next.connection.reconnect.nextDelaySeconds).toBeUndefined();
+    expect(next.connection.error).toBeNull();
+  });
+
   it("merges backend timeline entry events by payload round id", () => {
     const initial: PreviewData = { ...liveSnapshot, loadedAt: "2026-05-11T15:40:51Z" };
     const roundId = initial.rounds[0].id;
