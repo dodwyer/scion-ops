@@ -2383,6 +2383,8 @@ INDEX_HTML = r"""<!doctype html>
     .timeline-action { font-weight:500; }
     .timeline-handoff { display:inline-flex; align-items:center; gap:4px; background:#eef3fa; border:1px solid #c9d7e6; border-radius:4px; padding:2px 6px; font-size:12px; }
     .timeline-reason { color:var(--muted); font-size:13px; margin-top:3px; }
+    .overview-list { display:grid; gap:8px; }
+    .overview-item { border-left:3px solid var(--line); padding-left:10px; min-width:0; word-break:break-word; }
     details > summary { cursor:pointer; color:var(--muted); font-size:12px; user-select:none; padding:4px 0; }
     details > summary:hover { color:var(--text); }
     .flow { display:grid; gap:10px; }
@@ -2872,13 +2874,39 @@ INDEX_HTML = r"""<!doctype html>
     function renderOverview() {
       const s = state.snapshot;
       const sources = s.sources;
+      const overview = s.overview || {};
+      const priority = overview.priority_attention || {};
+      const recent = overview.recent_activity || [];
+      const detailControl = (label, detail) => {
+        const hasDetail = detail && typeof detail === "object" && Object.keys(detail).length;
+        return hasDetail ? `<details class="diag-section"><summary>${esc(label)}</summary><pre class="mono">${esc(JSON.stringify(detail, null, 2))}</pre></details>` : "";
+      };
+      const overviewItem = (item, label = "") => {
+        const timestamp = item.timestamp || item.time || item.latest_update || "";
+        const source = item.source || item.kind || item.round_id || "";
+        const title = item.action || item.summary || "No action recorded";
+        const handoffHtml = item.handoff ? `<div class="meta"><span class="timeline-handoff">&#8594; ${esc(item.handoff)}</span></div>` : "";
+        const reasonHtml = item.reason_for_handoff ? `<div class="timeline-reason">${esc(item.reason_for_handoff)}</div>` : "";
+        return `<div class="overview-item">
+          ${label ? `<div class="muted">${esc(label)}</div>` : ""}
+          <div class="timeline-action">${esc(title)}</div>
+          ${handoffHtml}
+          ${reasonHtml}
+          <div class="meta">${meta("timestamp", timestamp)}${meta("status", item.status)}${meta("source", source)}${meta("round", item.round_id)}</div>
+          ${detailControl("Detail", item.detail)}
+        </div>`;
+      };
       document.getElementById("overview").innerHTML = `
         <div class="grid">
-          <div class="card"><div>${status(s.overview.readiness)}</div><div class="muted">Control plane readiness</div></div>
-          <div class="card"><strong>${s.overview.active_round_count}</strong><div class="muted">Active or blocked rounds</div></div>
-          <div class="card"><strong>${s.overview.agent_count}</strong><div class="muted">Hub agents</div></div>
-          <div class="card"><strong>${fmt(s.overview.latest_update)}</strong><div class="muted">Latest update</div></div>
+          <div class="card"><div>${status(overview.readiness)}</div><div class="muted">Control plane readiness</div></div>
+          <div class="card"><strong>${overview.active_round_count}</strong><div class="muted">Active or blocked rounds</div></div>
+          <div class="card"><strong>${overview.agent_count}</strong><div class="muted">Hub agents</div></div>
+          <div class="card"><strong>${fmt(overview.latest_update)}</strong><div class="muted">Latest update</div></div>
         </div>
+        <h2>Priority Attention</h2>
+        <div class="card">${overviewItem(priority)}</div>
+        <h2>Recent Activity</h2>
+        <div class="card overview-list">${recent.length ? recent.map(item => overviewItem(item)).join("") : `<div class="muted">No recent action, handoff, or status activity found.</div>`}</div>
         <h2>Checks</h2>
         <div class="grid">${["hub","broker","mcp","web_app","kubernetes"].map(name => `<div class="card"><div>${status(sources[name]?.status)}</div><strong>${esc(name)}</strong><div class="muted">${esc(sources[name]?.error || `${sources[name]?.count ?? ""} ${name === "broker" ? "brokers" : ""}`)}</div></div>`).join("")}</div>`;
     }
