@@ -1,0 +1,21 @@
+{
+  "base_branch": "main",
+  "base_sha": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+  "branch": "round-20260511t154050z-44ce-impl-ui-codex",
+  "child_sha": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+  "completed_at": "2026-05-11T15:58:55.400123Z",
+  "created": true,
+  "fetch": {
+    "ok": true,
+    "output": "",
+    "returncode": 0
+  },
+  "ok": true,
+  "project_root": "/workspace",
+  "push": {
+    "ok": true,
+    "output": "remote: \nremote: Create a pull request for 'round-20260511t154050z-44ce-impl-ui-codex' on GitHub by visiting:        \nremote:      https://github.com/dodwyer/scion-ops/pull/new/round-20260511t154050z-44ce-impl-ui-codex        \nremote: \nTo https://github.com/dodwyer/scion-ops.git\n * [new branch]      origin/main -> round-20260511t154050z-44ce-impl-ui-codex\n",
+    "returncode": 0
+  },
+  "reason": ""
+}

@@ -1,0 +1,316 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-impl-ui-codex.json",
+  "artifact_json": {
+    "agent": "round-20260511t154050z-44ce-impl-ui-codex",
+    "blockers": [],
+    "branch": "round-20260511t154050z-44ce-impl-ui-codex",
+    "changed_files": [
+      "deploy/kind/control-plane/new-ui-evaluation-deployment.yaml",
+      "docs/kind-control-plane.md",
+      "new-ui-evaluation/src/App.tsx",
+      "new-ui-evaluation/src/__tests__/fixtures.test.tsx",
+      "new-ui-evaluation/src/api.ts",
+      "new-ui-evaluation/src/styles.css",
+      "new-ui-evaluation/src/types.ts",
+      "openspec/changes/wire-new-ui-1/tasks.md",
+      "scripts/kind-control-plane-smoke.py"
+    ],
+    "head_sha": "c5b6b487360da174678128d1f06276893a8ff2ee",
+    "status": "completed",
+    "summary": "Wired the new UI replacement slice to the accepted Group A live contract: /api/snapshot for initial state, /api/events for SSE updates, runtime preview paths surfaced in UI, explicit fixture fallback, reconnect/stale/source health UI, frontend coverage, and new-UI-only live smoke/coexistence checks. Branch pushed to origin.",
+    "tasks_completed": [
+      "Implemented React/Vite initial live snapshot loading from /api/snapshot with explicit fixture fallback through /api/fixtures only when requested.",
+      "Added SSE consumption for /api/events with typed event merging, idempotent source/round/inbox/activity updates, cursor resume, bounded reconnect UI, stale-data preservation, and global/per-source health indicators.",
+      "Added frontend tests for snapshot and event contracts, fixture fallback labeling, duplicate event merging, stale preservation, source-specific failure handling, and SSE cursor resume.",
+      "Added new-UI live-mode deployment default, docs for separate access and fixture mode, and smoke checks for /api/snapshot, /api/events, read-only safeguards, and endpoint coexistence."
+    ],
+    "tests_run": [
+      "npm run typecheck (new-ui-evaluation)",
+      "npm test (new-ui-evaluation)",
+      "npm run build (new-ui-evaluation)",
+      "python3 -m py_compile scripts/kind-control-plane-smoke.py",
+      "python3 scripts/validate-openspec-change.py wire-new-ui-1",
+      "git diff --check"
+    ]
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:59:37.980908Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T15:59:58.429550Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:00:18.864381Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:00:39.286384Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:00:59.709978Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:01:20.142744Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:01:40.561538Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:02:00.972383Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:02:21.453217Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:02:41.916205Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:03:02.352539Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:03:22.833327Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:03:43.239442Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:04:03.667993Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:04:24.108208Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:04:44.526431Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:05:04.974461Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:05:25.394971Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:05:45.822042Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:06:06.266807Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:06:26.680454Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:06:47.083283Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:07:07.551445Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:07:27.972647Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:07:48.388314Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:08:08.813146Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:08:29.244970Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:08:49.690859Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:09:10.091488Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:09:30.549914Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "checked_at": "2026-05-11T16:09:51.010623Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "c5b6b487360da174678128d1f06276893a8ff2ee",
+      "checked_at": "2026-05-11T16:10:11.498360Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "c5b6b487360da174678128d1f06276893a8ff2ee",
+      "checked_at": "2026-05-11T16:10:32.082151Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "0fddefbec7e6ea1832fc673b1a399820289ec42b",
+      "checked_at": "2026-05-11T16:10:52.520492Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t154050z-44ce-impl-ui-codex",
+  "branch_head": "0fddefbec7e6ea1832fc673b1a399820289ec42b",
+  "completed_at": "2026-05-11T16:10:53.105267Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

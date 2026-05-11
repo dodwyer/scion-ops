@@ -26,6 +26,11 @@
       "status": "artifact_timeout",
       "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-impl-claude.json",
       "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-impl-claude-handoff-wait.json"
+    },
+    "round-20260511t154050z-44ce-impl-ui-codex": {
+      "branch": "round-20260511t154050z-44ce-impl-ui-codex",
+      "status": "completed",
+      "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-impl-ui-codex.json"
     }
   },
   "implementation": {
