@@ -46,6 +46,11 @@
       "branch": "round-20260511t154050z-44ce-repair-ui-events-codex",
       "status": "completed",
       "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-repair-ui-events-codex.json"
+    },
+    "round-20260511t154050z-44ce-repair-reconnect-codex": {
+      "branch": "round-20260511t154050z-44ce-repair-reconnect-codex",
+      "status": "completed",
+      "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-repair-reconnect-codex.json"
     }
   },
   "implementation": {
@@ -103,7 +108,7 @@
       "agent": "round-20260511t154050z-44ce-final-review-3",
       "branch": "round-20260511t154050z-44ce-final-review-3",
       "cause": "final_review_request_changes",
-      "status": "repair_planned",
+      "status": "repair_completed",
       "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-3-wait.json",
       "summary": "Third final review requested changes for reconnect cursor replay or safe snapshot recovery."
     }

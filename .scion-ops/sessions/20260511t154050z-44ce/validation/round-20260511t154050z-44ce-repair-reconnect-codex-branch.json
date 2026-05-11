@@ -1,0 +1,21 @@
+{
+  "base_branch": "round-20260511t154050z-44ce-integration",
+  "base_sha": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+  "branch": "round-20260511t154050z-44ce-repair-reconnect-codex",
+  "child_sha": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+  "completed_at": "2026-05-11T16:38:22.092004Z",
+  "created": true,
+  "fetch": {
+    "ok": true,
+    "output": "",
+    "returncode": 0
+  },
+  "ok": true,
+  "project_root": "/workspace",
+  "push": {
+    "ok": true,
+    "output": "remote: \nremote: Create a pull request for 'round-20260511t154050z-44ce-repair-reconnect-codex' on GitHub by visiting:        \nremote:      https://github.com/dodwyer/scion-ops/pull/new/round-20260511t154050z-44ce-repair-reconnect-codex        \nremote: \nTo https://github.com/dodwyer/scion-ops.git\n * [new branch]      origin/round-20260511t154050z-44ce-integration -> round-20260511t154050z-44ce-repair-reconnect-codex\n",
+    "returncode": 0
+  },
+  "reason": ""
+}

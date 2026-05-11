@@ -1,0 +1,132 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-repair-reconnect-codex.json",
+  "artifact_json": {
+    "agent": "round-20260511t154050z-44ce-repair-reconnect-codex",
+    "blockers": [],
+    "branch": "round-20260511t154050z-44ce-repair-reconnect-codex",
+    "changed_files": [
+      "docs/new-ui-evaluation.md",
+      "new-ui-evaluation/adapter.py",
+      "new-ui-evaluation/tests/test_adapter.py",
+      "openspec/changes/wire-new-ui-1/tasks.md"
+    ],
+    "head_sha": "0ce690c5b6906a3278b621e4707ec3e73adacb21",
+    "status": "completed",
+    "summary": "Repaired SSE reconnect cursor behavior so known cursors replay missed round, timeline, inbox, runtime/source-health, stale/fallback, and diagnostic events, while unknown cursors receive an explicit snapshot_ready recovery event carrying the current read-only snapshot. Branch was committed and pushed.",
+    "tasks_completed": [
+      "Added bounded in-memory live snapshot history for SSE cursor resume.",
+      "Changed /api/events reconnect handling to replay typed missed events from a known cursor.",
+      "Added explicit snapshot_ready recovery payload with the current read-only snapshot when replay is unavailable.",
+      "Added backend reconnect tests covering first cursor replay and unavailable-cursor snapshot recovery.",
+      "Updated new UI evaluation docs and OpenSpec task tracking for reconnect recovery."
+    ],
+    "tests_run": [
+      {
+        "command": "python3 -m unittest discover -s tests",
+        "result": "passed",
+        "workdir": "new-ui-evaluation"
+      },
+      {
+        "command": "git diff --check",
+        "result": "passed",
+        "workdir": "."
+      }
+    ]
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+      "checked_at": "2026-05-11T16:38:52.291763Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+      "checked_at": "2026-05-11T16:39:12.705094Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+      "checked_at": "2026-05-11T16:39:33.119463Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+      "checked_at": "2026-05-11T16:39:53.551077Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+      "checked_at": "2026-05-11T16:40:13.962915Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+      "checked_at": "2026-05-11T16:40:34.383998Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+      "checked_at": "2026-05-11T16:40:54.786316Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+      "checked_at": "2026-05-11T16:41:15.179985Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "0ce690c5b6906a3278b621e4707ec3e73adacb21",
+      "checked_at": "2026-05-11T16:41:35.599332Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "0ce690c5b6906a3278b621e4707ec3e73adacb21",
+      "checked_at": "2026-05-11T16:41:56.162794Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "d02a49a594801018a3cfa9dc00c12a1c2c9141d6",
+      "checked_at": "2026-05-11T16:42:16.572445Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t154050z-44ce-repair-reconnect-codex",
+  "branch_head": "d02a49a594801018a3cfa9dc00c12a1c2c9141d6",
+  "completed_at": "2026-05-11T16:42:17.145684Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
