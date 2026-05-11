@@ -1,0 +1,21 @@
+{
+  "base_branch": "round-20260511t130743z-290c-integration",
+  "base_sha": "3590be581bf6229bf7a40b2a3d176f0397b14ff5",
+  "branch": "round-20260511t130743z-290c-impl-integration-repair",
+  "child_sha": "3590be581bf6229bf7a40b2a3d176f0397b14ff5",
+  "completed_at": "2026-05-11T13:28:09.200755Z",
+  "created": true,
+  "fetch": {
+    "ok": true,
+    "output": "",
+    "returncode": 0
+  },
+  "ok": true,
+  "project_root": "/workspace",
+  "push": {
+    "ok": true,
+    "output": "remote: \nremote: Create a pull request for 'round-20260511t130743z-290c-impl-integration-repair' on GitHub by visiting:        \nremote:      https://github.com/dodwyer/scion-ops/pull/new/round-20260511t130743z-290c-impl-integration-repair        \nremote: \nTo https://github.com/dodwyer/scion-ops.git\n * [new branch]      origin/round-20260511t130743z-290c-integration -> round-20260511t130743z-290c-impl-integration-repair\n",
+    "returncode": 0
+  },
+  "reason": ""
+}
