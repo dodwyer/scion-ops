@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import fixtures from "../../fixtures/preview-fixtures.json";
 import { applyLiveEvent, loadPreviewData, markPreviewDataStale, openLiveEventStream } from "../api";
 import { App } from "../App";
-import type { LiveEvent, LiveSnapshot, PreviewData, PreviewFixtures, SourceHealth } from "../types";
+import type { LiveEvent, LiveSnapshot, PreviewData, PreviewFixtures, RuntimeHealthEventPayload, SourceHealth, TimelineEntryEventPayload } from "../types";
 
 const typedFixtures = fixtures as PreviewFixtures;
 
@@ -178,6 +178,63 @@ describe("preview live contract", () => {
     expect(twice.runtime.sources.filter((source) => source.name === "Git")).toHaveLength(1);
     expect(twice.diagnostics.sourceErrors.filter((error) => error.source === "Git")).toHaveLength(1);
     expect(twice.rounds).toHaveLength(initial.rounds.length);
+  });
+
+  it("merges backend timeline entry events by payload round id", () => {
+    const initial: PreviewData = { ...liveSnapshot, loadedAt: "2026-05-11T15:40:51Z" };
+    const roundId = initial.rounds[0].id;
+    const entry = {
+      id: "timeline-entry-live",
+      timestamp: "2026-05-11T15:41:10Z",
+      actor: "Adapter",
+      kind: "event",
+      summary: "Live timeline update"
+    };
+    const event: LiveEvent<TimelineEntryEventPayload> = {
+      schemaVersion: "new-ui-evaluation.event.v1",
+      type: "timeline_entry",
+      id: "evt-timeline-entry-live",
+      eventId: "evt-timeline-entry-live",
+      entityId: entry.id,
+      source: "Adapter",
+      timestamp: "2026-05-11T15:41:10Z",
+      cursor: "cursor-2",
+      payload: { roundId, entry }
+    };
+
+    const once = applyLiveEvent(initial, event);
+    const twice = applyLiveEvent(once, event);
+    const timeline = twice.roundDetails[roundId].timeline;
+
+    expect(timeline.filter((item) => item.id === entry.id)).toHaveLength(1);
+    expect(timeline[timeline.length - 1]).toEqual(entry);
+    expect(twice.rounds).toHaveLength(initial.rounds.length);
+  });
+
+  it("merges backend runtime health source aggregates idempotently", () => {
+    const initial: PreviewData = { ...liveSnapshot, loadedAt: "2026-05-11T15:40:51Z" };
+    const sources: SourceHealth[] = [
+      { ...liveSources[0], status: "degraded", detail: "hub probe delayed", freshnessSeconds: 15 },
+      { ...liveSources[1], status: "healthy", detail: "branch read recovered", stale: false, error: null }
+    ];
+    const event: LiveEvent<RuntimeHealthEventPayload> = {
+      schemaVersion: "new-ui-evaluation.event.v1",
+      type: "runtime_health",
+      id: "evt-runtime-health",
+      eventId: "evt-runtime-health",
+      source: "Adapter",
+      timestamp: "2026-05-11T15:41:20Z",
+      cursor: "cursor-3",
+      payload: { sources }
+    };
+
+    const once = applyLiveEvent(initial, event);
+    const twice = applyLiveEvent(once, event);
+
+    expect(twice.sourceHealth.filter((source) => source.name === "Hub")).toHaveLength(1);
+    expect(twice.sourceHealth.filter((source) => source.name === "Git")).toHaveLength(1);
+    expect(twice.sourceHealth.find((source) => source.name === "Hub")?.detail).toBe("hub probe delayed");
+    expect(twice.runtime.sources.find((source) => source.name === "Git")?.status).toBe("healthy");
   });
 
   it("marks preserved data stale when heartbeats age out", () => {

@@ -230,3 +230,12 @@ export interface LiveEvent<TPayload = unknown> {
   stale?: boolean;
   error?: string | null;
 }
+
+export interface TimelineEntryEventPayload {
+  roundId: string;
+  entry: RoundDetail["timeline"][number];
+}
+
+export interface RuntimeHealthEventPayload {
+  sources: SourceHealth[];
+}
