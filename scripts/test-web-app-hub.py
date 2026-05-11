@@ -1008,6 +1008,136 @@ def test_nicegui_entrypoint_preserves_json_route_contracts_as_fastapi_handlers()
     assert "serve_legacy_http" in source
 
 
+def test_timeline_entry_includes_action_handoff_reason_fields():
+    structured_msg = json.dumps({
+        "action": "submitting final review",
+        "handoff": "round-20260509t063201z-6c02-spec-steward",
+        "reason_for_handoff": "implementation verified against all scenarios",
+    })
+    round_events = {
+        "ok": True,
+        "round_id": "20260509t063201z-6c02",
+        "cursor": "cursor-3",
+        "events": [
+            {
+                "type": "message",
+                "message": {
+                    "id": "msg-structured",
+                    "createdAt": "2026-05-09T06:40:00+00:00",
+                    "sender": "round-20260509t063201z-6c02-final-review",
+                    "msg": structured_msg,
+                },
+            }
+        ],
+    }
+    detail = web_app_hub.build_round_detail(FixtureProvider(round_events=round_events), "20260509t063201z-6c02")
+    entry = next(item for item in detail["timeline"] if "structured" in item.get("id", ""))
+    assert entry["action"] == "submitting final review"
+    assert entry["handoff"] == "round-20260509t063201z-6c02-spec-steward"
+    assert entry["reason_for_handoff"] == "implementation verified against all scenarios"
+    assert "action" in web_app_hub.BROWSER_JSON_CONTRACT["round"]["timeline_entry"]
+    assert "handoff" in web_app_hub.BROWSER_JSON_CONTRACT["round"]["timeline_entry"]
+    assert "reason_for_handoff" in web_app_hub.BROWSER_JSON_CONTRACT["round"]["timeline_entry"]
+
+
+def test_timeline_entry_action_falls_back_to_summary_when_no_structured_fields():
+    round_events = {
+        "ok": True,
+        "round_id": "20260509t063201z-6c02",
+        "cursor": "cursor-4",
+        "events": [
+            {
+                "type": "message",
+                "message": {
+                    "id": "msg-plain",
+                    "createdAt": "2026-05-09T06:41:00+00:00",
+                    "sender": "round-20260509t063201z-6c02-spec-clarifier",
+                    "msg": "round 20260509t063201z-6c02 task_completed clarified scope",
+                },
+            }
+        ],
+    }
+    detail = web_app_hub.build_round_detail(FixtureProvider(round_events=round_events), "20260509t063201z-6c02")
+    entry = next(item for item in detail["timeline"] if "plain" in item.get("id", ""))
+    assert entry["action"]
+    assert "task_completed" in entry["action"] or "clarified" in entry["action"]
+    assert entry["handoff"] == ""
+    assert entry["reason_for_handoff"] == ""
+
+
+def test_timeline_distinct_same_agent_entries_are_preserved():
+    round_events = {
+        "ok": True,
+        "round_id": "20260509t063201z-6c02",
+        "cursor": "cursor-5",
+        "events": [
+            {
+                "type": "message",
+                "message": {
+                    "id": "msg-a1",
+                    "createdAt": "2026-05-09T06:35:00+00:00",
+                    "sender": "round-20260509t063201z-6c02-spec-clarifier",
+                    "msg": "round 20260509t063201z-6c02 first update",
+                },
+            },
+            {
+                "type": "message",
+                "message": {
+                    "id": "msg-a2",
+                    "createdAt": "2026-05-09T06:38:00+00:00",
+                    "sender": "round-20260509t063201z-6c02-spec-clarifier",
+                    "msg": "round 20260509t063201z-6c02 second update",
+                },
+            },
+        ],
+    }
+    detail = web_app_hub.build_round_detail(FixtureProvider(round_events=round_events), "20260509t063201z-6c02")
+    clarifier_entries = [item for item in detail["timeline"] if "clarifier" in item.get("agent_name", "")]
+    assert len(clarifier_entries) >= 2, "distinct same-agent entries must be preserved as separate rows"
+    entry_ids = {item["id"] for item in clarifier_entries}
+    assert len(entry_ids) == len(clarifier_entries), "each distinct message must have a unique stable id"
+
+
+def test_nicegui_components_use_modern_patterns():
+    source = (ROOT / "scripts" / "web_app_hub.py").read_text()
+    assert "ui.tabs(" in source, "build_nicegui_console_components should use ui.tabs()"
+    assert "ui.tab(" in source, "build_nicegui_console_components should use ui.tab()"
+    assert "ui.expansion(" in source, "build_nicegui_console_components should use ui.expansion()"
+    assert "ui.tab_panels(" not in source or "ui.expansion(" in source, "at minimum ui.expansion must be used"
+    assert "nicegui-content" in source, "NiceGUI main container should have responsive class"
+    assert "diag-expansion" in source, "diagnostics expansion should be present"
+
+
+def test_responsive_layout_css_prevents_overflow():
+    style = web_app_hub.nicegui_console_style()
+    html = web_app_hub.INDEX_HTML
+    assert "overflow-x:hidden" in html or "overflow-x: hidden" in html, "body must prevent horizontal overflow"
+    assert "word-break" in html, "long content containers must use word-break for overflow containment"
+    assert "max-width:100%" in html or "max-width: 100%" in html, "mono containers must be width-constrained"
+    assert "@media" in html, "responsive media queries must be present"
+    assert "max-width: 600px" in html or "max-width:600px" in html or "max-width: 800px" in html, "mobile breakpoint must be defined"
+    assert style, "nicegui_console_style() must return non-empty style content"
+
+
+def test_timeline_rendering_js_shows_action_handoff_reason():
+    html = web_app_hub.INDEX_HTML
+    assert "timeline-action" in html, "timeline item must show action field"
+    assert "timeline-handoff" in html, "timeline item must show handoff field"
+    assert "timeline-reason" in html, "timeline item must show reason_for_handoff field"
+    assert "item.action" in html, "JS must reference item.action"
+    assert "item.handoff" in html, "JS must reference item.handoff"
+    assert "item.reason_for_handoff" in html, "JS must reference item.reason_for_handoff"
+    assert "diag-section" in html, "diagnostics must use the diag-section class for deeper controls"
+
+
+def test_diagnostics_moved_behind_details_expansion():
+    html = web_app_hub.INDEX_HTML
+    assert "Coordinator Output" in html, "coordinator output label must remain in the UI"
+    assert "<details" in html, "diagnostics must use HTML details element for drill-in"
+    assert "<summary>" in html, "details must have summary labels"
+    assert "raw source detail" in html.lower() or "detail" in html.lower(), "raw source detail must be behind details"
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
