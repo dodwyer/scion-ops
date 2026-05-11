@@ -12,6 +12,7 @@
     "implementer": "round-20260511t154050z-44ce-impl-codex",
     "secondary_implementer": "round-20260511t154050z-44ce-impl-claude",
     "final_review": "round-20260511t154050z-44ce-final-review",
+    "final_review_repair": "round-20260511t154050z-44ce-final-review-2",
     "integration": "round-20260511t154050z-44ce-integration",
     "replacement_implementer": "round-20260511t154050z-44ce-impl-ui-codex",
     "repair_implementer": "round-20260511t154050z-44ce-repair-live-codex"
@@ -50,6 +51,7 @@
     "verdict": "request_changes",
     "verdict_file": ".scion-ops/sessions/20260511t154050z-44ce/reviews/final-review.json",
     "wait_diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-wait.json",
+    "repair_review_branch": "round-20260511t154050z-44ce-final-review-2",
     "classification": "implementation_defect",
     "blocking_issues": [
       "SSE backend emits only initial heartbeat/source status and periodic heartbeats, without live Hub/MCP/Kubernetes/git/OpenSpec watch or typed incremental operational events.",
