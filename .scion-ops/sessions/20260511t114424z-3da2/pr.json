@@ -1,0 +1,186 @@
+{
+  "base": "main",
+  "base_commit": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+  "change": "better-information-ui",
+  "created": true,
+  "draft": false,
+  "gh": {
+    "create": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "create",
+        "--base",
+        "main",
+        "--head",
+        "round-20260511t114424z-3da2-spec-integration",
+        "--title",
+        "OpenSpec: better-information-ui",
+        "--body",
+        "Created by scion-ops after successful spec steward validation.\n\n- Session: `20260511t114424z-3da2`\n- Change: `better-information-ui`\n- Head: `round-20260511t114424z-3da2-spec-integration` (`5f1350801e78`)\n- Base: `main` (`6db8e51c80a0`)\n- Steward validation: passed\n- OpenSpec review: `accept`"
+      ],
+      "ok": true,
+      "output": "Warning: 1 uncommitted change\nhttps://github.com/dodwyer/scion-ops/pull/140\n",
+      "returncode": 0
+    },
+    "list": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "list",
+        "--head",
+        "round-20260511t114424z-3da2-spec-integration",
+        "--base",
+        "main",
+        "--state",
+        "all",
+        "--json",
+        "number,url,state,title,baseRefName,headRefName",
+        "--limit",
+        "1"
+      ],
+      "ok": true,
+      "output": "[]\n",
+      "returncode": 0
+    }
+  },
+  "head": "round-20260511t114424z-3da2-spec-integration",
+  "head_commit": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+  "kind": "spec",
+  "ok": true,
+  "pr": {
+    "base": "main",
+    "head": "round-20260511t114424z-3da2-spec-integration",
+    "title": "OpenSpec: better-information-ui",
+    "url": "https://github.com/dodwyer/scion-ops/pull/140"
+  },
+  "pr_url": "https://github.com/dodwyer/scion-ops/pull/140",
+  "project_root": "/workspace",
+  "session_id": "20260511t114424z-3da2",
+  "source": "steward_pr_finalizer",
+  "state_recording": {
+    "pr_path": "/workspace/.scion-ops/sessions/20260511t114424z-3da2/pr.json",
+    "state_path": "/workspace/.scion-ops/sessions/20260511t114424z-3da2/state.json"
+  },
+  "validation": {
+    "agent_harnesses": {
+      "author": "codex-exec",
+      "clarifier": "claude",
+      "explorer": "codex-exec",
+      "ops_review": "claude"
+    },
+    "branch": {
+      "base_branch": "main",
+      "base_commit": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+      "base_resolved_ref": "origin/main",
+      "branch": "round-20260511t114424z-3da2-spec-integration",
+      "commit": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+      "resolved_ref": "origin/round-20260511t114424z-3da2-spec-integration"
+    },
+    "change": "better-information-ui",
+    "errors": [],
+    "kind": "spec",
+    "ok": true,
+    "openspec_validation": {
+      "change": "better-information-ui",
+      "change_path": "openspec/changes/better-information-ui",
+      "errors": [],
+      "ok": true,
+      "project_root": "/workspace",
+      "required_files": {
+        "design.md": "openspec/changes/better-information-ui/design.md",
+        "proposal.md": "openspec/changes/better-information-ui/proposal.md",
+        "tasks.md": "openspec/changes/better-information-ui/tasks.md"
+      },
+      "spec_files": [
+        "openspec/changes/better-information-ui/specs/web-app-hub/spec.md"
+      ],
+      "warnings": []
+    },
+    "openspec_validation_source": "worktree",
+    "project_root": "/workspace",
+    "session_id": "20260511t114424z-3da2",
+    "state": {
+      "agents": {
+        "author": {
+          "branch": "round-20260511t114424z-3da2-spec-author",
+          "harness_config": "codex-exec",
+          "name": "round-20260511t114424z-3da2-spec-author",
+          "status": "completed",
+          "template": "spec-author"
+        },
+        "clarifier": {
+          "branch": "round-20260511t114424z-3da2-spec-clarifier",
+          "harness_config": "claude",
+          "name": "round-20260511t114424z-3da2-spec-clarifier",
+          "status": "completed",
+          "template": "spec-goal-clarifier-claude"
+        },
+        "explorer": {
+          "branch": "round-20260511t114424z-3da2-spec-explorer",
+          "harness_config": "codex-exec",
+          "name": "round-20260511t114424z-3da2-spec-explorer",
+          "status": "completed",
+          "template": "spec-repo-explorer"
+        },
+        "ops_review": {
+          "branch": "round-20260511t114424z-3da2-spec-ops-review",
+          "harness_config": "claude",
+          "name": "round-20260511t114424z-3da2-spec-ops-review",
+          "status": "completed",
+          "template": "spec-ops-reviewer-claude"
+        }
+      },
+      "base_branch": "main",
+      "blockers": [],
+      "branches": {
+        "author": "round-20260511t114424z-3da2-spec-author",
+        "clarifier": "round-20260511t114424z-3da2-spec-clarifier",
+        "explorer": "round-20260511t114424z-3da2-spec-explorer",
+        "integration": "round-20260511t114424z-3da2-spec-integration",
+        "review": "round-20260511t114424z-3da2-spec-ops-review",
+        "steward": "round-20260511t114424z-3da2-spec-steward"
+      },
+      "change": "better-information-ui",
+      "consensus": {
+        "harnesses": {
+          "author": "codex-exec",
+          "clarifier": "claude",
+          "explorer": "codex-exec",
+          "ops_review": "claude"
+        },
+        "mode": "multi_harness",
+        "required_multi_harness": true,
+        "templates": {
+          "author": "spec-author",
+          "clarifier": "spec-goal-clarifier-claude",
+          "explorer": "spec-repo-explorer",
+          "ops_review": "spec-ops-reviewer-claude"
+        }
+      },
+      "kind": "spec",
+      "next_actions": [
+        "Use round-20260511t114424z-3da2-spec-integration for OpenSpec review or implementation planning"
+      ],
+      "phase": "complete",
+      "review": {
+        "agent": "round-20260511t114424z-3da2-spec-ops-review",
+        "summary": "The better-information-ui OpenSpec change is well-formed, complete, and ready for implementation. All required artifacts are present and pass automated validation. Scope is tightly bounded to the NiceGUI operator surfaces in scripts/web_app_hub.py, with concrete information-model, responsiveness, and duplicate-preservation requirements; no required fixes.",
+        "verdict": "accept"
+      },
+      "round_id": "20260511t114424z-3da2",
+      "session_id": "20260511t114424z-3da2",
+      "status": "ready",
+      "validation": {
+        "command": "python3 scripts/validate-openspec-change.py --project-root . --change better-information-ui",
+        "integration_branch": "round-20260511t114424z-3da2-spec-integration",
+        "review_agent": "round-20260511t114424z-3da2-spec-ops-review",
+        "status": "passed"
+      },
+      "version": 1
+    },
+    "state_path": "/workspace/.scion-ops/sessions/20260511t114424z-3da2/state.json",
+    "state_source": "/workspace/.scion-ops/sessions/20260511t114424z-3da2/state.json",
+    "warnings": []
+  }
+}

@@ -74,6 +74,25 @@
   },
   "blockers": [],
   "next_actions": [
-    "Use round-20260511t114424z-3da2-spec-integration for OpenSpec review or implementation planning"
-  ]
+    "Review pull request https://github.com/dodwyer/scion-ops/pull/140"
+  ],
+  "pull_request": {
+    "source": "steward_pr_finalizer",
+    "session_id": "20260511t114424z-3da2",
+    "kind": "spec",
+    "change": "better-information-ui",
+    "head": "round-20260511t114424z-3da2-spec-integration",
+    "base": "main",
+    "head_commit": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+    "base_commit": "6db8e51c80a0ab907dcb5ca9c60a5e78e762b06d",
+    "created": true,
+    "draft": false,
+    "pr": {
+      "url": "https://github.com/dodwyer/scion-ops/pull/140",
+      "head": "round-20260511t114424z-3da2-spec-integration",
+      "base": "main",
+      "title": "OpenSpec: better-information-ui"
+    },
+    "pr_url": "https://github.com/dodwyer/scion-ops/pull/140"
+  }
 }
