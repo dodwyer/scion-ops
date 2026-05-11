@@ -1,0 +1,134 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t154050z-44ce/reviews/final-review-3.json",
+  "artifact_json": {
+    "blocking_issues": [
+      "Reconnect recovery still loses changes that occur while the browser is disconnected. The client reconnects with the latest cursor in new-ui-evaluation/src/App.tsx:107-111, but the server's /api/events path in new-ui-evaluation/adapter.py:916-934 uses that cursor only to suppress snapshot_ready and then treats the current snapshot as its new baseline. It does not replay incremental_events from the supplied cursor or emit/apply a safe replacement snapshot. A changed round/timeline/inbox state present at reconnect time therefore produces only a heartbeat until a later change occurs, violating the approved Graceful Reconnect And Resume and Evaluation Verification requirements."
+    ],
+    "final_failure_classification": "implementation_defect",
+    "final_failure_evidence": "The prior timeline_entry and runtime_health frontend reducer mismatches are fixed: api.ts now reads timeline_entry payload.roundId/payload.entry and runtime_health payload.sources, and the frontend tests cover both backend-emitted shapes. However, a direct adapter check shows incremental_events(first, second) emits round_updated, timeline_entry, and inbox_item, while event_batch(second, cursor=\"live:first\") emits only heartbeat. Because reconnect uses the stale cursor without replay or safe snapshot recovery, operator-visible live data can remain stale after stream interruption.",
+    "nits": [],
+    "review_type": "final",
+    "scores": {
+      "completeness": 3,
+      "correctness": 3,
+      "style": 4
+    },
+    "spec": {
+      "change": "wire-new-ui-1",
+      "checked_artifacts": [
+        "openspec/changes/wire-new-ui-1/proposal.md",
+        "openspec/changes/wire-new-ui-1/design.md",
+        "openspec/changes/wire-new-ui-1/tasks.md",
+        "openspec/changes/wire-new-ui-1/specs/new-ui-evaluation/spec.md",
+        "new-ui-evaluation/adapter.py",
+        "new-ui-evaluation/src/api.ts",
+        "new-ui-evaluation/src/App.tsx",
+        "new-ui-evaluation/src/types.ts",
+        "new-ui-evaluation/src/__tests__/fixtures.test.tsx",
+        "new-ui-evaluation/tests/test_adapter.py",
+        "deploy/kind/control-plane/new-ui-evaluation-deployment.yaml",
+        "scripts/kind-control-plane-smoke.py",
+        "docs/new-ui-evaluation.md"
+      ],
+      "conformance": 3,
+      "gaps": [
+        "No frontend or adapter test simulates a stream interruption where source state changes before reconnect, then verifies cursor replay or safe snapshot recovery.",
+        "Kind smoke checks only initial snapshot and one SSE heartbeat; it does not verify reconnect/resume behavior against changed live data."
+      ],
+      "operational_verification": 4,
+      "spec_completeness": 5,
+      "task_coverage": 4,
+      "unresolved_questions": []
+    },
+    "summary": "request_changes: the previously reported timeline_entry and runtime_health reducer mismatches are repaired and covered by tests, and OpenSpec validation, adapter tests, Vitest tests, and the frontend production build pass. PR readiness is still blocked because reconnect uses a cursor but neither replays missed changes nor recovers from a safe snapshot, so live UI state can silently miss round, timeline, inbox, or runtime updates after an SSE interruption.",
+    "verdict": "request_changes"
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+      "checked_at": "2026-05-11T16:34:45.307710Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+      "checked_at": "2026-05-11T16:35:05.769950Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+      "checked_at": "2026-05-11T16:35:26.201359Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+      "checked_at": "2026-05-11T16:35:46.619553Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+      "checked_at": "2026-05-11T16:36:07.029264Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+      "checked_at": "2026-05-11T16:36:27.447441Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+      "checked_at": "2026-05-11T16:36:47.889541Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+      "checked_at": "2026-05-11T16:37:08.314881Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "f5579eabdd2365f27b60a8a998cb079ff789e579",
+      "checked_at": "2026-05-11T16:37:28.741540Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "604936314e3051e464bc7381fd050813ca717435",
+      "checked_at": "2026-05-11T16:37:49.159851Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t154050z-44ce-final-review-3",
+  "branch_head": "604936314e3051e464bc7381fd050813ca717435",
+  "completed_at": "2026-05-11T16:37:49.717391Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

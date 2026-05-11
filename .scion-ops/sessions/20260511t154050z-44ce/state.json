@@ -17,7 +17,8 @@
     "integration": "round-20260511t154050z-44ce-integration",
     "replacement_implementer": "round-20260511t154050z-44ce-impl-ui-codex",
     "repair_implementer": "round-20260511t154050z-44ce-repair-live-codex",
-    "repair_implementer_2": "round-20260511t154050z-44ce-repair-ui-events-codex"
+    "repair_implementer_2": "round-20260511t154050z-44ce-repair-ui-events-codex",
+    "repair_implementer_3": "round-20260511t154050z-44ce-repair-reconnect-codex"
   },
   "agents": {
     "round-20260511t154050z-44ce-impl-codex": {
@@ -97,6 +98,14 @@
       "status": "repair_completed",
       "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-2-wait.json",
       "summary": "Second final review requested changes for frontend reducer mismatch with backend timeline_entry and runtime_health SSE payloads."
+    },
+    {
+      "agent": "round-20260511t154050z-44ce-final-review-3",
+      "branch": "round-20260511t154050z-44ce-final-review-3",
+      "cause": "final_review_request_changes",
+      "status": "repair_planned",
+      "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-3-wait.json",
+      "summary": "Third final review requested changes for reconnect cursor replay or safe snapshot recovery."
     }
   ],
   "next_actions": [
