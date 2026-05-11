@@ -1,0 +1,223 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t130743z-290c/findings/round-20260511t130743z-290c-impl-claude.json",
+  "artifact_json": {
+    "agent": "round-20260511t130743z-290c-impl-claude",
+    "blockers": [
+      "deploy/kind/cluster.yaml.tpl is not in owned paths but needs a new extraPortMappings entry for nodePort 30880 -> hostPort 8880 so the KIND cluster exposes the new-ui-eval at its default smoke URL (http://192.168.122.103:8880). Without this, operators must use kubectl port-forward.",
+      "image-build/new-ui-eval/Dockerfile expects new-ui-evaluation/adapter/ and new-ui-evaluation/frontend/dist/ which are created by Group A (frontend scaffold + adapter). build-images.sh skips the new-ui-eval build gracefully if new-ui-evaluation/ does not exist yet."
+    ],
+    "branch": "round-20260511t130743z-290c-impl-claude",
+    "changed_files": [
+      "deploy/kind/control-plane/new-ui-evaluation-deployment.yaml",
+      "deploy/kind/control-plane/new-ui-evaluation-service.yaml",
+      "deploy/kind/control-plane/kustomization.yaml",
+      "image-build/new-ui-eval/Dockerfile",
+      "scripts/build-images.sh",
+      "scripts/kind-control-plane-smoke.py",
+      "openspec/changes/base-framework-1/tasks.md"
+    ],
+    "head_sha": "c96fc756ebdd4fec66589cc5a1c011e18524125b",
+    "status": "complete",
+    "summary": "Group B complete. Separate K8s Deployment (port 8080, nodePort 30880) and Service for scion-ops-new-ui-eval added to control-plane manifests and kustomization. Dockerfile placeholder in image-build/new-ui-eval/ and build-images.sh wiring (--skip-new-ui-eval, --only new-ui-eval) added with graceful skip when Group A directory is absent. Smoke test extended with ensure_new_ui_eval() checking /api/overview and check_preview_coexistence() asserting distinct ports from existing web-app. Two dependency blockers noted: cluster.yaml.tpl port mapping (out of scope, needs separate update) and Group A frontend/adapter scaffold.",
+    "tasks_completed": [
+      "1.7",
+      "1.9",
+      "1.10"
+    ],
+    "tests_run": [
+      "python3 syntax check on kind-control-plane-smoke.py: passed"
+    ]
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:10:17.514974Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:10:38.406923Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:10:58.813620Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:11:19.242976Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:11:39.635310Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:12:00.046316Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:12:20.480822Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:12:40.886878Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:13:01.314013Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:13:21.730135Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:13:42.149778Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:14:02.575497Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:14:22.991394Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:14:43.407085Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:15:03.797743Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:15:24.215040Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:15:44.619108Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:16:05.062234Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:16:25.484132Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:16:45.914342Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:17:06.343354Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "c96fc756ebdd4fec66589cc5a1c011e18524125b",
+      "checked_at": "2026-05-11T13:17:26.797866Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "f5c56682762bacf079bc21b834edfd1648d56b4c",
+      "checked_at": "2026-05-11T13:17:47.567526Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t130743z-290c-impl-claude",
+  "branch_head": "f5c56682762bacf079bc21b834edfd1648d56b4c",
+  "completed_at": "2026-05-11T13:17:48.150393Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

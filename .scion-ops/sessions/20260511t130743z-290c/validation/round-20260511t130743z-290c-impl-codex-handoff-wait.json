@@ -1,0 +1,274 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t130743z-290c/findings/round-20260511t130743z-290c-impl-codex.json",
+  "artifact_json": {
+    "agent": "round-20260511t130743z-290c-impl-codex",
+    "blockers": [],
+    "branch": "round-20260511t130743z-290c-impl-codex",
+    "changed_files": [
+      "docs/new-ui-evaluation.md",
+      "new-ui-evaluation/.gitignore",
+      "new-ui-evaluation/adapter.py",
+      "new-ui-evaluation/fixtures/preview-fixtures.json",
+      "new-ui-evaluation/index.html",
+      "new-ui-evaluation/package-lock.json",
+      "new-ui-evaluation/package.json",
+      "new-ui-evaluation/src/App.tsx",
+      "new-ui-evaluation/src/__tests__/fixtures.test.tsx",
+      "new-ui-evaluation/src/__tests__/setup.ts",
+      "new-ui-evaluation/src/api.ts",
+      "new-ui-evaluation/src/main.tsx",
+      "new-ui-evaluation/src/styles.css",
+      "new-ui-evaluation/src/types.ts",
+      "new-ui-evaluation/tests/test_adapter.py",
+      "new-ui-evaluation/tsconfig.json",
+      "new-ui-evaluation/vite.config.ts",
+      "openspec/changes/base-framework-1/tasks.md"
+    ],
+    "head_sha": "74ddbc8bab5ebddcd1577d55fcbe7107a0135720",
+    "status": "completed",
+    "summary": "Implemented the Group A additive new-ui-evaluation slice: isolated React/Vite TypeScript preview app, fixture-backed read-only Python adapter, typed fixture contract covering operator views and diagnostics, UI and adapter tests, operator documentation, and completed matching OpenSpec task checkboxes. Deployment manifests, existing UI lifecycle changes, and live source reads/mutations were left untouched as out of scope.",
+    "tasks_completed": [
+      "1.2 Scaffold the evaluation frontend with TypeScript, React, and Vite in a location that is clearly separate from the existing UI implementation.",
+      "1.3 Add a small Python HTTP/API adapter that serves the Vite build and mocked JSON data for the preview.",
+      "1.4 Define typed mock data models and fixtures for overview, rounds, round detail, timeline, inbox, runtime/source health, diagnostics, and raw payloads.",
+      "1.5 Build the mocked overview, rounds, round detail, inbox, runtime, and diagnostics views using the new visual direction.",
+      "1.6 Add explicit UI and adapter safeguards so the preview performs no live Hub, MCP, Kubernetes, git, OpenSpec, model-backed, or state-mutating operations.",
+      "1.8 Document how operators start, reach, and evaluate the preview alongside the current UI.",
+      "1.9 Add focused checks for TypeScript types, frontend build, adapter mocked endpoints, fixture contract shape, and preview health."
+    ],
+    "tests_run": [
+      "cd new-ui-evaluation && npm install",
+      "cd new-ui-evaluation && npm run typecheck",
+      "cd new-ui-evaluation && npm test",
+      "cd new-ui-evaluation && python3 -m unittest discover -s tests",
+      "cd new-ui-evaluation && npm run build",
+      "cd new-ui-evaluation && npm audit --audit-level=moderate",
+      "python3 scripts/validate-openspec-change.py base-framework-1",
+      "git diff --check"
+    ]
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:10:17.485891Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:10:38.406654Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:10:58.814709Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:11:19.225527Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:11:39.649193Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:12:00.096946Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:12:20.524415Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:12:40.944242Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:13:01.354949Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:13:21.742927Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:13:42.158542Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:14:02.560169Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:14:22.982468Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:14:43.370373Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:15:03.773249Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:15:24.213185Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:15:44.613184Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:16:05.025363Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:16:25.420468Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:16:45.827386Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:17:06.241595Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:17:26.656941Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:17:47.080745Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:18:07.504917Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:18:27.918804Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2d93f109b2783b07cbf6890922533b04188ba175",
+      "checked_at": "2026-05-11T13:18:48.370054Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "f1edd20c6a6a46231f444d3fa59ac0eb2160893a",
+      "checked_at": "2026-05-11T13:19:08.831267Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t130743z-290c-impl-codex",
+  "branch_head": "f1edd20c6a6a46231f444d3fa59ac0eb2160893a",
+  "completed_at": "2026-05-11T13:19:09.476433Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
