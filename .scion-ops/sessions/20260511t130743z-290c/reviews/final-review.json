@@ -1,0 +1,44 @@
+{
+  "review_type": "final",
+  "scores": {
+    "correctness": 5,
+    "completeness": 5,
+    "style": 4
+  },
+  "verdict": "accept",
+  "blocking_issues": [],
+  "nits": [
+    "Docker and live KIND rollout verification were not available in this review environment, so the image build and cluster smoke were verified statically and through no-spend checks only."
+  ],
+  "spec": {
+    "change": "base-framework-1",
+    "conformance": 5,
+    "spec_completeness": 5,
+    "task_coverage": 5,
+    "operational_verification": 4,
+    "checked_artifacts": [
+      "openspec/changes/base-framework-1/proposal.md",
+      "openspec/changes/base-framework-1/design.md",
+      "openspec/changes/base-framework-1/tasks.md",
+      "openspec/changes/base-framework-1/specs/new-ui-evaluation/spec.md",
+      "new-ui-evaluation/",
+      "docs/new-ui-evaluation.md",
+      "image-build/new-ui-eval/Dockerfile",
+      "deploy/kind/control-plane/new-ui-evaluation-deployment.yaml",
+      "deploy/kind/control-plane/new-ui-evaluation-service.yaml",
+      "deploy/kind/control-plane/kustomization.yaml",
+      "deploy/kind/cluster.yaml.tpl",
+      "Taskfile.yml",
+      "scripts/build-images.sh",
+      "scripts/kind-control-plane-smoke.py",
+      "scripts/kind-scion-runtime.sh",
+      ".scion-ops/sessions/20260511t130743z-290c/findings/round-20260511t130743z-290c-impl-build-context-repair.json"
+    ],
+    "unresolved_questions": [],
+    "gaps": [
+      "Docker is unavailable in this environment, so the repaired scion-ops-new-ui-eval image build was not executed.",
+      "No live KIND cluster rollout or endpoint smoke was run in this environment."
+    ]
+  },
+  "summary": "Accept. The integration branch conforms to the approved base-framework-1 OpenSpec artifacts and includes the requested build-context repair: scripts/build-images.sh now builds scion-ops-new-ui-eval from the repository root, matching image-build/new-ui-eval/Dockerfile COPY paths. The preview is additive, fixture-backed, read-only, served by a Python adapter, implemented with TypeScript/React/Vite, and deployed through separate Kubernetes Deployment/Service resources on distinct ports without changing the existing web-app Deployment or Service. Local no-spend verification passed: OpenSpec validation, shell/Python syntax checks, kustomize render, adapter unittest, npm ci, npm run typecheck, npm test, npm run build, git diff --check, and static build-context checks."
+}
