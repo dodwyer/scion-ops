@@ -1,0 +1,76 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t093141z-7567/findings/explorer.md",
+  "artifact_json": null,
+  "artifact_text": "# Explorer Findings: Better Information UI\n\nSession: `20260511t093141z-7567`\nChange: `better-information-ui`\nBase branch: `main`\nExpected branch: `round-20260511t093141z-7567-spec-explorer`\n\n## Recommendation\n\nCreate a narrow OpenSpec change at `openspec/changes/better-information-ui/` with the standard files:\n\n- `proposal.md`\n- `design.md`\n- `tasks.md`\n- `specs/web-app-hub/spec.md`\n\nThe lowest-risk spec surface is the existing `web-app-hub` capability. Do not introduce a new spec area. The current NiceGUI, theme, MCP/source preservation, live update, read-only, and responsive requirements already live under `openspec/changes/use-nicegui/specs/web-app-hub/spec.md`, so this change should modify or add requirements there conceptually rather than broadening into deployment or runtime behavior.\n\n## Relevant Existing OpenSpec Constraints\n\n- `openspec/changes/use-nicegui/specs/web-app-hub/spec.md:113` already requires a NiceGUI frontend and a fresh operator-console structure.\n- `openspec/changes/use-nicegui/specs/web-app-hub/spec.md:125` says the visible interface is organized around overview, rounds, round detail, inbox, runtime, and troubleshooting, and does not need to preserve prior HTML structure or CSS.\n- `openspec/changes/use-nicegui/specs/web-app-hub/spec.md:133` requires NiceGUI components to preserve selected round/filter/expanded state and avoid duplicate timeline or inbox entries for replayed update events.\n- `openspec/changes/use-nicegui/specs/web-app-hub/spec.md:141` through `:165` already covers concise defaults and one-level-down diagnostics.\n- `openspec/changes/use-nicegui/specs/web-app-hub/spec.md:167` through `:192` covers Laws of UX constraints for grouping, proximity, and explicit feedback.\n- `openspec/changes/use-nicegui/specs/web-app-hub/spec.md:194` through `:219` covers desktop/mobile rendering and basic accessibility.\n- `openspec/changes/use-nicegui/specs/web-app-hub/spec.md:36` through `:62` is the important source-of-truth boundary: keep structured JSON fields authoritative and preserve partial data when one source fails.\n- `openspec/changes/use-nicegui/specs/web-app-hub/spec.md:64` through `:81` keeps the UI read-only. The information UI work should not add mutating controls.\n\nThese are broad enough that the new spec should focus on the missing information architecture: action, handoff, and reason for handoff.\n\n## Current Implementation Shape\n\nThe current web app is technically NiceGUI-hosted but much of the visible UI is still an embedded HTML/CSS/JavaScript renderer:\n\n- `scripts/web_app_hub.py:1798` starts a large `INDEX_HTML` string containing the old document, style, and script.\n- `scripts/web_app_hub.py:2291` through `:2408` renders overview, rounds, round detail, inbox, and runtime by assigning `innerHTML`.\n- `scripts/web_app_hub.py:2465` through `:2481` builds only a shallow NiceGUI shell with header, nav buttons, and placeholder sections.\n- `scripts/web_app_hub.py:2383` through `:2398` puts round detail into two dense columns with timeline, decision flow, final review, MCP state, branches, agents, and coordinator output all visible in one pass.\n- `scripts/web_app_hub.py:2406` through `:2408` renders runtime as raw JSON by default, which conflicts with the concise-default/one-level-down diagnostic direction.\n\nThe spec should explicitly require the implementation to use modern NiceGUI elements for the visible information architecture: tabs, splitters, tables, rows, expansion panels, dialogs/drawers, badges, and route/page state where appropriate. Keeping JavaScript only for the existing live update transport is lower risk than allowing the primary UI to remain an HTML-string app inside NiceGUI.\n\n## Data/Behavior Hotspots To Preserve\n\n- `scripts/web_app_hub.py:686` defines backend `build_decision_flow(...)`. It groups by role/agent and adds stage events from agents plus timeline entries.\n- `scripts/web_app_hub.py:982` defines `timeline_entry(...)`, preserving source ids and agent metadata.\n- `scripts/web_app_hub.py:1390` defines `build_rounds(...)`, which is the safest backend place for any row-level action/handoff/reason summaries.\n- `scripts/web_app_hub.py:1677` defines `build_round_detail(...)`, which is the safest backend place for detailed action/handoff/reason entries.\n- `scripts/web_app_hub.py:1931` through `:1937` deduplicates decision-flow events in the frontend by label, summary, time, and source. The new requirement should prohibit collapsing legitimate repeated action/handoff entries for the same agent when they represent separate back-and-forth.\n- `scripts/web_app_hub.py:2193` through `:2204` deduplicates live timeline append events by stable key/id. The spec should preserve replay idempotency while retaining distinct source events.\n\nRecommended source contract addition: an additive field such as `handoff_flow` or `operator_flow` on round rows and round detail, where each entry has at least:\n\n- `id`\n- `time`\n- `agent_name`\n- `role`\n- `action`\n- `handoff_to` or `handoff_from`\n- `reason`\n- `status`\n- `source_id`\n\nThis should be additive to existing `decision_flow`, `timeline`, `agents`, `final_review`, and `mcp` fields to avoid breaking tests or external JSON consumers.\n\n## Proposed New/Modified Requirements\n\nRecommended delta spec topics for `openspec/changes/better-information-ui/specs/web-app-hub/spec.md`:\n\n1. Modify `NiceGUI Frontend` or add `NiceGUI Native Information UI`\n   - Require primary overview, rounds, round detail, inbox, runtime, and troubleshooting views to be composed with NiceGUI elements rather than HTML-string page rendering.\n   - Allow small JavaScript helpers only for live update transport or NiceGUI interop, not primary layout generation.\n\n2. Add `Operator Information Architecture`\n   - Default overview shows the highest-priority action needed, owner/source, handoff target when known, and reason.\n   - Rounds view compares current action, latest handoff, reason for handoff, final review/validation state, latest update, and blocker summary.\n   - Round detail starts with a concise operator summary before deeper tabs/panels.\n\n3. Add `Action And Handoff Flow`\n   - Round detail shows chronological entries for action, handoff, and reason for handoff.\n   - Distinct back-and-forth entries for the same agent pair remain visible.\n   - Replay duplicate events remain idempotent only when the source id or deterministic event identity is the same.\n\n4. Modify `Progressive Troubleshooting`\n   - Runtime raw JSON and coordinator output move behind one-level-down panels.\n   - Overview/detail defaults avoid raw payloads and long logs.\n\n5. Modify `NiceGUI Responsive Operator Layout`\n   - Desktop must avoid horizontal overspill for long round ids, branch refs, and reasons.\n   - Mobile must keep round id, current action, handoff target, reason, state, and latest update readable by wrapping/collapsing secondary fields.\n\n## Suggested Tasks\n\nUse focused tasks that avoid deployment churn:\n\n- Add/update OpenSpec requirements for action/handoff/reason IA and native NiceGUI rendering.\n- Add additive backend flow summaries without removing current JSON fields.\n- Replace primary `innerHTML` view rendering with NiceGUI-built components while preserving existing API routes.\n- Move raw runtime/source JSON, protocol payloads, coordinator output, and long validation details behind NiceGUI expanders/tabs/drawers.\n- Add no-spend fixture tests for duplicate handoff preservation, JSON compatibility, desktop no-overspill markers, mobile stacking, and raw diagnostics one level down.\n- Run `scripts/validate-openspec-change.py better-information-ui` and `scripts/test-web-app-hub.py`.\n\n## Existing Tests And Validation To Respect\n\n- `scripts/validate-openspec-change.py` requires `proposal.md`, `design.md`, `tasks.md`, and at least one `specs/**/spec.md` with `### Requirement:` and `#### Scenario:`.\n- `scripts/test-web-app-hub.py:417` through `:438` protects structured branch precedence.\n- `scripts/test-web-app-hub.py:441` through `:542` protects final-review visibility and changes-requested/blocked semantics.\n- `scripts/test-web-app-hub.py:545` through `:594` protects structured steward progress fields and MCP state display.\n- Existing live update tests protect replay idempotency and partial-source preservation, so duplicate handoff preservation should be specified as preserving distinct source events, not disabling dedupe entirely.\n\n## Risk Notes\n\n- Highest risk: rewriting the UI to native NiceGUI while preserving the current live update behavior and JSON endpoints.\n- Medium risk: defining handoff/action extraction from unstructured messages. The spec should require structured source fields first and allow message-derived entries only as fallback.\n- Low risk: additive JSON fields and layout requirements, because current contracts already support backward-compatible growth.\n- Avoid touching kind manifests, MCP tool contracts, and read/write runtime behavior in this change unless the author finds a direct UI dependency.\n",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:33:28.309216Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:33:43.749207Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:33:59.160683Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:34:14.558488Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:34:29.968731Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:34:45.399812Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:35:00.814659Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "a6ba2f4b8204bf46d8c6317e079f9df2df764554",
+      "checked_at": "2026-05-11T09:35:16.275308Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t093141z-7567-spec-explorer",
+  "branch_head": "a6ba2f4b8204bf46d8c6317e079f9df2df764554",
+  "completed_at": "2026-05-11T09:35:16.825044Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

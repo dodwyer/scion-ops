@@ -1,0 +1,286 @@
+{
+  "agent": "round-20260511t093141z-7567-spec-clarifier",
+  "agent_status": {
+    "agent": {
+      "activity": "stalled",
+      "containerStatus": "Succeeded (Completed)",
+      "created": "2026-05-11T09:33:10.025558534Z",
+      "createdBy": "b6cd8d31-f89e-449c-8d43-d9104c6541de",
+      "deletedAt": "0001-01-01T00:00:00Z",
+      "detached": true,
+      "grove": "scion-ops",
+      "groveId": "d7e5f43d-c64a-4b3f-ac4c-f12736f75ff4",
+      "harnessAuth": "auth-file",
+      "harnessConfig": "claude",
+      "id": "b9f1b18d-aee4-4cde-89db-b6819ae8c653",
+      "lastSeen": "2026-05-11T09:40:07.839418085Z",
+      "name": "round-20260511t093141z-7567-spec-clarifier",
+      "ownerId": "b6cd8d31-f89e-449c-8d43-d9104c6541de",
+      "phase": "running",
+      "runtime": "kubernetes",
+      "runtimeBrokerId": "fffccda9-ecfb-4bda-964c-4397ecf5974c",
+      "runtimeBrokerName": "kind-control-plane",
+      "slug": "round-20260511t093141z-7567-spec-clarifier",
+      "stateVersion": 2,
+      "template": "spec-goal-clarifier-claude",
+      "updated": "2026-05-11T09:40:07.839418085Z",
+      "visibility": "private"
+    },
+    "ok": true,
+    "source": "scion list"
+  },
+  "artifact": ".scion-ops/sessions/20260511t093141z-7567/findings/clarifier.md",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:33:28.307277Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:33:43.777001Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:33:59.191670Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:34:14.587048Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:34:30.005206Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:34:45.421790Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:35:00.818836Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:35:16.229316Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:35:31.625006Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:35:47.041733Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:36:02.419156Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:36:17.812233Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:36:33.237545Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:36:48.618019Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:37:04.048363Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:37:19.467102Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:37:34.893428Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:37:50.285951Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:38:05.684672Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:38:21.082889Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:38:36.481401Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:38:51.917158Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:39:07.311253Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:39:22.722005Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:39:38.145894Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:39:53.520030Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:40:08.890492Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:40:24.313992Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+      "checked_at": "2026-05-11T09:40:28.307417Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t093141z-7567-spec-clarifier",
+  "branch_head": "513bd58e3441521faea7787457fdefd7adce12b4",
+  "completed_at": "2026-05-11T09:40:29.044468Z",
+  "kubectl": {
+    "logs": "error: context \"kind-scion-ops\" does not exist\n",
+    "pod": "error: context \"kind-scion-ops\" does not exist\n"
+  },
+  "last_artifact_error": "fatal: path '.scion-ops/sessions/20260511t093141z-7567/findings/clarifier.md' does not exist in 'origin/round-20260511t093141z-7567-spec-clarifier'\n",
+  "last_fetch": {
+    "ok": true,
+    "output": "",
+    "returncode": 0
+  },
+  "ok": false,
+  "poll_interval_seconds": 15,
+  "reason": "timeout_waiting_for_review_artifact",
+  "scion_look_tail": "Using hub: http://scion-hub:8090\n\n\u001b[41m\u001b[97m\u001b[1mError: failed to capture terminal output for agent 'round-20260511t093141z-7567-spec-clarifier': not_found: Action not found (status: 404)\n\nTo use local-only mode, run: scion hub disable\u001b[0m\n\nUsage:\n  scion look <agent> [flags]\n\nFlags:\n      --full            Capture the full scrollback history\n  -h, --help            help for look\n  -n, --num-lines int   Number of scrollback lines to capture (tail)\n      --plain           Strip ANSI escape sequences from output\n\nGlobal Flags:\n      --cpuprofile string   Write cpu profile to file\n      --debug               Enable debug output (equivalent to SCION_DEBUG=1)\n      --format string       Output format (e.g., json)\n      --global              Use the global grove (equivalent to --grove global)\n  -g, --grove string        Grove identifier: path, slug (with Hub), or git URL (with Hub)\n      --hub string          Hub API endpoint URL (overrides SCION_HUB_ENDPOINT)\n      --memprofile string   Write memory profile to file\n      --no-hub              Disable Hub integration for this invocation (local-only mode)\n      --non-interactive     Non-interactive mode: implies --yes, errors on ambiguous prompts\n  -p, --profile string      Configuration profile to use\n      --stats Duration      Interval between printing stats, e.g. 500ms, 60s, 5m (0 to disable) (default 1m0s)\n  -y, --yes                 Skip confirmation prompt\n",
+  "source": "review_artifact_wait",
+  "timeout_seconds": 420
+}
