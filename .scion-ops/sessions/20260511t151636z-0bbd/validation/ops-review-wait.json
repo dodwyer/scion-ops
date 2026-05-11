@@ -1,0 +1,144 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t151636z-0bbd/findings/ops-review.json",
+  "artifact_json": {
+    "blockers": [],
+    "change": "wire-new-ui-1",
+    "collection_recipient": "user:dev@localhost",
+    "dimensions": {
+      "acceptance_quality": {
+        "notes": "The spec is complete and internally consistent across proposal, design, spec delta, and tasks. Requirements follow GIVEN/WHEN/THEN scenario format throughout. Success criteria are concrete and verifiable. Tasks map directly to requirements. Verification strategy covers snapshot contracts, event contracts, idempotent merge, reconnect behavior, stale-data handling, source-specific failures, fixture labeling, read-only safety, and coexistence checks. No orphaned requirements or untasked requirements found.",
+        "result": "pass"
+      },
+      "connection_health_and_staleness": {
+        "notes": "The Connection Health And Staleness requirement covers live, stale, and failed states at both global and per-source levels. Stale data is preserved for inspection rather than cleared. Failure category is surfaced when known. The UI must not imply stale or fixture-backed data is fresh source-of-truth state.",
+        "result": "pass"
+      },
+      "fixture_to_live_migration": {
+        "notes": "Fixtures are demoted to an explicit development/test fallback. The proposal, design, and Mocked Operator Data Contract requirement all require the payload and UI metadata to identify fixture-backed state. The Fixture Fallback is Explicit scenario prevents fixture mode from becoming the default production path.",
+        "result": "pass"
+      },
+      "graceful_reconnect": {
+        "notes": "Graceful Reconnect And Resume covers cursor-based resume, safe snapshot recovery when cursor is unavailable, bounded or exponential backoff, stale-data preservation during reconnect, and operator-visible reconnecting/fallback/failed indicators. Read-only safety during reconnect is an explicit sub-scenario.",
+        "result": "pass"
+      },
+      "live_data_flow": {
+        "notes": "The spec covers overview, rounds, round detail, inbox, runtime, diagnostics, and raw source views. Snapshot-plus-stream contract is defined with schema version, source metadata, entity identity for merge, and stable or deterministic fallback event ids. Idempotency is addressed explicitly: replayed events must update existing entities or be ignored.",
+        "result": "pass"
+      },
+      "operational_readiness": {
+        "notes": "All five source categories (Hub, MCP, Kubernetes, git, OpenSpec) are explicitly named in both proposal and design. The Live Operational Data Contract requirement covers initial snapshot with schema version, source mode, generated timestamp, source names, source freshness, and source health. Data source enumeration in the design is sufficiently detailed for implementation.",
+        "result": "pass"
+      },
+      "protocol_compliance": {
+        "notes": "Push-based delivery is the mandated primary path. The spec explicitly names SSE, WebSocket, and source-native watch bridging as acceptable mechanisms. Bounded polling is confined to a degraded fallback and must be visibly indicated to operators. The Push Based Update Delivery requirement includes a 'Fallback polling is bounded' scenario that correctly prevents polling from becoming the default path. The Delivery Contract section specifies cursor/event-id support for resume-capable reconnections.",
+        "result": "pass"
+      },
+      "scope_safety": {
+        "notes": "Read-only boundaries are exhaustively specified. The Read Only Preview Safety requirement lists mutations explicitly excluded: starting, retrying, aborting, deleting, or archiving rounds; modifying Kubernetes resources, Hub runtime records, MCP state, git refs or files, OpenSpec files, secrets, PVCs, runtime broker state, and model/provider state. The Reconnect Remains Read-Only scenario extends safety guarantees to reconnect, cursor resume, snapshot recovery, and fallback polling paths. Safety checks are included in the verification strategy.",
+        "result": "pass"
+      },
+      "ui_separation": {
+        "notes": "Existing UI Separation is a named requirement with two scenarios. The existing UI Deployment, Service, port, health checks, routes, lifecycle scripts, data paths, and operator access path must remain unchanged. The new UI must be separately addressable through its own code path and deployment. The base-framework-1 implementation (cab29ae) already established distinct ports (8080/30880 new UI vs 8787/30808 existing), which the coexistence smoke test validates.",
+        "result": "pass"
+      }
+    },
+    "integration_branch": "round-20260511t151636z-0bbd-spec-integration",
+    "integration_commit": "5458d3caa84373207d83a232c191c23698e8cd50",
+    "minor_findings": [
+      {
+        "category": "underspecification",
+        "description": "Freshness threshold values are described as 'configured' but no default range, unit, or minimum is given. Implementation will need to establish a sensible default (e.g. 30s global, source-specific override). Not a blocker; recommend capturing in a task note or schema comment.",
+        "id": "mf-1",
+        "severity": "minor"
+      },
+      {
+        "category": "underspecification",
+        "description": "Bounded polling backoff bounds are not quantified. The spec says 'bounded' and 'rate-limited' but does not give a ceiling interval or maximum attempt count before transitioning to failed state. Recommend implementation defines these as constants, not a spec change required.",
+        "id": "mf-2",
+        "severity": "minor"
+      },
+      {
+        "category": "design-gap",
+        "description": "Deterministic fallback id generation strategy for sources without stable ids is noted but not defined. The implementation task should document the chosen strategy (e.g. hash of source+timestamp+payload) to ensure consistent idempotency behavior across reconnects.",
+        "id": "mf-3",
+        "severity": "minor"
+      },
+      {
+        "category": "transport-selection",
+        "description": "The spec permits SSE, WebSocket, or source-native watch bridging without prescribing a preference. SSE is lower-complexity for unidirectional server-to-client streams and simpler to proxy. If the implementation targets SSE first, a note in the design or task list would clarify intent without requiring a spec revision.",
+        "id": "mf-4",
+        "severity": "informational"
+      }
+    ],
+    "reviewed_at": "2026-05-11T15:42:00Z",
+    "reviewer": "round-20260511t151636z-0bbd-spec-ops-review",
+    "role": "ops-review",
+    "session_id": "20260511t151636z-0bbd",
+    "summary": "The wire-new-ui-1 OpenSpec change is operationally ready for implementation. All nine review dimensions pass: live Hub/MCP/Kubernetes/git/OpenSpec data flow, push-based delivery (SSE/WebSocket/watch bridge) with bounded-polling fallback, initial snapshot plus typed incremental updates, connection health and staleness indicators at global and per-source granularity, exhaustive read-only safety boundaries extended to reconnect and resume paths, graceful reconnect with cursor resume and snapshot recovery, stale-data preservation with explicit indicators, and full separation of the existing UI from the new evaluation UI. The four minor findings are informational implementation guidance and do not block work. The spec is internally consistent across proposal, design, spec delta, and tasks with no orphaned or untasked requirements.",
+    "verdict": "accepted"
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:31:34.025338Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:31:49.468612Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:32:04.896426Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:32:20.364795Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:32:35.817158Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:32:51.269111Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "9ecec346923aaa8e420a52bf04d1e7b54b3fce16",
+      "checked_at": "2026-05-11T15:33:06.693424Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t151636z-0bbd-spec-ops-review",
+  "branch_head": "9ecec346923aaa8e420a52bf04d1e7b54b3fce16",
+  "completed_at": "2026-05-11T15:33:07.313754Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

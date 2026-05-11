@@ -1,0 +1,68 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t151636z-0bbd/findings/explorer.md",
+  "artifact_json": null,
+  "artifact_text": "# Explorer Findings: wire-new-ui-1\n\n## Existing Framework\n\nThe repo uses OpenSpec change folders under `openspec/changes/<change>/` with:\n\n- `proposal.md`\n- `design.md`\n- `tasks.md`\n- `specs/**/spec.md`\n\nValidation is implemented by `scripts/validate-openspec-change.py`. The validator requires the three top-level files, checkbox tasks in `tasks.md`, at least one `specs/**/spec.md`, and delta spec headings using `## ADDED Requirements`, `## MODIFIED Requirements`, or `## REMOVED Requirements` with `### Requirement:` and `#### Scenario:` entries.\n\nThe most relevant existing change is `openspec/changes/base-framework-1`, which introduced the separate `new-ui-evaluation` React/Vite preview. Its delta spec lives at `openspec/changes/base-framework-1/specs/new-ui-evaluation/spec.md`.\n\nThe second relevant change is `openspec/changes/autorefresh-web-app`, which already captures live-update semantics for the existing `web-app-hub`: initial snapshot plus incremental updates, live/reconnecting/stale/failed status, reconnect/fallback behavior, idempotent event merging, and read-only automatic updates.\n\n## Lowest-Risk OpenSpec Files\n\nFor `wire-new-ui-1`, the lowest-risk artifact set is:\n\n- `openspec/changes/wire-new-ui-1/proposal.md`\n- `openspec/changes/wire-new-ui-1/design.md`\n- `openspec/changes/wire-new-ui-1/tasks.md`\n- `openspec/changes/wire-new-ui-1/specs/new-ui-evaluation/spec.md`\n\nUse the existing `new-ui-evaluation` spec area rather than `web-app-hub`. The goal is to wire the new React/Vite evaluation UI to live operational data while preserving separation from the existing UI, so modifying `web-app-hub` would blur ownership and increase risk.\n\nThe new delta should mostly use `MODIFIED Requirements` against these `base-framework-1` requirements:\n\n- `Mocked Operator Data Contract`\n- `Core Mocked Operator Views`\n- `Read Only Preview Safety`\n- `Evaluation Verification`\n\nIt should add new requirements for the live data contract and delivery path, for example:\n\n- `Live Operational Data Contract`\n- `Push Based Update Delivery`\n- `Connection Health And Staleness`\n- `Graceful Reconnect And Fallback`\n- `Read Only Live Wiring Safety`\n- `Existing UI Separation`\n\n## Key Constraint Conflict\n\n`base-framework-1` intentionally says the preview must not read live Hub, MCP, Kubernetes, git, OpenSpec, or model-backed state. `wire-new-ui-1` must explicitly narrow or supersede that prior fixture-only rule for this evaluation UI, while keeping mutation prohibitions intact.\n\nRecommended wording: live reads are now in scope only through defined read-only adapters/watchers for Hub, MCP, Kubernetes, git, and OpenSpec operational state. Writes remain out of scope unless a later change explicitly scopes them.\n\n## Requirements To Capture\n\nThe change should specify:\n\n- Live Hub, MCP, Kubernetes, git, and OpenSpec source flow into the new React/Vite UI.\n- Browser updates are push-based by default, using SSE, WebSocket, MCP watch bridging, Kubernetes watch bridging, git/OpenSpec event publication, or an equivalent stream-like mechanism.\n- The browser receives an initial snapshot and then incremental typed updates.\n- Incremental events carry stable ids, source names, timestamps, versions, cursors, or event ids so the frontend can merge updates idempotently.\n- Duplicate or replayed update events do not create duplicate visible rows, timeline entries, messages, or diagnostics.\n- The UI shows connection health such as live, reconnecting, stale, fallback, and failed states.\n- Stale data is preserved for inspection and marked as stale rather than being silently cleared.\n- Source-specific failures degrade only affected views or fields when other sources remain healthy.\n- Reconnect uses exponential or bounded backoff and resumes from the latest cursor/event id when available.\n- Fallback polling, if allowed, is bounded and secondary to the push path; it must not become polling-heavy page reload behavior.\n- The preview remains read-only: no starting, retrying, aborting, deleting, archiving, git mutation, OpenSpec mutation, Kubernetes mutation, Hub mutation, or model/provider work.\n- Existing UI and new UI remain separate in code, deployment, service, routes, port, lifecycle, and operator access path.\n- Fixture-only mocked data moves to a local development/test fallback rather than the primary runtime data source.\n\n## Existing Implementation Shape\n\nCurrent `new-ui-evaluation` code is fixture-oriented:\n\n- `new-ui-evaluation/adapter.py` serves static assets plus `/api/fixtures`, `/api/overview`, `/api/rounds`, `/api/inbox`, `/api/runtime`, `/api/diagnostics`, and `/api/rounds/<id>`.\n- `new-ui-evaluation/src/api.ts` performs snapshot fetches for those endpoints.\n- `new-ui-evaluation/src/types.ts` defines the current view payload shapes.\n- `new-ui-evaluation/fixtures/preview-fixtures.json` is the current data source.\n\nThe OpenSpec should avoid prescribing exact implementation files beyond the contract, but should make clear that these snapshot APIs may become the initial snapshot source and that a new stream endpoint/event contract should provide incremental updates.\n\n## Suggested Verification\n\nRequire validation for:\n\n- OpenSpec validation for `wire-new-ui-1`.\n- Contract tests for initial snapshot payloads and incremental event payloads.\n- Frontend merge tests for idempotent updates, stale-state display, source-specific failure handling, and preserving selected view/filter context.\n- Reconnect tests for cursor resume, heartbeat loss, bounded backoff, and fallback mode.\n- Read-only safety tests proving subscription, reconnect, fallback, and snapshot loading do not mutate Hub, MCP, Kubernetes, git, OpenSpec, or model/provider state.\n- Coexistence checks proving the existing UI deployment, service, port, health checks, routes, and lifecycle remain unchanged.\n\n## Risk Notes\n\nThe main risk is underspecifying the boundary between live reads and mutations. The spec should say exactly which live sources can be read and should keep all writes out of scope.\n\nThe second risk is implementing \"live\" behavior as repeated page-level snapshot reloads. The OpenSpec should require push-based delivery or stream-like updates as the primary path and allow bounded polling only as a degraded fallback.\n\nThe third risk is mixing the existing UI and new UI contracts. Keep the delta under `specs/new-ui-evaluation/spec.md` and repeat the separation requirement so implementation work does not alter the current `web-app-hub` surface unless a later change says so.\n",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:18:05.613840Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:18:21.084996Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:18:36.555737Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:18:51.972964Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:19:07.384442Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:19:22.809899Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "93bc46f4fcc66c2da5255e71f08722bb5dd60e20",
+      "checked_at": "2026-05-11T15:19:38.213990Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t151636z-0bbd-spec-explorer",
+  "branch_head": "93bc46f4fcc66c2da5255e71f08722bb5dd60e20",
+  "completed_at": "2026-05-11T15:19:38.803461Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

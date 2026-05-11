@@ -1,0 +1,108 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t151636z-0bbd/findings/clarifier.md",
+  "artifact_json": null,
+  "artifact_text": "# Clarifier Findings: wire-new-ui-1\n\n**Session:** 20260511t151636z-0bbd  \n**Change:** wire-new-ui-1  \n**Base branch:** main  \n**Date:** 2026-05-11\n\n---\n\n## 1. Stated Intent\n\nWire the existing React/Vite evaluation UI (`new-ui-evaluation/`) to live operational data using push-based delivery (SSE or WebSocket), replacing the current fixture-only mock data layer. The UI should display real Hub, MCP, Kubernetes, Git, and OpenSpec state with initial snapshots followed by incremental live updates.\n\n---\n\n## 2. Current State (as-built by base-framework-1)\n\n| Component | Location | Notes |\n|-----------|----------|-------|\n| React/Vite UI | `new-ui-evaluation/src/` | 6 views: Overview, Rounds, Round Detail, Inbox, Runtime, Diagnostics |\n| Python adapter | `new-ui-evaluation/adapter.py` | Simple `BaseHTTPRequestHandler`, port 8091, 8 GET-only routes |\n| Fixture data | `new-ui-evaluation/fixtures/preview-fixtures.json` | ~1000 lines of typed JSON, schema `new-ui-evaluation.fixture.v1` |\n| Data fetch | `new-ui-evaluation/src/api.ts` | `Promise.all()` of parallel GET fetches, no streaming |\n| Safety flags | `adapter.py` healthz route | `fixtureOnly: true`, `liveReadsAllowed: false`, `mutationsAllowed: false` |\n\n**No SSE, WebSocket, or live data clients exist anywhere in the stack today.**\n\n---\n\n## 3. Scope \u2014 In\n\n- Replace fixture responses with live data fetched by the adapter from real sources\n- Add a server-sent events (SSE) or WebSocket stream endpoint to the adapter for push delivery\n- Browser-side: replace `Promise.all` polling/fetch pattern with event-stream subscription\n- Initial-snapshot-plus-incremental-update pattern (subscribe \u2192 receive snapshot \u2192 receive deltas)\n- Per-source staleness and connection health indicators surfaced in the Runtime and Diagnostics views\n- Graceful reconnect with exponential backoff on stream disconnect\n- Stale-data visual indicators when no fresh event has arrived within configurable thresholds\n- Safety boundary preserved: adapter remains read-only; `mutationsAllowed: false` unchanged\n- Fixture-mode retained as an explicit opt-in fallback (e.g., `FIXTURE_MODE=true` env var) for development and CI without live sources\n\n**Data sources in scope for live wiring:**\n1. **Hub** \u2014 control-plane state (rounds, agents, sessions)\n2. **MCP** \u2014 tool/service status\n3. **Kubernetes** \u2014 workload/pod/namespace state\n4. **Git** \u2014 branch, commit, HEAD state\n5. **OpenSpec** \u2014 change definitions and task state\n\n---\n\n## 4. Scope \u2014 Out (Non-Goals)\n\n- Mutations via the UI or adapter (POST/PUT/PATCH/DELETE remain 405)\n- Changes to the existing (non-evaluation) UI or its data paths\n- Cross-UI data sharing or a shared backend between old and new UI\n- Authentication/authz enforcement at the UI layer (adapter runs in-cluster; network boundary is the control)\n- Real-time collaborative features (multi-user presence, conflict resolution)\n- Historical replay or time-travel queries\n- Alerting, notification delivery, or outbound webhooks from the adapter\n- Changes to OpenSpec change definitions for any source system\n\n---\n\n## 5. Unresolved Questions (must be answered before implementation begins)\n\n### 5.1 Push Mechanism\n**Q:** SSE or WebSocket?  \nSSE is simpler (HTTP/1.1, native browser `EventSource`, no library, unidirectional) and sufficient for read-only push. WebSocket adds bidirectional capability not needed here.  \n**Recommended:** SSE unless a specific bidirectionality requirement emerges.  \n**Operator must confirm or redirect.**\n\n### 5.2 Adapter Language / Runtime\n**Q:** The current adapter is Python `BaseHTTPRequestHandler` (single-threaded request/response). SSE requires long-lived connections and concurrent streaming.  \nOptions:  \n- **A) Extend Python** with `ThreadingHTTPServer` (already used) and chunked transfer encoding \u2014 low friction, matches existing stack.  \n- **B) Rewrite adapter in Node.js/TypeScript** \u2014 natural fit for the React/Vite repo, native async streaming, but adds a runtime dependency.  \n- **C) Add a thin Go binary** alongside adapter.py \u2014 performant, single binary, but third runtime in the repo.  \n**Operator must choose runtime.**\n\n### 5.3 Adapter as Aggregator vs. Browser-Direct\n**Q:** Should the adapter aggregate all source data server-side and push a unified event stream to the browser? Or should the browser connect directly to some sources (e.g., a Hub WebSocket)?  \n**Recommended:** Adapter as aggregator \u2014 keeps CORS/auth complexity out of the browser and maintains the existing clean separation.  \n**Operator must confirm.**\n\n### 5.4 Update Triggers and Frequency\n**Q:** What triggers a push event to connected browsers?  \nOptions:  \n- **Poll-on-server**: adapter polls each source on a configurable interval (e.g., every 5s) and pushes diffs  \n- **Source-native push**: subscribe to Hub/MCP native event streams and relay  \n- **Hybrid**: poll slow sources, relay fast ones  \n**Operator must specify per-source trigger model and acceptable latency.**\n\n### 5.5 Staleness Thresholds\n**Q:** What age (seconds) makes data \"stale\" for each source? The fixtures currently show MCP at 310s (degraded) and Git at 1820s (stale), but these are not defined as thresholds.  \n**Operator must define per-source stale thresholds** (or confirm a single global default is acceptable).\n\n### 5.6 Fixture Fallback Behaviour\n**Q:** When a live source is unavailable, should the adapter:  \n- **A)** Return stale cached data with a staleness indicator  \n- **B)** Return an error event so the UI shows \"source offline\"  \n- **C)** Fall back to fixture data for that source  \n**Recommended:** A (stale cache) for transient outages, B (error event) after a configurable timeout.  \n**Operator must confirm failure semantics.**\n\n### 5.7 Hub API Access\n**Q:** How does the adapter authenticate to the Hub API from within the cluster? Is there a service account, token mount, or in-cluster DNS endpoint?  \n**Operator must provide Hub API access method** (endpoint, auth mechanism).\n\n### 5.8 Kubernetes Client Access\n**Q:** Does the adapter run inside the cluster (in-cluster kubeconfig) or outside (local kubeconfig mount)?  \n**Operator must confirm deployment context** for K8s client initialisation.\n\n### 5.9 Scope of UI Changes\n**Q:** Does this change touch only data plumbing (`api.ts`, `adapter.py`), or does it also require new UI components (e.g., a connection status banner, staleness badge)?  \nThe task description mentions \"connection health/staleness indicators\" \u2014 these likely require new React components.  \n**Operator must confirm whether UI component changes are in scope.**\n\n### 5.10 Deployment: Dev vs. Production Path\n**Q:** Is the live-data adapter intended to run:  \n- Only in local dev (via `npm run dev` proxy to `:8091`)  \n- Only in-cluster (Kubernetes deployment)  \n- Both  \nThis affects whether the Vite dev proxy config and Kubernetes manifests both need updating.  \n**Operator must confirm target deployment contexts.**\n\n---\n\n## 6. Acceptance Criteria (draft \u2014 requires operator confirmation)\n\n1. Navigating to any view in the new UI shows live operational data, not fixture values, within a configurable initial load timeout.\n2. Data updates pushed by the adapter appear in the UI without a page reload.\n3. If the stream disconnects, the UI reconnects automatically with backoff and displays a \"reconnecting\" indicator.\n4. Each data source in the Runtime view shows a freshness timestamp and a staleness indicator when data exceeds its threshold.\n5. With `FIXTURE_MODE=true`, the adapter reverts to fixture data (existing behaviour preserved).\n6. All adapter endpoints remain GET-only; POST/PUT/PATCH/DELETE still return 405.\n7. The existing UI (non-evaluation) is unmodified.\n8. `npm run typecheck` and `npm test` pass after changes.\n\n---\n\n## 7. Recommended Clarification Recipients\n\nThe following questions from \u00a75 are blockers for implementation and should be answered by the operator before an implementation spec is written:\n\n| # | Question | Blocker? |\n|---|----------|---------|\n| 5.1 | SSE vs WebSocket | Yes |\n| 5.2 | Adapter runtime | Yes |\n| 5.3 | Adapter-as-aggregator | Yes |\n| 5.4 | Update triggers + frequency | Yes |\n| 5.5 | Staleness thresholds | Yes |\n| 5.6 | Fixture fallback behaviour | Yes |\n| 5.7 | Hub API auth | Yes |\n| 5.8 | Kubernetes client context | Yes |\n| 5.9 | UI component scope | Yes |\n| 5.10 | Dev vs production deployment | Yes |\n",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:18:05.615279Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:18:21.071775Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:18:36.498342Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:18:51.912452Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:19:07.335203Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:19:22.751798Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:19:38.216390Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:19:53.667368Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:20:09.081905Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:20:24.481646Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "checked_at": "2026-05-11T15:20:39.886566Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "b9799e8386263dd70a30af0d0b68a3a1cc4b5648",
+      "checked_at": "2026-05-11T15:20:55.292149Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t151636z-0bbd-spec-clarifier",
+  "branch_head": "b9799e8386263dd70a30af0d0b68a3a1cc4b5648",
+  "completed_at": "2026-05-11T15:20:55.888761Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

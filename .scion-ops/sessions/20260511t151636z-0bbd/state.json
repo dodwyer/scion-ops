@@ -5,8 +5,8 @@
   "kind": "spec",
   "change": "wire-new-ui-1",
   "base_branch": "main",
-  "status": "running",
-  "phase": "clarifying",
+  "status": "ready",
+  "phase": "complete",
   "branches": {
     "steward": "round-20260511t151636z-0bbd-spec-steward",
     "clarifier": "round-20260511t151636z-0bbd-spec-clarifier",
@@ -31,15 +31,49 @@
     },
     "required_multi_harness": true
   },
-  "agents": {},
-  "review": {},
+  "agents": {
+    "clarifier": {
+      "name": "round-20260511t151636z-0bbd-spec-clarifier",
+      "branch": "round-20260511t151636z-0bbd-spec-clarifier",
+      "template": "spec-goal-clarifier-claude",
+      "harness_config": "claude",
+      "status": "completed"
+    },
+    "explorer": {
+      "name": "round-20260511t151636z-0bbd-spec-explorer",
+      "branch": "round-20260511t151636z-0bbd-spec-explorer",
+      "template": "spec-repo-explorer",
+      "harness_config": "codex-exec",
+      "status": "completed"
+    },
+    "author": {
+      "name": "round-20260511t151636z-0bbd-spec-author",
+      "branch": "round-20260511t151636z-0bbd-spec-author",
+      "template": "spec-author",
+      "harness_config": "codex-exec",
+      "status": "completed"
+    },
+    "ops_review": {
+      "name": "round-20260511t151636z-0bbd-spec-ops-review",
+      "branch": "round-20260511t151636z-0bbd-spec-ops-review",
+      "template": "spec-ops-reviewer-claude",
+      "harness_config": "claude",
+      "status": "completed"
+    }
+  },
+  "review": {
+    "verdict": "accept",
+    "agent": "round-20260511t151636z-0bbd-spec-ops-review",
+    "summary": "Ops review accepted wire-new-ui-1 as operationally ready. It passed live data flow, push-based delivery, connection health and staleness, read-only safety, graceful reconnect, stale-data preservation, fixture-to-live migration, and existing/new UI separation checks; only minor implementation guidance was noted."
+  },
   "validation": {
-    "status": "pending"
+    "status": "passed",
+    "command": "python3 scripts/validate-openspec-change.py --project-root . --change wire-new-ui-1",
+    "integration_branch": "round-20260511t151636z-0bbd-spec-integration",
+    "review_agent": "round-20260511t151636z-0bbd-spec-ops-review"
   },
   "blockers": [],
   "next_actions": [
-    "Start spec-goal-clarifier and spec-repo-explorer agents",
-    "Create OpenSpec artifacts on the author branch",
-    "Validate and review the integration branch"
+    "Use round-20260511t151636z-0bbd-spec-integration for OpenSpec review or implementation planning"
   ]
 }
