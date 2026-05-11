@@ -3,6 +3,9 @@ export type Status =
   | "degraded"
   | "stale"
   | "mocked"
+  | "live"
+  | "reconnecting"
+  | "fallback"
   | "blocked"
   | "active"
   | "completed"
@@ -23,7 +26,8 @@ export interface FixtureProvenance {
 }
 
 export interface OverviewPayload {
-  mocked: true;
+  mocked: boolean;
+  sourceMode?: SourceMode;
   controlPlane: string;
   summary: string;
   readiness: Status;
@@ -66,6 +70,8 @@ export interface RoundSummary {
   startedAt: string | null;
   updatedAt: string;
   latestEvent: string;
+  source?: string;
+  sourceMode?: SourceMode;
 }
 
 export interface RoundDetail {
@@ -78,6 +84,7 @@ export interface RoundDetail {
   runnerOutput: string;
   relatedMessages: string[];
   rawPayloadRef: string;
+  sourceMode?: SourceMode;
 }
 
 export interface InboxMessage {
@@ -90,16 +97,40 @@ export interface InboxMessage {
   title: string;
   context: string;
   readOnly: boolean;
+  sourceMode?: SourceMode;
+}
+
+export type SourceMode = "live" | "fixture";
+
+export interface SourceHealth {
+  name: string;
+  source: string;
+  kind: string;
+  status: Status;
+  detail: string;
+  lastSeen: string | null;
+  lastSuccessfulUpdate: string | null;
+  freshnessSeconds: number | null;
+  stale: boolean;
+  sourceMode: SourceMode;
+  fallback: boolean;
+  error: string | null;
+}
+
+export interface ConnectionState {
+  status: Status;
+  transport: "sse" | "fixture" | "websocket" | "polling";
+  lastEventId: string | null;
+  lastHeartbeatAt: string | null;
+  reconnect: {
+    supported: boolean;
+    maxBackoffSeconds: number;
+    resumeParam?: string;
+  };
 }
 
 export interface RuntimePayload {
-  sources: Array<{
-    name: string;
-    kind: string;
-    status: Status;
-    detail: string;
-    lastSeen: string | null;
-  }>;
+  sources: Array<SourceHealth | { name: string; kind: string; status: Status; detail: string; lastSeen: string | null }>;
   previewService: {
     name: string;
     port: number;
@@ -107,18 +138,30 @@ export interface RuntimePayload {
     fixtureOnly: boolean;
     liveReadsAllowed: boolean;
     mutationsAllowed: boolean;
+    sourceMode?: SourceMode;
+    streamPath?: string;
+    snapshotPath?: string;
   };
 }
 
 export interface DiagnosticsPayload {
   schemaVersion: string;
+  sourceMode?: SourceMode;
+  generatedAt?: string;
   sourceErrors: Array<{ source: string; severity: Severity; message: string; observedAt: string }>;
+  sourceHealth?: SourceHealth[];
   rawPayloads: Record<string, unknown>;
 }
 
 export interface PreviewFixtures {
   schemaVersion: string;
-  mocked: true;
+  sourceMode?: SourceMode;
+  mocked: boolean;
+  generatedAt?: string;
+  cursor?: string;
+  sources?: SourceHealth[];
+  sourceHealth?: SourceHealth[];
+  connection?: ConnectionState;
   fixtureProvenance: FixtureProvenance;
   overview: OverviewPayload;
   rounds: RoundSummary[];
@@ -130,4 +173,42 @@ export interface PreviewFixtures {
 
 export interface PreviewData extends PreviewFixtures {
   loadedAt: string;
+}
+
+export interface LiveSnapshot extends Omit<PreviewFixtures, "fixtureProvenance"> {
+  schemaVersion: "new-ui-evaluation.live.v1";
+  sourceMode: "live";
+  mocked: false;
+  generatedAt: string;
+  cursor: string;
+  sources: SourceHealth[];
+  sourceHealth: SourceHealth[];
+  connection: ConnectionState;
+}
+
+export interface LiveEvent {
+  schemaVersion: "new-ui-evaluation.event.v1";
+  type:
+    | "heartbeat"
+    | "snapshot_ready"
+    | "source_status"
+    | "round_updated"
+    | "timeline_entry"
+    | "inbox_item"
+    | "runtime_health"
+    | "diagnostic"
+    | "stale"
+    | "fallback"
+    | "fatal";
+  id: string;
+  eventId: string;
+  entityId: string | null;
+  source: string;
+  timestamp: string;
+  version: string;
+  cursor: string;
+  payload: Record<string, unknown>;
+  sourceStatus?: Status;
+  stale: boolean;
+  error?: string | null;
 }
