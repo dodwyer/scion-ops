@@ -1,0 +1,33 @@
+{
+  "agent": "round-20260511t154050z-44ce-impl-ui-codex",
+  "status": "completed",
+  "branch": "round-20260511t154050z-44ce-impl-ui-codex",
+  "head_sha": "c5b6b487360da174678128d1f06276893a8ff2ee",
+  "changed_files": [
+    "deploy/kind/control-plane/new-ui-evaluation-deployment.yaml",
+    "docs/kind-control-plane.md",
+    "new-ui-evaluation/src/App.tsx",
+    "new-ui-evaluation/src/__tests__/fixtures.test.tsx",
+    "new-ui-evaluation/src/api.ts",
+    "new-ui-evaluation/src/styles.css",
+    "new-ui-evaluation/src/types.ts",
+    "openspec/changes/wire-new-ui-1/tasks.md",
+    "scripts/kind-control-plane-smoke.py"
+  ],
+  "tasks_completed": [
+    "Implemented React/Vite initial live snapshot loading from /api/snapshot with explicit fixture fallback through /api/fixtures only when requested.",
+    "Added SSE consumption for /api/events with typed event merging, idempotent source/round/inbox/activity updates, cursor resume, bounded reconnect UI, stale-data preservation, and global/per-source health indicators.",
+    "Added frontend tests for snapshot and event contracts, fixture fallback labeling, duplicate event merging, stale preservation, source-specific failure handling, and SSE cursor resume.",
+    "Added new-UI live-mode deployment default, docs for separate access and fixture mode, and smoke checks for /api/snapshot, /api/events, read-only safeguards, and endpoint coexistence."
+  ],
+  "tests_run": [
+    "npm run typecheck (new-ui-evaluation)",
+    "npm test (new-ui-evaluation)",
+    "npm run build (new-ui-evaluation)",
+    "python3 -m py_compile scripts/kind-control-plane-smoke.py",
+    "python3 scripts/validate-openspec-change.py wire-new-ui-1",
+    "git diff --check"
+  ],
+  "blockers": [],
+  "summary": "Wired the new UI replacement slice to the accepted Group A live contract: /api/snapshot for initial state, /api/events for SSE updates, runtime preview paths surfaced in UI, explicit fixture fallback, reconnect/stale/source health UI, frontend coverage, and new-UI-only live smoke/coexistence checks. Branch pushed to origin."
+}
