@@ -1,0 +1,170 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t115659z-57a1/findings/round-20260511t115659z-57a1-impl-codex.json",
+  "artifact_json": {
+    "agent": "round-20260511t115659z-57a1-impl-codex",
+    "blockers": [
+      "Steward brief path .scion-ops/sessions/20260511t115659z-57a1/brief.md was not present in the workspace; implementation used the user-provided Group A scope plus the OpenSpec proposal, design, tasks, and delta spec."
+    ],
+    "branch": "round-20260511t115659z-57a1-impl-codex",
+    "changed_files": [
+      "openspec/changes/better-information-ui/tasks.md",
+      "scripts/test-web-app-hub.py",
+      "scripts/web_app_hub.py"
+    ],
+    "head_sha": "6bf3c65480556c83a9d3ec9d5b5bb22fade994c4",
+    "status": "completed",
+    "summary": "Implemented Group A data-contract work for better-information-ui: normalized timeline rows now include entry_id, sequence, timestamp, agent, action, handoff, reason_for_handoff, status, source, and detail while preserving existing keys; overview data now includes readiness_strip, priority_attention, recent_activity, and source_health; exact replay timeline ids are suppressed without collapsing distinct same-agent or same-pair handoffs. Added focused no-spend fixture tests and updated completed task checkboxes only for this slice. Branch was pushed to origin.",
+    "tasks_completed": [
+      "1.1 Inventory current operator overview and selected-round timeline fields in scripts/web_app_hub.py.",
+      "1.2 Define normalized timeline entry fields for stable identity, sequence, action, handoff, reason for handoff, status, source, and detail payload.",
+      "1.3 Update overview data selection for readiness, priority attention, recent action/handoff context, and source health.",
+      "1.4 Update selected-round timeline normalization for explicit action, handoff, and reason-for-handoff fields.",
+      "1.5 Preserve distinct repeated handoff entries while suppressing exact replay duplicates with the same stable source identity.",
+      "1.8 Keep legacy raw HTML/JavaScript changes limited to a compatibility bridge for normalized timeline fields.",
+      "1.11 Add focused no-spend tests for normalization, duplicate preservation, concise overview defaults, and endpoint compatibility.",
+      "1.12 Run OpenSpec validation for better-information-ui.",
+      "1.13 Run relevant web app fixture and static checks."
+    ],
+    "tests_run": [
+      "uv run scripts/test-web-app-hub.py",
+      "uv run scripts/validate-openspec-change.py better-information-ui",
+      "python3 -m py_compile scripts/web_app_hub.py scripts/test-web-app-hub.py"
+    ]
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+      "checked_at": "2026-05-11T11:59:25.342579Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+      "checked_at": "2026-05-11T11:59:46.132005Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+      "checked_at": "2026-05-11T12:00:06.549844Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+      "checked_at": "2026-05-11T12:00:26.976707Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+      "checked_at": "2026-05-11T12:00:47.397387Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+      "checked_at": "2026-05-11T12:01:07.855959Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+      "checked_at": "2026-05-11T12:01:28.256216Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+      "checked_at": "2026-05-11T12:01:48.675896Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+      "checked_at": "2026-05-11T12:02:09.110041Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+      "checked_at": "2026-05-11T12:02:29.502290Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+      "checked_at": "2026-05-11T12:02:49.914524Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+      "checked_at": "2026-05-11T12:03:10.322098Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+      "checked_at": "2026-05-11T12:03:30.743895Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6bf3c65480556c83a9d3ec9d5b5bb22fade994c4",
+      "checked_at": "2026-05-11T12:03:51.159962Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "6bf3c65480556c83a9d3ec9d5b5bb22fade994c4",
+      "checked_at": "2026-05-11T12:04:11.944718Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "dcee31e6b99bbaddacf9836f17f37c7e5c4ba41c",
+      "checked_at": "2026-05-11T12:04:32.334935Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t115659z-57a1-impl-codex",
+  "branch_head": "dcee31e6b99bbaddacf9836f17f37c7e5c4ba41c",
+  "completed_at": "2026-05-11T12:04:32.875769Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
