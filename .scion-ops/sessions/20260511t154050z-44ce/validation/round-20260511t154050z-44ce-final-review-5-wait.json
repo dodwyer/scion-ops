@@ -1,0 +1,112 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t154050z-44ce/reviews/final-review-5.json",
+  "artifact_json": {
+    "blocking_issues": [],
+    "nits": [],
+    "review_type": "final",
+    "scores": {
+      "completeness": 5,
+      "correctness": 5,
+      "style": 5
+    },
+    "spec": {
+      "change": "wire-new-ui-1",
+      "checked_artifacts": [
+        "openspec/changes/wire-new-ui-1/proposal.md",
+        "openspec/changes/wire-new-ui-1/design.md",
+        "openspec/changes/wire-new-ui-1/tasks.md",
+        "openspec/changes/wire-new-ui-1/specs/new-ui-evaluation/spec.md",
+        "new-ui-evaluation/adapter.py",
+        "new-ui-evaluation/src/api.ts",
+        "new-ui-evaluation/src/App.tsx",
+        "new-ui-evaluation/src/types.ts",
+        "new-ui-evaluation/src/__tests__/fixtures.test.tsx",
+        "new-ui-evaluation/tests/test_adapter.py",
+        "docs/new-ui-evaluation.md"
+      ],
+      "conformance": 5,
+      "gaps": [
+        "Live Kubernetes/browser smoke was not run in this review environment.",
+        "The local clone is shallow/grafted with no merge-base between origin/main and origin/round-20260511t154050z-44ce-integration, so review used the latest integration tree at commit 89237d0 and the approved OpenSpec artifacts directly."
+      ],
+      "operational_verification": 4,
+      "spec_completeness": 5,
+      "task_coverage": 5,
+      "unresolved_questions": []
+    },
+    "summary": "Verdict: accept. No blocking issues found. The latest repaired integration commit 89237d0 conforms to the approved wire-new-ui-1 OpenSpec artifacts, including frontend application of backend snapshot_ready safe snapshot recovery through applyLiveEvent replacement of payload.snapshot while preserving loadedAt and resetting live connection/reconnect state. Verification run: python3 scripts/validate-openspec-change.py wire-new-ui-1, npm ci, npm run typecheck, npm test, npm run build, and python3 -m unittest discover -s tests from new-ui-evaluation. PR readiness: ready, with residual verification gaps limited to no live Kubernetes/browser smoke and no normal merge-base diff in this shallow/grafted clone.",
+    "verdict": "accept"
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "89237d0bde674cba2c74da7f1cdffe15fa29d7f5",
+      "checked_at": "2026-05-11T16:50:40.239253Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "89237d0bde674cba2c74da7f1cdffe15fa29d7f5",
+      "checked_at": "2026-05-11T16:51:00.663657Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "89237d0bde674cba2c74da7f1cdffe15fa29d7f5",
+      "checked_at": "2026-05-11T16:51:21.097844Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "89237d0bde674cba2c74da7f1cdffe15fa29d7f5",
+      "checked_at": "2026-05-11T16:51:41.568069Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "89237d0bde674cba2c74da7f1cdffe15fa29d7f5",
+      "checked_at": "2026-05-11T16:52:02.009509Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "89237d0bde674cba2c74da7f1cdffe15fa29d7f5",
+      "checked_at": "2026-05-11T16:52:22.471464Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "89237d0bde674cba2c74da7f1cdffe15fa29d7f5",
+      "checked_at": "2026-05-11T16:52:42.879734Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "9a9f55112bcc32120aced9fdf338fc9b162c37a8",
+      "checked_at": "2026-05-11T16:53:03.291937Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t154050z-44ce-final-review-5",
+  "branch_head": "9a9f55112bcc32120aced9fdf338fc9b162c37a8",
+  "completed_at": "2026-05-11T16:53:03.868022Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

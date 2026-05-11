@@ -1,0 +1,96 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-repair-snapshot-recovery-codex.json",
+  "artifact_json": {
+    "agent": "round-20260511t154050z-44ce-repair-snapshot-recovery-codex",
+    "blockers": [],
+    "branch": "round-20260511t154050z-44ce-repair-snapshot-recovery-codex",
+    "changed_files": [
+      "new-ui-evaluation/src/api.ts",
+      "new-ui-evaluation/src/__tests__/fixtures.test.tsx"
+    ],
+    "head_sha": "378ccfc71fa09a95a6db06df4df4cc4726bcce5b",
+    "status": "completed",
+    "summary": "Implemented bounded frontend snapshot_ready recovery so backend payload.snapshot events replace stale preview data safely without changing backend code.",
+    "tasks_completed": [
+      "Updated applyLiveEvent to apply valid snapshot_ready payload.snapshot data as the replacement PreviewData while preserving loadedAt.",
+      "Kept snapshot_ready cursor and connection state current, including lastEventId, live status, reset reconnect attempt, and cleared stale connection errors through the existing event connection path.",
+      "Added a focused frontend test covering snapshot_ready recovery replacement behavior."
+    ],
+    "tests_run": [
+      "npm test -- --run src/__tests__/fixtures.test.tsx",
+      "npm run typecheck"
+    ]
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7ced23e6225391b834cf52ee3b6a1ae60a2bc362",
+      "checked_at": "2026-05-11T16:47:15.684249Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7ced23e6225391b834cf52ee3b6a1ae60a2bc362",
+      "checked_at": "2026-05-11T16:47:36.143145Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7ced23e6225391b834cf52ee3b6a1ae60a2bc362",
+      "checked_at": "2026-05-11T16:47:56.554363Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7ced23e6225391b834cf52ee3b6a1ae60a2bc362",
+      "checked_at": "2026-05-11T16:48:17.045211Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7ced23e6225391b834cf52ee3b6a1ae60a2bc362",
+      "checked_at": "2026-05-11T16:48:37.476243Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7ced23e6225391b834cf52ee3b6a1ae60a2bc362",
+      "checked_at": "2026-05-11T16:48:57.877517Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7ced23e6225391b834cf52ee3b6a1ae60a2bc362",
+      "checked_at": "2026-05-11T16:49:18.304662Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "edce3c4a5d92000807e4f56423c2bff801c16c6a",
+      "checked_at": "2026-05-11T16:49:38.718591Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t154050z-44ce-repair-snapshot-recovery-codex",
+  "branch_head": "edce3c4a5d92000807e4f56423c2bff801c16c6a",
+  "completed_at": "2026-05-11T16:49:39.348774Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

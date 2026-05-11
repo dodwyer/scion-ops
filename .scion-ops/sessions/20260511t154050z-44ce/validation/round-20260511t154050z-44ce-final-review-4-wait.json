@@ -1,0 +1,111 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t154050z-44ce/reviews/final-review-4.json",
+  "artifact_json": {
+    "blocking_issues": [
+      "Reconnect snapshot recovery is not actually applied by the browser. The backend emits an unknown-cursor recovery as a snapshot_ready event with payload.snapshot in new-ui-evaluation/adapter.py:754, but applyLiveEvent returns immediately for every snapshot_ready event in new-ui-evaluation/src/api.ts:90. After a rejected or missing cursor, the UI advances its cursor/connection status while continuing to display the stale pre-reconnect data, so the OpenSpec requirement to request and apply a safe read-only snapshot when resume is unavailable is not satisfied."
+    ],
+    "final_failure_classification": "implementation_defect",
+    "final_failure_evidence": "Static review shows snapshot_replacement_event includes the replacement snapshot, while the frontend reducer ignores all snapshot_ready payloads. Existing tests assert only that the SSE response contains the recovery snapshot, not that applyLiveEvent installs it. Verification run: python3 -m unittest tests/test_adapter.py from new-ui-evaluation passed 7 tests; npm test passed 9 tests; npm run build passed.",
+    "nits": [],
+    "review_type": "final",
+    "scores": {
+      "completeness": 3,
+      "correctness": 2,
+      "style": 4
+    },
+    "spec": {
+      "change": "wire-new-ui-1",
+      "checked_artifacts": [
+        "openspec/changes/wire-new-ui-1/specs/new-ui-evaluation/spec.md",
+        "openspec/changes/wire-new-ui-1/tasks.md",
+        "new-ui-evaluation/adapter.py",
+        "new-ui-evaluation/src/api.ts",
+        "new-ui-evaluation/src/App.tsx",
+        "new-ui-evaluation/src/__tests__/fixtures.test.tsx",
+        "new-ui-evaluation/tests/test_adapter.py"
+      ],
+      "conformance": 2,
+      "gaps": [
+        "No frontend test covers snapshot_ready recovery replacing PreviewData from payload.snapshot after an unknown or expired cursor."
+      ],
+      "operational_verification": 3,
+      "spec_completeness": 4,
+      "task_coverage": 3,
+      "unresolved_questions": []
+    },
+    "summary": "Final review rejects the latest repaired integration commit 7ced23e. Known-cursor replay is implemented on the backend and covered by adapter tests, but safe snapshot recovery remains incomplete because the client ignores the replacement snapshot carried by the recovery event. Automated adapter, frontend, and build checks pass, but they do not exercise this browser recovery path.",
+    "verdict": "request_changes"
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7ced23e6225391b834cf52ee3b6a1ae60a2bc362",
+      "checked_at": "2026-05-11T16:43:56.365341Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7ced23e6225391b834cf52ee3b6a1ae60a2bc362",
+      "checked_at": "2026-05-11T16:44:16.791383Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7ced23e6225391b834cf52ee3b6a1ae60a2bc362",
+      "checked_at": "2026-05-11T16:44:37.233981Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7ced23e6225391b834cf52ee3b6a1ae60a2bc362",
+      "checked_at": "2026-05-11T16:44:57.646237Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7ced23e6225391b834cf52ee3b6a1ae60a2bc362",
+      "checked_at": "2026-05-11T16:45:18.088212Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7ced23e6225391b834cf52ee3b6a1ae60a2bc362",
+      "checked_at": "2026-05-11T16:45:38.517204Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "7ced23e6225391b834cf52ee3b6a1ae60a2bc362",
+      "checked_at": "2026-05-11T16:45:58.931763Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "ed1a2fb86e10f5e86536bf1f77edeabd17d0e70d",
+      "checked_at": "2026-05-11T16:46:19.364405Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t154050z-44ce-final-review-4",
+  "branch_head": "ed1a2fb86e10f5e86536bf1f77edeabd17d0e70d",
+  "completed_at": "2026-05-11T16:46:19.914592Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

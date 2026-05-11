@@ -5,8 +5,8 @@
   "kind": "implementation",
   "change": "wire-new-ui-1",
   "base_branch": "main",
-  "status": "running",
-  "phase": "repairing",
+  "status": "ready",
+  "phase": "complete",
   "branches": {
     "steward": "round-20260511t154050z-44ce-implementation-steward",
     "implementer": "round-20260511t154050z-44ce-impl-codex",
@@ -18,7 +18,9 @@
     "replacement_implementer": "round-20260511t154050z-44ce-impl-ui-codex",
     "repair_implementer": "round-20260511t154050z-44ce-repair-live-codex",
     "repair_implementer_2": "round-20260511t154050z-44ce-repair-ui-events-codex",
-    "repair_implementer_3": "round-20260511t154050z-44ce-repair-reconnect-codex"
+    "repair_implementer_3": "round-20260511t154050z-44ce-repair-reconnect-codex",
+    "repair_implementer_4": "round-20260511t154050z-44ce-repair-snapshot-recovery-codex",
+    "final_review_accept": "round-20260511t154050z-44ce-final-review-5"
   },
   "agents": {
     "round-20260511t154050z-44ce-impl-codex": {
@@ -51,72 +53,91 @@
       "branch": "round-20260511t154050z-44ce-repair-reconnect-codex",
       "status": "completed",
       "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-repair-reconnect-codex.json"
+    },
+    "round-20260511t154050z-44ce-repair-snapshot-recovery-codex": {
+      "branch": "round-20260511t154050z-44ce-repair-snapshot-recovery-codex",
+      "status": "completed",
+      "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-repair-snapshot-recovery-codex.json"
     }
   },
   "implementation": {
-    "branch": "",
+    "branch": "round-20260511t154050z-44ce-integration",
     "base_branch": "main",
-    "integration_branch": "round-20260511t154050z-44ce-integration"
+    "integration_branch": "round-20260511t154050z-44ce-integration",
+    "head_sha": "89237d0bde674cba2c74da7f1cdffe15fa29d7f5"
   },
-  "reviews": [],
-  "final_review": {
-    "branch": "round-20260511t154050z-44ce-final-review",
-    "verdict": "request_changes",
-    "verdict_file": ".scion-ops/sessions/20260511t154050z-44ce/reviews/final-review.json",
-    "wait_diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-wait.json",
-    "repair_review_branch": "round-20260511t154050z-44ce-final-review-2",
-    "repair_review_verdict": "request_changes",
-    "repair_review_verdict_file": ".scion-ops/sessions/20260511t154050z-44ce/reviews/final-review-2.json",
-    "repair_review_wait_diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-2-wait.json",
-    "repair_review_classification": "integration_defect",
-    "classification": "implementation_defect",
-    "blocking_issues": [
-      "SSE backend emits only initial heartbeat/source status and periodic heartbeats, without live Hub/MCP/Kubernetes/git/OpenSpec watch or typed incremental operational events.",
-      "Live snapshot substitutes local session files/module existence for true read-only Hub and MCP operational API reads."
-    ],
-    "evidence": "Final reviewer found the core live push-update contract and live operational source contract incomplete on integration commit 080f1b2b2cef29ad32691d3b20c682d087658a50."
-  },
-  "verification": {
-    "status": "pending"
-  },
-  "blockers": [
+  "reviews": [
     {
-      "agent": "round-20260511t154050z-44ce-impl-claude",
-      "branch": "round-20260511t154050z-44ce-impl-claude",
-      "cause": "artifact_timeout",
-      "status": "replacement_completed",
-      "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-impl-claude-handoff-wait.json",
-      "summary": "Secondary implementer timed out without branch movement or required handoff artifact."
-    },
-    {
-      "agent": "round-20260511t154050z-44ce-final-review",
       "branch": "round-20260511t154050z-44ce-final-review",
-      "cause": "final_review_request_changes",
-      "status": "repair_completed",
-      "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-wait.json",
-      "summary": "Final review requested changes for incomplete live source push updates and incomplete Hub/MCP live reads."
+      "verdict": "request_changes",
+      "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-wait.json"
     },
     {
-      "agent": "round-20260511t154050z-44ce-final-review-2",
       "branch": "round-20260511t154050z-44ce-final-review-2",
-      "cause": "final_review_request_changes",
-      "status": "repair_completed",
-      "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-2-wait.json",
-      "summary": "Second final review requested changes for frontend reducer mismatch with backend timeline_entry and runtime_health SSE payloads."
+      "verdict": "request_changes",
+      "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-2-wait.json"
     },
     {
-      "agent": "round-20260511t154050z-44ce-final-review-3",
       "branch": "round-20260511t154050z-44ce-final-review-3",
-      "cause": "final_review_request_changes",
-      "status": "repair_completed",
-      "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-3-wait.json",
-      "summary": "Third final review requested changes for reconnect cursor replay or safe snapshot recovery."
+      "verdict": "request_changes",
+      "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-3-wait.json"
+    },
+    {
+      "branch": "round-20260511t154050z-44ce-final-review-4",
+      "verdict": "request_changes",
+      "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-4-wait.json"
+    },
+    {
+      "branch": "round-20260511t154050z-44ce-final-review-5",
+      "verdict": "accept",
+      "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-5-wait.json"
     }
   ],
+  "final_review": {
+    "branch": "round-20260511t154050z-44ce-final-review-5",
+    "verdict": "accept",
+    "verdict_file": ".scion-ops/sessions/20260511t154050z-44ce/reviews/final-review-5.json",
+    "wait_diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-5-wait.json",
+    "summary": "Verdict accept with no blocking issues on integration commit 89237d0bde674cba2c74da7f1cdffe15fa29d7f5.",
+    "blocking_issues": []
+  },
+  "verification": {
+    "status": "passed",
+    "evidence": [
+      "python3 scripts/validate-openspec-change.py wire-new-ui-1",
+      "cd new-ui-evaluation && python3 -m unittest discover -s tests",
+      "cd new-ui-evaluation && npm test",
+      "cd new-ui-evaluation && npm run typecheck",
+      "cd new-ui-evaluation && npm run build",
+      "python3 -m py_compile scripts/kind-control-plane-smoke.py",
+      "uv run scripts/kind-control-plane-smoke.py --help",
+      "git diff --check origin/main..HEAD"
+    ],
+    "notes": [
+      "Live Kubernetes/browser smoke was not run in this environment; final review accepted with this residual gap."
+    ]
+  },
+  "blockers": [],
   "next_actions": [
-    "Write implementation brief and bounded task groups",
-    "Start bounded implementer agents",
-    "Integrate the accepted implementation branch",
-    "Run verification and final review"
-  ]
+    "Review pull request https://github.com/dodwyer/scion-ops/pull/145"
+  ],
+  "pull_request": {
+    "source": "steward_pr_finalizer",
+    "session_id": "20260511t154050z-44ce",
+    "kind": "implementation",
+    "change": "wire-new-ui-1",
+    "head": "round-20260511t154050z-44ce-integration",
+    "base": "main",
+    "head_commit": "89237d0bde674cba2c74da7f1cdffe15fa29d7f5",
+    "base_commit": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+    "created": true,
+    "draft": false,
+    "pr": {
+      "url": "https://github.com/dodwyer/scion-ops/pull/145",
+      "head": "round-20260511t154050z-44ce-integration",
+      "base": "main",
+      "title": "Implement OpenSpec: wire-new-ui-1"
+    },
+    "pr_url": "https://github.com/dodwyer/scion-ops/pull/145"
+  }
 }

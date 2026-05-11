@@ -1,0 +1,224 @@
+{
+  "base": "main",
+  "base_commit": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+  "change": "wire-new-ui-1",
+  "created": true,
+  "draft": false,
+  "gh": {
+    "create": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "create",
+        "--base",
+        "main",
+        "--head",
+        "round-20260511t154050z-44ce-integration",
+        "--title",
+        "Implement OpenSpec: wire-new-ui-1",
+        "--body",
+        "Created by scion-ops after successful implementation steward validation.\n\n- Session: `20260511t154050z-44ce`\n- Change: `wire-new-ui-1`\n- Head: `round-20260511t154050z-44ce-integration` (`89237d0bde67`)\n- Base: `main` (`5db0bd0a4904`)\n- Steward validation: passed\n- Final review: `accept`\n- Verification: `passed`"
+      ],
+      "ok": true,
+      "output": "Warning: 6 uncommitted changes\nhttps://github.com/dodwyer/scion-ops/pull/145\n",
+      "returncode": 0
+    },
+    "list": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "list",
+        "--head",
+        "round-20260511t154050z-44ce-integration",
+        "--base",
+        "main",
+        "--state",
+        "all",
+        "--json",
+        "number,url,state,title,baseRefName,headRefName",
+        "--limit",
+        "1"
+      ],
+      "ok": true,
+      "output": "[]\n",
+      "returncode": 0
+    }
+  },
+  "head": "round-20260511t154050z-44ce-integration",
+  "head_commit": "89237d0bde674cba2c74da7f1cdffe15fa29d7f5",
+  "kind": "implementation",
+  "ok": true,
+  "pr": {
+    "base": "main",
+    "head": "round-20260511t154050z-44ce-integration",
+    "title": "Implement OpenSpec: wire-new-ui-1",
+    "url": "https://github.com/dodwyer/scion-ops/pull/145"
+  },
+  "pr_url": "https://github.com/dodwyer/scion-ops/pull/145",
+  "project_root": "/workspace",
+  "session_id": "20260511t154050z-44ce",
+  "source": "steward_pr_finalizer",
+  "state_recording": {
+    "pr_path": "/workspace/.scion-ops/sessions/20260511t154050z-44ce/pr.json",
+    "state_path": "/workspace/.scion-ops/sessions/20260511t154050z-44ce/state.json"
+  },
+  "validation": {
+    "agent_harnesses": {},
+    "branch": {
+      "base_branch": "main",
+      "base_commit": "5db0bd0a49043de416beb2d9af26c88be1be1f2c",
+      "base_resolved_ref": "origin/main",
+      "branch": "round-20260511t154050z-44ce-integration",
+      "commit": "89237d0bde674cba2c74da7f1cdffe15fa29d7f5",
+      "resolved_ref": "origin/round-20260511t154050z-44ce-integration"
+    },
+    "change": "wire-new-ui-1",
+    "errors": [],
+    "kind": "implementation",
+    "ok": true,
+    "openspec_validation": {
+      "change": "wire-new-ui-1",
+      "change_path": "openspec/changes/wire-new-ui-1",
+      "errors": [],
+      "ok": true,
+      "project_root": "/workspace",
+      "required_files": {
+        "design.md": "openspec/changes/wire-new-ui-1/design.md",
+        "proposal.md": "openspec/changes/wire-new-ui-1/proposal.md",
+        "tasks.md": "openspec/changes/wire-new-ui-1/tasks.md"
+      },
+      "spec_files": [
+        "openspec/changes/wire-new-ui-1/specs/new-ui-evaluation/spec.md"
+      ],
+      "warnings": []
+    },
+    "openspec_validation_source": "worktree",
+    "project_root": "/workspace",
+    "session_id": "20260511t154050z-44ce",
+    "state": {
+      "agents": {
+        "round-20260511t154050z-44ce-impl-claude": {
+          "branch": "round-20260511t154050z-44ce-impl-claude",
+          "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-impl-claude-handoff-wait.json",
+          "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-impl-claude.json",
+          "status": "artifact_timeout"
+        },
+        "round-20260511t154050z-44ce-impl-codex": {
+          "branch": "round-20260511t154050z-44ce-impl-codex",
+          "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-impl-codex.json",
+          "status": "completed"
+        },
+        "round-20260511t154050z-44ce-impl-ui-codex": {
+          "branch": "round-20260511t154050z-44ce-impl-ui-codex",
+          "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-impl-ui-codex.json",
+          "status": "completed"
+        },
+        "round-20260511t154050z-44ce-repair-live-codex": {
+          "branch": "round-20260511t154050z-44ce-repair-live-codex",
+          "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-repair-live-codex.json",
+          "status": "completed"
+        },
+        "round-20260511t154050z-44ce-repair-reconnect-codex": {
+          "branch": "round-20260511t154050z-44ce-repair-reconnect-codex",
+          "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-repair-reconnect-codex.json",
+          "status": "completed"
+        },
+        "round-20260511t154050z-44ce-repair-snapshot-recovery-codex": {
+          "branch": "round-20260511t154050z-44ce-repair-snapshot-recovery-codex",
+          "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-repair-snapshot-recovery-codex.json",
+          "status": "completed"
+        },
+        "round-20260511t154050z-44ce-repair-ui-events-codex": {
+          "branch": "round-20260511t154050z-44ce-repair-ui-events-codex",
+          "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-repair-ui-events-codex.json",
+          "status": "completed"
+        }
+      },
+      "base_branch": "main",
+      "blockers": [],
+      "branches": {
+        "final_review": "round-20260511t154050z-44ce-final-review",
+        "final_review_accept": "round-20260511t154050z-44ce-final-review-5",
+        "final_review_repair": "round-20260511t154050z-44ce-final-review-2",
+        "final_review_repair_2": "round-20260511t154050z-44ce-final-review-3",
+        "implementer": "round-20260511t154050z-44ce-impl-codex",
+        "integration": "round-20260511t154050z-44ce-integration",
+        "repair_implementer": "round-20260511t154050z-44ce-repair-live-codex",
+        "repair_implementer_2": "round-20260511t154050z-44ce-repair-ui-events-codex",
+        "repair_implementer_3": "round-20260511t154050z-44ce-repair-reconnect-codex",
+        "repair_implementer_4": "round-20260511t154050z-44ce-repair-snapshot-recovery-codex",
+        "replacement_implementer": "round-20260511t154050z-44ce-impl-ui-codex",
+        "secondary_implementer": "round-20260511t154050z-44ce-impl-claude",
+        "steward": "round-20260511t154050z-44ce-implementation-steward"
+      },
+      "change": "wire-new-ui-1",
+      "final_review": {
+        "blocking_issues": [],
+        "branch": "round-20260511t154050z-44ce-final-review-5",
+        "summary": "Verdict accept with no blocking issues on integration commit 89237d0bde674cba2c74da7f1cdffe15fa29d7f5.",
+        "verdict": "accept",
+        "verdict_file": ".scion-ops/sessions/20260511t154050z-44ce/reviews/final-review-5.json",
+        "wait_diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-5-wait.json"
+      },
+      "implementation": {
+        "base_branch": "main",
+        "branch": "round-20260511t154050z-44ce-integration",
+        "head_sha": "89237d0bde674cba2c74da7f1cdffe15fa29d7f5",
+        "integration_branch": "round-20260511t154050z-44ce-integration"
+      },
+      "kind": "implementation",
+      "next_actions": [],
+      "phase": "complete",
+      "reviews": [
+        {
+          "branch": "round-20260511t154050z-44ce-final-review",
+          "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-wait.json",
+          "verdict": "request_changes"
+        },
+        {
+          "branch": "round-20260511t154050z-44ce-final-review-2",
+          "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-2-wait.json",
+          "verdict": "request_changes"
+        },
+        {
+          "branch": "round-20260511t154050z-44ce-final-review-3",
+          "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-3-wait.json",
+          "verdict": "request_changes"
+        },
+        {
+          "branch": "round-20260511t154050z-44ce-final-review-4",
+          "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-4-wait.json",
+          "verdict": "request_changes"
+        },
+        {
+          "branch": "round-20260511t154050z-44ce-final-review-5",
+          "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-5-wait.json",
+          "verdict": "accept"
+        }
+      ],
+      "round_id": "20260511t154050z-44ce",
+      "session_id": "20260511t154050z-44ce",
+      "status": "ready",
+      "verification": {
+        "evidence": [
+          "python3 scripts/validate-openspec-change.py wire-new-ui-1",
+          "cd new-ui-evaluation && python3 -m unittest discover -s tests",
+          "cd new-ui-evaluation && npm test",
+          "cd new-ui-evaluation && npm run typecheck",
+          "cd new-ui-evaluation && npm run build",
+          "python3 -m py_compile scripts/kind-control-plane-smoke.py",
+          "uv run scripts/kind-control-plane-smoke.py --help",
+          "git diff --check origin/main..HEAD"
+        ],
+        "notes": [
+          "Live Kubernetes/browser smoke was not run in this environment; final review accepted with this residual gap."
+        ],
+        "status": "passed"
+      },
+      "version": 1
+    },
+    "state_path": "/workspace/.scion-ops/sessions/20260511t154050z-44ce/state.json",
+    "state_source": "/workspace/.scion-ops/sessions/20260511t154050z-44ce/state.json",
+    "warnings": []
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "base_branch": "round-20260511t154050z-44ce-integration",
+  "base_sha": "7ced23e6225391b834cf52ee3b6a1ae60a2bc362",
+  "branch": "round-20260511t154050z-44ce-repair-snapshot-recovery-codex",
+  "child_sha": "7ced23e6225391b834cf52ee3b6a1ae60a2bc362",
+  "completed_at": "2026-05-11T16:46:34.535370Z",
+  "created": true,
+  "fetch": {
+    "ok": true,
+    "output": "",
+    "returncode": 0
+  },
+  "ok": true,
+  "project_root": "/workspace",
+  "push": {
+    "ok": true,
+    "output": "remote: \nremote: Create a pull request for 'round-20260511t154050z-44ce-repair-snapshot-recovery-codex' on GitHub by visiting:        \nremote:      https://github.com/dodwyer/scion-ops/pull/new/round-20260511t154050z-44ce-repair-snapshot-recovery-codex        \nremote: \nTo https://github.com/dodwyer/scion-ops.git\n * [new branch]      origin/round-20260511t154050z-44ce-integration -> round-20260511t154050z-44ce-repair-snapshot-recovery-codex\n",
+    "returncode": 0
+  },
+  "reason": ""
+}
