@@ -1,0 +1,38 @@
+{
+  "agent": "round-20260511t192341z-3a78-impl-claude",
+  "blockers": [],
+  "branch": "round-20260511t192341z-3a78-impl-claude",
+  "changed_files": [
+    "Taskfile.yml",
+    "deploy/kind/cluster.yaml.tpl",
+    "deploy/kind/control-plane/kustomization.yaml",
+    "deploy/kind/control-plane/new-ui-evaluation-deployment.yaml",
+    "deploy/kind/control-plane/new-ui-evaluation-service.yaml",
+    "deploy/kind/control-plane/web-app-deployment.yaml",
+    "docs/kind-control-plane.md",
+    "docs/new-ui-evaluation.md",
+    "openspec/changes/make-live-1/tasks.md",
+    "scripts/build-images.sh",
+    "scripts/kind-control-plane-smoke.py",
+    "scripts/kind-scion-runtime.sh"
+  ],
+  "head_sha": "b1580bad417da37309cdc6759eb7de9f45541345",
+  "status": "completed",
+  "summary": "Promoted the React/Vite adapter to run as the live scion-ops-web-app. The web-app-deployment.yaml now uses localhost/scion-ops-new-ui-eval:latest and runs adapter.py via /opt/scion-ops-mcp/venv/bin/python. The separate scion-ops-new-ui-eval Deployment, Service, and kustomization entries are removed. Taskfile vars (SCION_OPS_NEW_UI_EVAL_*), tasks (build:new-ui-eval, update:new-ui-eval, kind:new-ui-eval:*), and smoke coexistence check are removed. Smoke script now validates live sourceMode, SSE, and read-only safeguards against the single web-app endpoint. Cluster port template, runtime script, build-images.sh, and both operator docs updated. All task verify checks pass. Branch pushed.",
+  "tasks_completed": [
+    "Update the live web-app deployment so scion-ops-web-app runs the React/Vite adapter",
+    "Remove the old server-rendered UI from the live deployment path",
+    "Remove the separate scion-ops-new-ui-eval Deployment, Service, kustomization entry, task lifecycle, and smoke target",
+    "Update runtime setup and smoke defaults so operators use one live UI endpoint",
+    "Rewrite operator docs so the React/Vite console is documented as the canonical live UI",
+    "Add or update smoke checks for health, snapshot, SSE, read-only safeguards, and removal of preview coexistence assumptions"
+  ],
+  "tasks_not_completed": [
+    "Rename production-facing schema/metadata to remove preview/evaluation naming (adapter internals in new-ui-evaluation/** are out of scope)",
+    "Keep fixture data only as explicit fallback (adapter already does this; no in-scope file changes needed)",
+    "Run full no-spend kind smoke check (no live cluster available in this environment)"
+  ],
+  "tests_run": [
+    "task verify (all checks passed: git diff --check, task --list, Python AST parse, test-openspec-change-validator, test-steward-session-validator, test-steward-pr-finalizer, test-openspec-archive, test-mcp-openspec-cli, test-mcp-progress-lines, test-mcp-base-branch, test-mcp-implementation-base-branch, test-steward-basic-loop, test-wait-for-review-artifact, test_impl_orchestration, test-web-app-hub, test-verdict-schema, test-final-review-repair, bash -n syntax checks)"
+  ]
+}
