@@ -1,0 +1,130 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t192341z-3a78/reviews/final-review.json",
+  "artifact_json": {
+    "blocking_issues": [
+      "scripts/kind-control-plane-smoke.py still validates the old snapshot contract in ensure_web_app: it requires data.get(\"mocked\") is False and reads runtime.previewService. The adapter now emits fixtureBacked=false and runtime.liveService, so the required no-spend live web-app smoke check will reject a conforming promoted web app snapshot instead of validating it."
+    ],
+    "final_failure_classification": "verification_contract",
+    "final_failure_evidence": "At scripts/kind-control-plane-smoke.py:473-480 the active web-app smoke path checks mocked=false and runtime.previewService, while new-ui-evaluation/adapter.py:241-274 emits fixtureBacked=false and runtime.liveService for live snapshots. This contradicts make-live-1's requirement that smoke checks validate the scion-ops-web-app live UI health, snapshot, and event endpoints after removing preview/evaluation assumptions.",
+    "nits": [
+      "docs/new-ui-evaluation.md still references preview-fixtures.json, NEW_UI_EVALUATION_MODE, mocked=true, runtime.previewService, and new-ui-evaluation.* schema versions even though the implementation renamed these to local-fixtures.json, SCION_OPS_WEB_APP_MODE, fixtureBacked, runtime.liveService, and scion-ops-web-app.*.",
+      "deploy/kind/control-plane/web-app-deployment.yaml and image-build/web-app/Dockerfile still set NEW_UI_EVALUATION_MODE=live; the adapter ignores it in favor of SCION_OPS_WEB_APP_MODE, so this stale env var is harmless but inconsistent with the production naming cleanup."
+    ],
+    "review_type": "final",
+    "scores": {
+      "completeness": 4,
+      "correctness": 3,
+      "style": 4
+    },
+    "spec": {
+      "change": "make-live-1",
+      "checked_artifacts": [
+        "openspec/changes/make-live-1/proposal.md",
+        "openspec/changes/make-live-1/design.md",
+        "openspec/changes/make-live-1/specs/new-ui-evaluation/spec.md",
+        "openspec/changes/make-live-1/specs/web-app-hub/spec.md",
+        "openspec/changes/make-live-1/tasks.md",
+        "deploy/kind/control-plane/web-app-deployment.yaml",
+        "deploy/kind/control-plane/kustomization.yaml",
+        "scripts/kind-control-plane-smoke.py",
+        "new-ui-evaluation/adapter.py",
+        "new-ui-evaluation/src/api.ts",
+        "new-ui-evaluation/src/App.tsx",
+        "new-ui-evaluation/tests/test_adapter.py",
+        "docs/new-ui-evaluation.md",
+        "docs/kind-control-plane.md",
+        "Taskfile.yml"
+      ],
+      "conformance": 3,
+      "gaps": [
+        "Full kind smoke was not run because no active kind control-plane cluster was available in this review workspace."
+      ],
+      "operational_verification": 3,
+      "spec_completeness": 5,
+      "task_coverage": 4,
+      "unresolved_questions": []
+    },
+    "summary": "Verdict: reject. The integration mostly promotes the React/Vite adapter under scion-ops-web-app and removes the separate preview deployment, and local OpenSpec, adapter, frontend, build, and rendered-kustomize checks pass. However, the required no-spend kind smoke still asserts the removed preview/mock contract, so PR readiness is blocked until the smoke validation is updated to the liveService/fixtureBacked contract.",
+    "verdict": "request_changes"
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+      "checked_at": "2026-05-11T19:46:26.525756Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+      "checked_at": "2026-05-11T19:46:46.925686Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+      "checked_at": "2026-05-11T19:47:07.331758Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+      "checked_at": "2026-05-11T19:47:27.741590Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+      "checked_at": "2026-05-11T19:47:48.169730Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+      "checked_at": "2026-05-11T19:48:08.557205Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+      "checked_at": "2026-05-11T19:48:29.001179Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce",
+      "checked_at": "2026-05-11T19:48:49.399228Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "b925ae829722f4c66bdbafcba0fa22fa06b1b8ef",
+      "checked_at": "2026-05-11T19:49:09.809355Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t192341z-3a78-final-review",
+  "branch_head": "b925ae829722f4c66bdbafcba0fa22fa06b1b8ef",
+  "completed_at": "2026-05-11T19:49:10.381964Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

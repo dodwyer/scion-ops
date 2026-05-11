@@ -43,8 +43,23 @@
     "integration_branch": "round-20260511t192341z-3a78-integration",
     "head_sha": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce"
   },
-  "reviews": [],
-  "final_review": {},
+  "reviews": [
+    {
+      "agent": "round-20260511t192341z-3a78-final-review",
+      "branch": "round-20260511t192341z-3a78-final-review",
+      "verdict": "request_changes",
+      "head_sha": "b925ae829722f4c66bdbafcba0fa22fa06b1b8ef"
+    }
+  ],
+  "final_review": {
+    "verdict": "request_changes",
+    "summary": "Smoke validation still asserted the removed preview/mock contract.",
+    "blocking_issues": [
+      "scripts/kind-control-plane-smoke.py ensure_web_app requires mocked=false and runtime.previewService, but the promoted adapter emits fixtureBacked=false and runtime.liveService."
+    ],
+    "classification": "verification_contract",
+    "verdict_file": ".scion-ops/sessions/20260511t192341z-3a78/reviews/final-review.json"
+  },
   "verification": {
     "status": "partial",
     "passed": [
@@ -69,6 +84,7 @@
     "Write implementation brief and bounded task groups",
     "Start bounded implementer agents",
     "Integrate the accepted implementation branch",
-    "Run verification and final review"
+      "Route bounded smoke-contract repair",
+      "Rerun final review"
   ]
 }
