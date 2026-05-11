@@ -62,7 +62,7 @@ Open the Vite URL, normally `http://127.0.0.1:5174`.
 
 - `GET /api/snapshot` returns a versioned `new-ui-evaluation.live.v1` snapshot containing `sourceMode`, `generatedAt`, a content cursor, source health, connection metadata, overview, rounds, round details, inbox, runtime, diagnostics, and raw payload references. Hub and MCP source health is based on read-only operational API/probe results, not local file or module existence.
 - `GET /api/events` returns `text/event-stream` frames using `new-ui-evaluation.event.v1`. Events include type, stable id, entity id when applicable, source, timestamp, version/cursor, payload, source status, stale flag, and error metadata. After the initial connection frame, the stream polls read-only sources and emits typed incremental events such as `round_updated`, `timeline_entry`, `inbox_item`, `runtime_health`, `diagnostic`, `source_status`, `stale`, and `fallback` when those source slices change.
-- Reconnect uses the `cursor` query parameter when available. If a future client cannot resume safely, it can request a fresh read-only snapshot from `/api/snapshot`.
+- Reconnect uses the `cursor` query parameter when available. The server keeps a bounded in-memory cursor history and replays missed typed incremental events from a known cursor; if replay is unavailable, `/api/events` emits an explicit `snapshot_ready` recovery event containing the current read-only snapshot.
 
 ## Endpoints
 

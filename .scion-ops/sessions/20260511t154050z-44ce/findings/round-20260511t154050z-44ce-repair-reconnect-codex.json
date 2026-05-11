@@ -1,0 +1,33 @@
+{
+  "agent": "round-20260511t154050z-44ce-repair-reconnect-codex",
+  "blockers": [],
+  "branch": "round-20260511t154050z-44ce-repair-reconnect-codex",
+  "changed_files": [
+    "docs/new-ui-evaluation.md",
+    "new-ui-evaluation/adapter.py",
+    "new-ui-evaluation/tests/test_adapter.py",
+    "openspec/changes/wire-new-ui-1/tasks.md"
+  ],
+  "head_sha": "0ce690c5b6906a3278b621e4707ec3e73adacb21",
+  "status": "completed",
+  "summary": "Repaired SSE reconnect cursor behavior so known cursors replay missed round, timeline, inbox, runtime/source-health, stale/fallback, and diagnostic events, while unknown cursors receive an explicit snapshot_ready recovery event carrying the current read-only snapshot. Branch was committed and pushed.",
+  "tasks_completed": [
+    "Added bounded in-memory live snapshot history for SSE cursor resume.",
+    "Changed /api/events reconnect handling to replay typed missed events from a known cursor.",
+    "Added explicit snapshot_ready recovery payload with the current read-only snapshot when replay is unavailable.",
+    "Added backend reconnect tests covering first cursor replay and unavailable-cursor snapshot recovery.",
+    "Updated new UI evaluation docs and OpenSpec task tracking for reconnect recovery."
+  ],
+  "tests_run": [
+    {
+      "command": "python3 -m unittest discover -s tests",
+      "result": "passed",
+      "workdir": "new-ui-evaluation"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed",
+      "workdir": "."
+    }
+  ]
+}

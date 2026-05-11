@@ -246,6 +246,90 @@ class AdapterTests(unittest.TestCase):
             self.assertIn(f"event: {event_type}", body)
         self.assertNotIn("snapshot.updated", body)
 
+    def test_sse_reconnect_replays_missed_events_from_known_cursor_or_replaces_snapshot(self):
+        first = {
+            "schemaVersion": LIVE_SCHEMA_VERSION,
+            "sourceMode": "live",
+            "generatedAt": "2026-05-11T15:40:00Z",
+            "cursor": "live:first",
+            "sourceHealth": [
+                {"name": "Hub", "status": "healthy", "detail": "ok", "error": None, "stale": False, "fallback": False},
+            ],
+            "sources": [],
+            "overview": {},
+            "rounds": [
+                {"id": "20260511t154050z-44ce", "state": "active", "updatedAt": "2026-05-11T15:40:00Z", "latestEvent": "started", "blockers": [], "branchEvidence": {"headSha": "a"}, "source": "Hub"}
+            ],
+            "roundDetails": {
+                "20260511t154050z-44ce": {
+                    "timeline": [{"id": "entry-1", "timestamp": "2026-05-11T15:40:00Z", "summary": "started"}]
+                }
+            },
+            "inbox": [],
+            "runtime": {},
+            "diagnostics": {"sourceErrors": []},
+        }
+        second = {
+            **first,
+            "generatedAt": "2026-05-11T15:40:01Z",
+            "cursor": "live:second",
+            "sourceHealth": [
+                {"name": "Hub", "status": "degraded", "detail": "Hub API unavailable; using fallback", "error": "Hub down", "stale": True, "fallback": True},
+            ],
+            "rounds": [
+                {"id": "20260511t154050z-44ce", "state": "blocked", "updatedAt": "2026-05-11T15:40:01Z", "latestEvent": "blocked", "blockers": ["review"], "branchEvidence": {"headSha": "b"}, "source": "Hub"}
+            ],
+            "roundDetails": {
+                "20260511t154050z-44ce": {
+                    "timeline": [
+                        {"id": "entry-1", "timestamp": "2026-05-11T15:40:00Z", "summary": "started"},
+                        {"id": "entry-2", "timestamp": "2026-05-11T15:40:01Z", "summary": "blocked"},
+                    ]
+                }
+            },
+            "inbox": [
+                {"id": "inbox-1", "source": "Hub", "timestamp": "2026-05-11T15:40:01Z", "context": "review", "readOnly": True}
+            ],
+            "diagnostics": {"sourceErrors": [{"source": "Hub", "message": "Hub down"}]},
+        }
+
+        class ReconnectAggregator:
+            def __init__(self):
+                self.calls = 0
+
+            def build_snapshot(self):
+                self.calls += 1
+                return first if self.calls == 1 else second
+
+        server = build_server("127.0.0.1", 0, ROOT / "dist", ROOT / "fixtures" / "preview-fixtures.json", mode="live", project_root=ROOT)
+        server.aggregator = ReconnectAggregator()
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base_url = f"http://127.0.0.1:{server.server_port}"
+        try:
+            status, _, initial_body = request_text(f"{base_url}/api/events?once=1")
+            self.assertEqual(status, 200)
+            self.assertIn("event: snapshot_ready", initial_body)
+            self.assertIn('"snapshotCursor": "live:first"', initial_body)
+
+            status, _, replay_body = request_text(f"{base_url}/api/events?once=1&cursor=live:first")
+            self.assertEqual(status, 200)
+
+            status, _, replacement_body = request_text(f"{base_url}/api/events?once=1&cursor=live:missing")
+            self.assertEqual(status, 200)
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        for event_type in ("round_updated", "timeline_entry", "inbox_item", "source_status", "stale", "fallback", "runtime_health", "diagnostic"):
+            self.assertIn(f"event: {event_type}", replay_body)
+        self.assertNotIn('"status": "snapshot_recovery"', replay_body)
+        self.assertIn("event: snapshot_ready", replacement_body)
+        self.assertIn('"status": "snapshot_recovery"', replacement_body)
+        self.assertIn('"requestedCursor": "live:missing"', replacement_body)
+        self.assertIn('"snapshotCursor": "live:second"', replacement_body)
+        self.assertIn('"rounds"', replacement_body)
+
     def test_fixture_contract_includes_required_operator_shapes(self):
         fixtures = load_fixtures(ROOT / "fixtures" / "preview-fixtures.json")
 
