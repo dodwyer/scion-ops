@@ -20,6 +20,7 @@ In scope:
 - Moving raw payloads, logs, and low-level diagnostics one interaction deeper.
 - Modern NiceGUI component usage for overview, round detail, timeline, and drill-in controls.
 - Desktop and mobile layout behavior, including no horizontal overspill for representative content.
+- Backward-compatible additions to browser-facing JSON for normalized display fields.
 
 Out of scope:
 
@@ -28,6 +29,7 @@ Out of scope:
 - New round mutation controls or other write operations.
 - Changes to Hub, MCP, Kubernetes, or OpenSpec source contracts beyond backward-compatible display fields.
 - Replacing the read-only live-update behavior.
+- Reworking the legacy raw HTML/JavaScript frontend path, except for small compatibility bridges needed to preserve existing JSON or health endpoints.
 
 ## Success Criteria
 

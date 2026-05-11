@@ -321,6 +321,133 @@ def test_round_detail_timeline_and_agents_expose_multi_llm_context():
     assert "agentCard" in web_app_hub.INDEX_HTML
 
 
+def test_timeline_normalizes_action_handoff_reason_and_keeps_json_compatible():
+    events = {
+        "ok": True,
+        "round_id": "20260509t063201z-6c02",
+        "cursor": "cursor-normalized",
+        "events": [
+            {
+                "type": "message",
+                "message": {
+                    "id": "handoff-1",
+                    "sender": "round-20260509t063201z-6c02-implementation-steward",
+                    "createdAt": "2026-05-09T06:45:00+00:00",
+                    "msg": json.dumps(
+                        {
+                            "action": "collect implementation handoff",
+                            "handoff_to": "round-20260509t063201z-6c02-impl-codex",
+                            "reason_for_handoff": "Group A data contract is ready",
+                            "status": "waiting",
+                        }
+                    ),
+                },
+            }
+        ],
+    }
+    detail = web_app_hub.build_round_detail(FixtureProvider(round_events=events), "20260509t063201z-6c02")
+    entry = detail["timeline"][0]
+    assert entry["id"] == "message:handoff-1"
+    assert entry["entry_id"] == entry["id"]
+    assert entry["sequence"] == 1
+    assert entry["timestamp"] == "2026-05-09T06:45:00+00:00"
+    assert entry["agent"].endswith("implementation-steward")
+    assert entry["action"] == "collect implementation handoff"
+    assert entry["handoff"] == "round-20260509t063201z-6c02-impl-codex"
+    assert entry["reason_for_handoff"] == "Group A data contract is ready"
+    assert entry["status"] == "waiting"
+    assert entry["source"] == "message"
+    assert entry["summary"]
+    assert entry["raw"] == entry["detail"]
+    assert "timeline" in web_app_hub.BROWSER_JSON_CONTRACT["round"]
+
+
+def test_timeline_preserves_distinct_duplicate_looking_handoffs_but_suppresses_replay_ids():
+    base_message = {
+        "sender": "round-20260509t063201z-6c02-implementation-steward",
+        "msg": json.dumps(
+            {
+                "action": "handoff for implementation",
+                "handoff_to": "round-20260509t063201z-6c02-impl-codex",
+                "reason_for_handoff": "implement assigned slice",
+                "status": "waiting",
+            }
+        ),
+        "createdAt": "2026-05-09T06:45:00+00:00",
+    }
+    events = {
+        "ok": True,
+        "round_id": "20260509t063201z-6c02",
+        "cursor": "cursor-duplicates",
+        "events": [
+            {"type": "message", "message": {**base_message, "id": "handoff-a"}},
+            {"type": "message", "message": {**base_message, "id": "handoff-b"}},
+            {"type": "message", "message": {**base_message, "id": "handoff-a"}},
+        ],
+    }
+    detail = web_app_hub.build_round_detail(FixtureProvider(round_events=events), "20260509t063201z-6c02")
+    ids = [entry["entry_id"] for entry in detail["timeline"]]
+    assert ids == ["message:handoff-b", "message:handoff-a"]
+    assert [entry["handoff"] for entry in detail["timeline"]] == [
+        "round-20260509t063201z-6c02-impl-codex",
+        "round-20260509t063201z-6c02-impl-codex",
+    ]
+
+
+def test_overview_defaults_prioritize_action_context_and_keep_diagnostics_deeper():
+    provider = FixtureProvider()
+    snapshot = web_app_hub.build_snapshot(provider)
+    overview = snapshot["overview"]
+    assert overview["readiness_strip"]["control_plane"] == snapshot["readiness"]
+    assert overview["priority_attention"]["kind"] in {"round", "source", "none"}
+    assert overview["source_health"]
+    activity = overview["recent_activity"][0]
+    assert {"round_id", "entry_id", "timestamp", "action", "handoff", "reason_for_handoff", "status", "source", "detail"} <= set(activity)
+    assert "raw" not in activity
+    assert isinstance(activity["detail"], dict)
+    assert snapshot["overview"]["blocked_round_count"] == 0
+
+
+def test_overview_endpoint_keeps_existing_count_fields_with_new_concise_fields():
+    original = web_app_hub.utc_now
+    try:
+        web_app_hub.utc_now = lambda: "2026-05-09T06:39:30+00:00"
+        overview = web_app_hub.build_overview(FixtureProvider())
+    finally:
+        web_app_hub.utc_now = original
+    assert overview["ok"] is True
+    assert overview["active_round_count"] == 1
+    assert overview["recent_round_count"] == 1
+    assert overview["agent_count"] == 3
+    assert overview["readiness_strip"]["live_freshness"] == "fresh"
+    assert overview["recent_activity"][0]["action"]
+    assert "priority_attention" in overview
+
+
+def test_browser_overview_renders_priority_attention_fields():
+    html = web_app_hub.INDEX_HTML
+    assert "overview.priority_attention" in html
+    assert "Priority Attention" in html
+    assert "item.action" in html
+    assert "item.handoff" in html
+    assert "item.reason_for_handoff" in html
+    assert "item.timestamp || item.time || item.latest_update" in html
+    assert "item.status" in html
+    assert "item.source || item.kind || item.round_id" in html
+    assert "detailControl(\"Detail\", item.detail)" in html
+
+
+def test_browser_overview_renders_recent_activity_fields():
+    html = web_app_hub.INDEX_HTML
+    assert "overview.recent_activity" in html
+    assert "Recent Activity" in html
+    assert "recent.map(item => overviewItem(item))" in html
+    assert "timeline-action" in html
+    assert "timeline-handoff" in html
+    assert "timeline-reason" in html
+    assert "<details class=\"diag-section\"><summary>${esc(label)}</summary>" in html
+
+
 def test_empty_snapshot_distinguishes_no_rounds_from_source_failure():
     provider = FixtureProvider(
         hub={**healthy_hub(), "agents": []},
@@ -903,6 +1030,136 @@ def test_nicegui_entrypoint_preserves_json_route_contracts_as_fastapi_handlers()
         assert route in source
     assert "ui.run(" in source
     assert "serve_legacy_http" in source
+
+
+def test_timeline_entry_includes_action_handoff_reason_fields():
+    structured_msg = json.dumps({
+        "action": "submitting final review",
+        "handoff": "round-20260509t063201z-6c02-spec-steward",
+        "reason_for_handoff": "implementation verified against all scenarios",
+    })
+    round_events = {
+        "ok": True,
+        "round_id": "20260509t063201z-6c02",
+        "cursor": "cursor-3",
+        "events": [
+            {
+                "type": "message",
+                "message": {
+                    "id": "msg-structured",
+                    "createdAt": "2026-05-09T06:40:00+00:00",
+                    "sender": "round-20260509t063201z-6c02-final-review",
+                    "msg": structured_msg,
+                },
+            }
+        ],
+    }
+    detail = web_app_hub.build_round_detail(FixtureProvider(round_events=round_events), "20260509t063201z-6c02")
+    entry = next(item for item in detail["timeline"] if "structured" in item.get("id", ""))
+    assert entry["action"] == "submitting final review"
+    assert entry["handoff"] == "round-20260509t063201z-6c02-spec-steward"
+    assert entry["reason_for_handoff"] == "implementation verified against all scenarios"
+    assert "action" in web_app_hub.BROWSER_JSON_CONTRACT["round"]["timeline_entry"]
+    assert "handoff" in web_app_hub.BROWSER_JSON_CONTRACT["round"]["timeline_entry"]
+    assert "reason_for_handoff" in web_app_hub.BROWSER_JSON_CONTRACT["round"]["timeline_entry"]
+
+
+def test_timeline_entry_action_falls_back_to_summary_when_no_structured_fields():
+    round_events = {
+        "ok": True,
+        "round_id": "20260509t063201z-6c02",
+        "cursor": "cursor-4",
+        "events": [
+            {
+                "type": "message",
+                "message": {
+                    "id": "msg-plain",
+                    "createdAt": "2026-05-09T06:41:00+00:00",
+                    "sender": "round-20260509t063201z-6c02-spec-clarifier",
+                    "msg": "round 20260509t063201z-6c02 task_completed clarified scope",
+                },
+            }
+        ],
+    }
+    detail = web_app_hub.build_round_detail(FixtureProvider(round_events=round_events), "20260509t063201z-6c02")
+    entry = next(item for item in detail["timeline"] if "plain" in item.get("id", ""))
+    assert entry["action"]
+    assert "task_completed" in entry["action"] or "clarified" in entry["action"]
+    assert entry["handoff"] == ""
+    assert entry["reason_for_handoff"] == ""
+
+
+def test_timeline_distinct_same_agent_entries_are_preserved():
+    round_events = {
+        "ok": True,
+        "round_id": "20260509t063201z-6c02",
+        "cursor": "cursor-5",
+        "events": [
+            {
+                "type": "message",
+                "message": {
+                    "id": "msg-a1",
+                    "createdAt": "2026-05-09T06:35:00+00:00",
+                    "sender": "round-20260509t063201z-6c02-spec-clarifier",
+                    "msg": "round 20260509t063201z-6c02 first update",
+                },
+            },
+            {
+                "type": "message",
+                "message": {
+                    "id": "msg-a2",
+                    "createdAt": "2026-05-09T06:38:00+00:00",
+                    "sender": "round-20260509t063201z-6c02-spec-clarifier",
+                    "msg": "round 20260509t063201z-6c02 second update",
+                },
+            },
+        ],
+    }
+    detail = web_app_hub.build_round_detail(FixtureProvider(round_events=round_events), "20260509t063201z-6c02")
+    clarifier_entries = [item for item in detail["timeline"] if "clarifier" in item.get("agent_name", "")]
+    assert len(clarifier_entries) >= 2, "distinct same-agent entries must be preserved as separate rows"
+    entry_ids = {item["id"] for item in clarifier_entries}
+    assert len(entry_ids) == len(clarifier_entries), "each distinct message must have a unique stable id"
+
+
+def test_nicegui_components_use_modern_patterns():
+    source = (ROOT / "scripts" / "web_app_hub.py").read_text()
+    assert "ui.tabs(" in source, "build_nicegui_console_components should use ui.tabs()"
+    assert "ui.tab(" in source, "build_nicegui_console_components should use ui.tab()"
+    assert "ui.expansion(" in source, "build_nicegui_console_components should use ui.expansion()"
+    assert "ui.tab_panels(" not in source or "ui.expansion(" in source, "at minimum ui.expansion must be used"
+    assert "nicegui-content" in source, "NiceGUI main container should have responsive class"
+    assert "diag-expansion" in source, "diagnostics expansion should be present"
+
+
+def test_responsive_layout_css_prevents_overflow():
+    style = web_app_hub.nicegui_console_style()
+    html = web_app_hub.INDEX_HTML
+    assert "overflow-x:hidden" in html or "overflow-x: hidden" in html, "body must prevent horizontal overflow"
+    assert "word-break" in html, "long content containers must use word-break for overflow containment"
+    assert "max-width:100%" in html or "max-width: 100%" in html, "mono containers must be width-constrained"
+    assert "@media" in html, "responsive media queries must be present"
+    assert "max-width: 600px" in html or "max-width:600px" in html or "max-width: 800px" in html, "mobile breakpoint must be defined"
+    assert style, "nicegui_console_style() must return non-empty style content"
+
+
+def test_timeline_rendering_js_shows_action_handoff_reason():
+    html = web_app_hub.INDEX_HTML
+    assert "timeline-action" in html, "timeline item must show action field"
+    assert "timeline-handoff" in html, "timeline item must show handoff field"
+    assert "timeline-reason" in html, "timeline item must show reason_for_handoff field"
+    assert "item.action" in html, "JS must reference item.action"
+    assert "item.handoff" in html, "JS must reference item.handoff"
+    assert "item.reason_for_handoff" in html, "JS must reference item.reason_for_handoff"
+    assert "diag-section" in html, "diagnostics must use the diag-section class for deeper controls"
+
+
+def test_diagnostics_moved_behind_details_expansion():
+    html = web_app_hub.INDEX_HTML
+    assert "Coordinator Output" in html, "coordinator output label must remain in the UI"
+    assert "<details" in html, "diagnostics must use HTML details element for drill-in"
+    assert "<summary>" in html, "details must have summary labels"
+    assert "raw source detail" in html.lower() or "detail" in html.lower(), "raw source detail must be behind details"
 
 
 if __name__ == "__main__":
