@@ -153,6 +153,7 @@ class AdapterTests(unittest.TestCase):
             self.assertEqual(status, 200)
             self.assertEqual(snapshot["schemaVersion"], LIVE_SCHEMA_VERSION)
             self.assertEqual(snapshot["sourceMode"], "live")
+            self.assertEqual(snapshot["runtime"]["liveService"]["port"], server.server_port)
             self.assertEqual(snapshot["runtime"]["liveService"]["streamPath"], "/api/events")
 
             status, overview = request_json(f"{base_url}/api/overview")

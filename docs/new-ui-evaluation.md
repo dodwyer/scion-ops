@@ -43,6 +43,10 @@ python adapter.py --host 127.0.0.1 --port 8091
 
 Open `http://127.0.0.1:8091`.
 
+From the repository root, `task web:hub` performs the same local build and
+adapter startup path. Use `SCION_OPS_WEB_HOST` and `SCION_OPS_WEB_PORT` to
+override the local bind address or port.
+
 Use explicit fixture fallback for local fixture-only development or tests:
 
 ```bash
@@ -63,6 +67,8 @@ Open the Vite URL, normally `http://127.0.0.1:5174`.
 - `GET /api/snapshot` returns a versioned `scion-ops-web-app.live.v1` snapshot containing `sourceMode`, `fixtureBacked`, `generatedAt`, a content cursor, source health, connection metadata, overview, rounds, round details, inbox, `runtime.liveService`, diagnostics, and raw payload references. Hub and MCP source health is based on read-only operational API/probe results, not local file or module existence.
 - `GET /api/events` returns `text/event-stream` frames using `scion-ops-web-app.event.v1`. Events include type, stable id, entity id when applicable, source, timestamp, version/cursor, payload, source status, stale flag, and error metadata. After the initial connection frame, the stream polls read-only sources and emits typed incremental events such as `round_updated`, `timeline_entry`, `inbox_item`, `runtime_health`, `diagnostic`, `source_status`, `stale`, and `fallback` when those source slices change.
 - Reconnect uses the `cursor` query parameter when available. The server keeps a bounded in-memory cursor history and replays missed typed incremental events from a known cursor; if replay is unavailable, `/api/events` emits an explicit `snapshot_ready` recovery event containing the current read-only snapshot.
+- Fixture mode is process-level. Query parameters do not switch the live kind
+  deployment into fixture-backed mode.
 
 ## Endpoints
 

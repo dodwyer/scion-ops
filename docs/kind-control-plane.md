@@ -87,9 +87,8 @@ Open the React/Vite operator console in a browser at the configured web app URL
 (default `http://192.168.122.103:8808`). The web app is served by the
 `scion-ops-web-app` Deployment and Service. It uses `/api/snapshot` for the
 initial live read-only snapshot and `/api/events` for SSE updates. Fixture
-fallback is explicit: use `NEW_UI_EVALUATION_MODE=fixture` or request the UI
-with `?fixture=1`/`?mode=fixture`; fixture data is not the default kind runtime
-path.
+fallback is explicit: start the adapter with `SCION_OPS_WEB_APP_MODE=fixture`
+or `--mode fixture`; fixture data is not the default kind runtime path.
 
 The MCP pod reads Hub through the in-cluster `scion-hub` Service and uses the
 `scion-hub-dev-auth` Secret restored by `task bootstrap`.
@@ -152,6 +151,7 @@ task build:base
 task update:hub
 task build:mcp
 task update:mcp
+task build:web-app
 task update:web-app
 task build:harness -- codex
 task load:image -- localhost/scion-codex:latest
