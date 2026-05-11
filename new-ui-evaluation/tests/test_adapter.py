@@ -79,10 +79,10 @@ class AdapterTests(unittest.TestCase):
 
         self.assertEqual(snapshot["schemaVersion"], LIVE_SCHEMA_VERSION)
         self.assertEqual(snapshot["sourceMode"], "live")
-        self.assertIs(snapshot["mocked"], False)
+        self.assertIs(snapshot["fixtureBacked"], False)
         self.assertEqual(snapshot["connection"]["transport"], "sse")
-        self.assertEqual(snapshot["runtime"]["previewService"]["liveReadsAllowed"], True)
-        self.assertEqual(snapshot["runtime"]["previewService"]["mutationsAllowed"], False)
+        self.assertEqual(snapshot["runtime"]["liveService"]["liveReadsAllowed"], True)
+        self.assertEqual(snapshot["runtime"]["liveService"]["mutationsAllowed"], False)
         self.assertEqual(snapshot["rounds"][0]["id"], "20260511t154050z-44ce")
         self.assertEqual(snapshot["rounds"][0]["branchEvidence"]["headSha"], "abc123")
         self.assertIn("raw-runtime", snapshot["diagnostics"]["rawPayloads"])
@@ -137,13 +137,14 @@ class AdapterTests(unittest.TestCase):
         self.assertIn("operational endpoint read succeeded", mcp_source["detail"])
 
     def test_live_adapter_serves_snapshot_views_events_and_rejects_mutations(self):
-        server = build_server("127.0.0.1", 0, ROOT / "dist", ROOT / "fixtures" / "preview-fixtures.json", mode="live", project_root=ROOT)
+        server = build_server("127.0.0.1", 0, ROOT / "dist", ROOT / "fixtures" / "local-fixtures.json", mode="live", project_root=ROOT)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         base_url = f"http://127.0.0.1:{server.server_port}"
         try:
             status, health = request_json(f"{base_url}/healthz")
             self.assertEqual(status, 200)
+            self.assertEqual(health["service"], "scion-ops-web-app")
             self.assertEqual(health["sourceMode"], "live")
             self.assertEqual(health["liveReadsAllowed"], True)
             self.assertEqual(health["mutationsAllowed"], False)
@@ -152,11 +153,11 @@ class AdapterTests(unittest.TestCase):
             self.assertEqual(status, 200)
             self.assertEqual(snapshot["schemaVersion"], LIVE_SCHEMA_VERSION)
             self.assertEqual(snapshot["sourceMode"], "live")
-            self.assertEqual(snapshot["runtime"]["previewService"]["streamPath"], "/api/events")
+            self.assertEqual(snapshot["runtime"]["liveService"]["streamPath"], "/api/events")
 
             status, overview = request_json(f"{base_url}/api/overview")
             self.assertEqual(status, 200)
-            self.assertIs(overview["mocked"], False)
+            self.assertIs(overview["fixtureBacked"], False)
             self.assertIn("sourceReadiness", overview)
 
             status, content_type, body = request_text(f"{base_url}/api/events?once=1")
@@ -167,7 +168,7 @@ class AdapterTests(unittest.TestCase):
 
             status, rejection = request_json(f"{base_url}/api/snapshot", method="DELETE")
             self.assertEqual(status, 405)
-            self.assertEqual(rejection["error"], "new-ui-evaluation is read-only")
+            self.assertEqual(rejection["error"], "scion-ops-web-app is read-only")
         finally:
             server.shutdown()
             server.server_close()
@@ -229,7 +230,7 @@ class AdapterTests(unittest.TestCase):
                 self.calls += 1
                 return first if self.calls == 1 else second
 
-        server = build_server("127.0.0.1", 0, ROOT / "dist", ROOT / "fixtures" / "preview-fixtures.json", mode="live", project_root=ROOT)
+        server = build_server("127.0.0.1", 0, ROOT / "dist", ROOT / "fixtures" / "local-fixtures.json", mode="live", project_root=ROOT)
         server.aggregator = ChangingAggregator()
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
@@ -301,7 +302,7 @@ class AdapterTests(unittest.TestCase):
                 self.calls += 1
                 return first if self.calls == 1 else second
 
-        server = build_server("127.0.0.1", 0, ROOT / "dist", ROOT / "fixtures" / "preview-fixtures.json", mode="live", project_root=ROOT)
+        server = build_server("127.0.0.1", 0, ROOT / "dist", ROOT / "fixtures" / "local-fixtures.json", mode="live", project_root=ROOT)
         server.aggregator = ReconnectAggregator()
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
@@ -331,11 +332,11 @@ class AdapterTests(unittest.TestCase):
         self.assertIn('"rounds"', replacement_body)
 
     def test_fixture_contract_includes_required_operator_shapes(self):
-        fixtures = load_fixtures(ROOT / "fixtures" / "preview-fixtures.json")
+        fixtures = load_fixtures(ROOT / "fixtures" / "local-fixtures.json")
 
-        self.assertEqual(fixtures["schemaVersion"], "new-ui-evaluation.fixture.v1")
-        self.assertIs(fixtures["mocked"], True)
-        self.assertIs(fixtures["overview"]["mocked"], True)
+        self.assertEqual(fixtures["schemaVersion"], "scion-ops-web-app.fixture.v1")
+        self.assertIs(fixtures["fixtureBacked"], True)
+        self.assertIs(fixtures["overview"]["fixtureBacked"], True)
         self.assertTrue(fixtures["overview"]["attentionTarget"]["reason"])
         self.assertGreaterEqual(
             {round_item["state"] for round_item in fixtures["rounds"]},
@@ -343,9 +344,9 @@ class AdapterTests(unittest.TestCase):
         )
         self.assertIs(fixtures["inbox"][0]["readOnly"], True)
         self.assertEqual(
-            fixtures["runtime"]["previewService"],
+            fixtures["runtime"]["liveService"],
             {
-                "name": "scion-ops-new-ui-eval",
+                "name": "scion-ops-web-app",
                 "port": 8091,
                 "healthPath": "/healthz",
                 "fixtureOnly": True,
@@ -356,7 +357,7 @@ class AdapterTests(unittest.TestCase):
         self.assertIn("raw-runtime", fixtures["diagnostics"]["rawPayloads"])
 
     def test_fixture_fallback_is_explicit_and_rejects_mutations(self):
-        server = build_server("127.0.0.1", 0, ROOT / "dist", ROOT / "fixtures" / "preview-fixtures.json", mode="fixture")
+        server = build_server("127.0.0.1", 0, ROOT / "dist", ROOT / "fixtures" / "local-fixtures.json", mode="fixture")
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         base_url = f"http://127.0.0.1:{server.server_port}"
@@ -367,9 +368,10 @@ class AdapterTests(unittest.TestCase):
                 health,
                 {
                     "status": "ok",
-                    "schemaVersion": "new-ui-evaluation.fixture.v1",
+                    "service": "scion-ops-web-app",
+                    "schemaVersion": "scion-ops-web-app.fixture.v1",
                     "sourceMode": "fixture",
-                    "mocked": True,
+                    "fixtureBacked": True,
                     "liveReadsAllowed": False,
                     "mutationsAllowed": False,
                     "streamPath": None,
@@ -379,7 +381,7 @@ class AdapterTests(unittest.TestCase):
 
             status, overview = request_json(f"{base_url}/api/overview")
             self.assertEqual(status, 200)
-            self.assertIs(overview["mocked"], True)
+            self.assertIs(overview["fixtureBacked"], True)
             self.assertEqual(overview["counts"]["blockedRounds"], 2)
 
             status, rounds = request_json(f"{base_url}/api/rounds")
@@ -392,10 +394,34 @@ class AdapterTests(unittest.TestCase):
 
             status, rejection = request_json(f"{base_url}/api/rounds", method="POST")
             self.assertEqual(status, 405)
-            self.assertEqual(rejection["error"], "new-ui-evaluation is read-only")
+            self.assertEqual(rejection["error"], "scion-ops-web-app is read-only")
         finally:
             server.shutdown()
             server.server_close()
+
+    def test_static_assets_are_served_with_spa_fallback(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            static_root = Path(temp_dir) / "dist"
+            static_root.mkdir()
+            (static_root / "index.html").write_text("<main>live operator console</main>", encoding="utf-8")
+            (static_root / "asset.txt").write_text("asset-body", encoding="utf-8")
+            server = build_server("127.0.0.1", 0, static_root, ROOT / "fixtures" / "local-fixtures.json", mode="live", project_root=ROOT)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_port}"
+            try:
+                status, content_type, body = request_text(f"{base_url}/asset.txt")
+                self.assertEqual(status, 200)
+                self.assertIn("text/plain", content_type)
+                self.assertEqual(body, "asset-body")
+
+                status, content_type, body = request_text(f"{base_url}/rounds/anything")
+                self.assertEqual(status, 200)
+                self.assertIn("text/html", content_type)
+                self.assertIn("live operator console", body)
+            finally:
+                server.shutdown()
+                server.server_close()
 
 
 if __name__ == "__main__":
