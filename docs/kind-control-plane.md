@@ -158,7 +158,7 @@ task load:image -- localhost/scion-codex:latest
 task dev:test
 ```
 
-`task update:web-app` reloads the `scion-ops-new-ui-eval` image and restarts
+`task update:web-app` reloads the `scion-ops-web-app` image and restarts
 the web app deployment.
 
 Use `task storage:status` before full image rebuilds. If Docker is using `vfs`,
