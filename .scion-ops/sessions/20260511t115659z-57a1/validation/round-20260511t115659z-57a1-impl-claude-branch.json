@@ -1,0 +1,13 @@
+{
+  "base_branch": "round-20260511t114424z-3da2-spec-integration",
+  "base_sha": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+  "branch": "round-20260511t115659z-57a1-impl-claude",
+  "child_sha": "5f1350801e781cb471e2d2c0a45f7ae556d3dce1",
+  "completed_at": "2026-05-11T11:58:27.245321Z",
+  "created": false,
+  "fetch": null,
+  "ok": true,
+  "project_root": "/workspace",
+  "push": null,
+  "reason": ""
+}
