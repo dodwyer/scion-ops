@@ -28,6 +28,7 @@ class AdapterTests(unittest.TestCase):
 
         self.assertEqual(fixtures["schemaVersion"], "new-ui-evaluation.fixture.v1")
         self.assertIs(fixtures["mocked"], True)
+        self.assertIs(fixtures["overview"]["mocked"], True)
         self.assertTrue(fixtures["overview"]["attentionTarget"]["reason"])
         self.assertGreaterEqual(
             {round_item["state"] for round_item in fixtures["rounds"]},
@@ -37,7 +38,7 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(
             fixtures["runtime"]["previewService"],
             {
-                "name": "new-ui-evaluation",
+                "name": "scion-ops-new-ui-eval",
                 "port": 8091,
                 "healthPath": "/healthz",
                 "fixtureOnly": True,
@@ -67,6 +68,7 @@ class AdapterTests(unittest.TestCase):
 
             status, overview = request_json(f"{base_url}/api/overview")
             self.assertEqual(status, 200)
+            self.assertIs(overview["mocked"], True)
             self.assertEqual(overview["counts"]["blockedRounds"], 2)
 
             status, rounds = request_json(f"{base_url}/api/rounds")

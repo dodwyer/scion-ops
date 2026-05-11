@@ -221,7 +221,7 @@ Required mappings:
   ${KIND_LISTEN_ADDRESS}:${HUB_HOST_PORT} -> kind node ${HUB_NODE_PORT} -> scion-hub
   ${KIND_LISTEN_ADDRESS}:${MCP_HOST_PORT} -> kind node ${MCP_NODE_PORT} -> scion-ops-mcp
   ${KIND_LISTEN_ADDRESS}:${WEB_APP_HOST_PORT} -> kind node ${WEB_APP_NODE_PORT} -> scion-ops-web-app
-  ${KIND_LISTEN_ADDRESS}:${NEW_UI_EVAL_HOST_PORT} -> kind node ${NEW_UI_EVAL_NODE_PORT} -> scion-new-ui-evaluation
+  ${KIND_LISTEN_ADDRESS}:${NEW_UI_EVAL_HOST_PORT} -> kind node ${NEW_UI_EVAL_NODE_PORT} -> scion-ops-new-ui-eval
 EOF
 }
 
