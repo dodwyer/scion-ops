@@ -75,6 +75,12 @@ BROWSER_JSON_CONTRACT = {
         "agent_matrix": "per-agent role, harness/LLM, runtime state, branch, and last meaningful action",
         "consensus": "multi-harness role participation and review/steward summary",
         "terminal_summary": "operator-facing current/terminal explanation, including blockers or stall context when available",
+        "timeline_entry": {
+            "entry_id": "stable source id or deterministic sequence fallback",
+            "action": "short operator-readable action from structured payload fields or summary fallback",
+            "handoff": "destination agent or role from structured fields when a handoff exists",
+            "reason_for_handoff": "concise reason from structured payload fields or empty when unavailable",
+        },
     },
     "live_updates": {
         "endpoint": "/api/live?cursor=<last_cursor>&round_id=<optional-round>",
@@ -1210,6 +1216,38 @@ def source_error_events(snapshot: dict[str, Any], *, cursor: str) -> list[dict[s
     return events
 
 
+def _extract_payload_field(payload: dict[str, Any], *field_names: str) -> str:
+    for field in field_names:
+        value = str(payload.get(field) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def normalize_timeline_action(item: dict[str, Any], *, entry_type: str = "") -> str:
+    payload = parse_json_object(item.get("msg") or item.get("message") or item.get("summary") or "")
+    structured = _extract_payload_field(payload, "action", "current_action", "task_action")
+    if structured:
+        return short_text(structured, 120)
+    summary = str(item.get("msg") or item.get("message") or item.get("summary") or item.get("taskSummary") or "").strip()
+    return short_text(summary, 120)
+
+
+def normalize_timeline_handoff(item: dict[str, Any]) -> str:
+    payload = parse_json_object(item.get("msg") or item.get("message") or item.get("summary") or "")
+    return _extract_payload_field(
+        payload,
+        "handoff", "handoff_to", "next_agent", "destination",
+        "reviewer", "coordinator", "recipient", "to",
+    )
+
+
+def normalize_timeline_reason(item: dict[str, Any]) -> str:
+    payload = parse_json_object(item.get("msg") or item.get("message") or item.get("summary") or "")
+    reason = _extract_payload_field(payload, "reason_for_handoff", "reason", "handoff_reason", "blocker")
+    return short_text(reason, 260)
+
+
 def timeline_entry(event: dict[str, Any], *, round_id: str, agents_by_actor: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
     item = event.get("message") or event.get("notification") or event.get("agent") or {}
     if not isinstance(item, dict):
@@ -1233,6 +1271,9 @@ def timeline_entry(event: dict[str, Any], *, round_id: str, agents_by_actor: dic
         "harness_config": agent.get("harness_config") or "",
         "phase": item.get("phase") or agent.get("phase") or "",
         "activity": item.get("activity") or agent.get("activity") or "",
+        "action": normalize_timeline_action(item, entry_type=entry_type),
+        "handoff": normalize_timeline_handoff(item),
+        "reason_for_handoff": normalize_timeline_reason(item),
         "summary": short_text(item.get("msg") or item.get("message") or item.get("summary") or item.get("taskSummary") or item.get("activity"), 360),
         "raw": item,
     }
@@ -2092,19 +2133,19 @@ INDEX_HTML = r"""<!doctype html>
   <style>
     :root { color-scheme: light; --bg:#f7f7f5; --panel:#ffffff; --text:#202225; --muted:#676b73; --line:#d8d9dc; --good:#217a3b; --warn:#a05a00; --bad:#b42318; --info:#1f5f99; }
     * { box-sizing: border-box; }
-    body { margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+    body { margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); overflow-x:hidden; max-width:100vw; }
     header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 20px; border-bottom:1px solid var(--line); background:#fff; position:sticky; top:0; z-index:2; }
     h1 { font-size:18px; margin:0; }
     nav { display:flex; gap:4px; flex-wrap:wrap; }
     button { border:1px solid var(--line); background:#fff; padding:7px 10px; border-radius:6px; cursor:pointer; color:var(--text); }
     button.active { background:#202225; color:#fff; border-color:#202225; }
-    main { max-width:1280px; margin:0 auto; padding:18px 20px 32px; }
+    main { max-width:1280px; margin:0 auto; padding:18px 20px 32px; overflow-x:hidden; }
     .bar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; color:var(--muted); }
     .live-bar { align-items:flex-start; }
     .live-state { display:flex; flex-direction:column; gap:3px; }
     .secondary { font-size:12px; padding:5px 8px; color:var(--muted); }
     .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
-    .card, .table-wrap, .detail { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; }
+    .card, .table-wrap, .detail { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; min-width:0; }
     .status { display:inline-flex; align-items:center; gap:6px; font-weight:650; text-transform:capitalize; }
     .dot { width:9px; height:9px; border-radius:50%; background:var(--muted); display:inline-block; }
     .ready .dot, .healthy .dot, .completed .dot, .accepted .dot, .connected .dot { background:var(--good); }
@@ -2113,38 +2154,47 @@ INDEX_HTML = r"""<!doctype html>
     .running .dot { background:var(--info); }
     .muted { color:var(--muted); }
     .meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
-    .pill { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line); border-radius:999px; padding:2px 7px; background:#f8f9fa; font-size:12px; max-width:100%; }
+    .pill { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line); border-radius:999px; padding:2px 7px; background:#f8f9fa; font-size:12px; max-width:100%; overflow:hidden; }
+    .pill-text { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px; }
     .agent-grid { display:grid; gap:8px; }
-    .agent-card { display:grid; gap:6px; border:1px solid var(--line); border-radius:8px; padding:10px; background:#fff; }
-    .agent-head { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; }
-    table { width:100%; border-collapse:collapse; }
-    th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+    .agent-card { display:grid; gap:6px; border:1px solid var(--line); border-radius:8px; padding:10px; background:#fff; min-width:0; }
+    .agent-head { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; flex-wrap:wrap; }
+    table { width:100%; border-collapse:collapse; table-layout:fixed; }
+    th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:top; word-break:break-word; overflow-wrap:break-word; }
     th { color:var(--muted); font-size:12px; font-weight:650; }
     tr[data-round] { cursor:pointer; }
     tr[data-round]:hover { background:#f1f3f4; }
     .hidden { display:none; }
-    .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; white-space:pre-wrap; overflow:auto; max-height:360px; background:#111820; color:#e9eef4; border-radius:6px; padding:10px; }
+    .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; white-space:pre-wrap; overflow-x:auto; max-height:360px; background:#111820; color:#e9eef4; border-radius:6px; padding:10px; max-width:100%; word-break:break-all; }
+    .id-mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; word-break:break-all; overflow-wrap:anywhere; }
     .timeline { display:grid; gap:8px; }
-    .timeline .item { border-left:3px solid var(--line); padding:5px 0 5px 10px; }
+    .timeline .item { border-left:3px solid var(--line); padding:5px 0 5px 10px; word-break:break-word; min-width:0; }
+    .timeline-action { font-weight:500; }
+    .timeline-handoff { display:inline-flex; align-items:center; gap:4px; background:#eef3fa; border:1px solid #c9d7e6; border-radius:4px; padding:2px 6px; font-size:12px; }
+    .timeline-reason { color:var(--muted); font-size:13px; margin-top:3px; }
+    details > summary { cursor:pointer; color:var(--muted); font-size:12px; user-select:none; padding:4px 0; }
+    details > summary:hover { color:var(--text); }
     .flow { display:grid; gap:10px; }
-    .flow-stage { border:1px solid var(--line); border-radius:8px; padding:10px; background:#fff; }
-    .flow-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
-    .flow-title { display:flex; flex-direction:column; gap:3px; }
+    .flow-stage { border:1px solid var(--line); border-radius:8px; padding:10px; background:#fff; min-width:0; }
+    .flow-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; }
+    .flow-title { display:flex; flex-direction:column; gap:3px; min-width:0; }
     .flow-events { display:grid; gap:6px; margin-top:8px; }
-    .flow-event { border-left:3px solid var(--info); padding-left:8px; }
+    .flow-event { border-left:3px solid var(--info); padding-left:8px; word-break:break-word; }
     .flow-event.blocked { border-left-color:var(--bad); }
     .flow-event.accepted, .flow-event.ready, .flow-event.completed { border-left-color:var(--good); }
     .flow-strip { display:flex; flex-wrap:wrap; gap:6px; }
     .stage-pill { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line); border-radius:6px; padding:4px 6px; background:#fff; font-size:12px; }
     .operator-summary { display:grid; gap:8px; }
-    .operator-headline { font-weight:650; color:#17324d; }
+    .operator-headline { font-weight:650; color:#17324d; word-break:break-word; }
     .decision-outline { display:grid; gap:6px; margin-top:8px; }
-    .decision-line { border-left:3px solid var(--info); padding-left:8px; }
+    .decision-line { border-left:3px solid var(--info); padding-left:8px; word-break:break-word; }
     .agent-matrix td, .agent-matrix th { font-size:13px; }
-    .reason-box { border:1px solid #c9d7e6; background:#f4f8fc; color:#17324d; border-radius:6px; padding:10px; margin:8px 0; }
+    .reason-box { border:1px solid #c9d7e6; background:#f4f8fc; color:#17324d; border-radius:6px; padding:10px; margin:8px 0; word-break:break-word; }
     .split { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr); gap:12px; }
-    .error-box { border:1px solid #efb5b0; background:#fff7f6; color:#681a14; border-radius:6px; padding:10px; }
+    .error-box { border:1px solid #efb5b0; background:#fff7f6; color:#681a14; border-radius:6px; padding:10px; word-break:break-word; }
+    .diag-section { margin-top:12px; }
     @media (max-width: 800px) { header { align-items:flex-start; flex-direction:column; } .split { grid-template-columns:1fr; } th:nth-child(4), td:nth-child(4) { display:none; } }
+    @media (max-width: 600px) { th:nth-child(5), td:nth-child(5) { display:none; } .mono { max-height:200px; } main { padding:12px 12px 24px; } }
   </style>
 </head>
 <body>
@@ -2702,14 +2752,50 @@ INDEX_HTML = r"""<!doctype html>
       if (!detail) return;
       const agents = detail.status.agents || [];
       const review = detail.final_review || {};
-      const timelineItem = item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div><div class="meta">${meta("agent", item.agent_name || item.actor)}${meta("role", item.role)}${meta("template", item.template)}${meta("harness", item.harness_config)}${meta("phase", item.phase)}${meta("activity", item.activity)}</div></div>`;
+      const timelineItem = item => {
+        const actionText = item.action || item.summary || "";
+        const handoffHtml = item.handoff ? `<div class="meta"><span class="timeline-handoff">&#8594; ${esc(item.handoff)}</span></div>` : "";
+        const reasonHtml = item.reason_for_handoff ? `<div class="timeline-reason">${esc(item.reason_for_handoff)}</div>` : "";
+        const hasDetail = item.raw && Object.keys(item.raw).length > 3;
+        const detailHtml = hasDetail ? `<details class="diag-section"><summary>Detail</summary><pre class="mono">${esc(JSON.stringify(item.raw, null, 2))}</pre></details>` : "";
+        return `<div class="item">
+          <div>${status(item.type)}<span class="muted" style="margin-left:8px">${fmt(item.time)}</span></div>
+          <div class="timeline-action">${esc(actionText)}</div>
+          ${handoffHtml}${reasonHtml}
+          <div class="meta">${meta("agent", item.agent_name || item.actor)}${meta("role", item.role)}${meta("harness", item.harness_config)}</div>
+          ${detailHtml}
+        </div>`;
+      };
       const agentCard = agent => `<div class="agent-card"><div class="agent-head"><strong>${esc(agent.name || agent.slug)}</strong>${status(agent.status || agent.phase || "unknown")}</div><div class="meta">${meta("role", agent.role)}${meta("template", agent.template)}${meta("harness", agent.harness_config)}${meta("phase", agent.phase)}${meta("activity", agent.activity)}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`;
       const flow = detail.decision_flow?.length ? detail.decision_flow : buildDecisionFlow(detail);
+      const coordOutputHtml = detail.runner_output
+        ? `<details class="diag-section"><summary>Coordinator Output</summary><pre class="mono">${esc(detail.runner_output)}</pre></details>`
+        : (detail.runner_output_error ? `<details class="diag-section"><summary>Coordinator Output</summary><div class="muted">${esc(detail.runner_output_error)}</div></details>` : "");
+      const branchesHtml = detail.branches?.length
+        ? detail.branches.map(branch => `<div class="id-mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "")
+        : `<div class="muted">No branch references available.</div>`;
       document.getElementById("round-detail").innerHTML = `
         <div class="bar"><button id="back-rounds">Back to rounds</button></div>
         <div class="split">
-          <div class="detail"><h2 class="mono">${esc(roundId)}</h2><div>${status(detail.visible_status || detail.status.status || "unknown")}</div><h3>Operator Summary</h3><div class="reason-box">${renderOperatorSummary(detail.operator_summary)}</div>${renderDecisionFlow(detail)}<details><summary>Raw Timeline</summary><div class="timeline">${detail.timeline.length ? detail.timeline.map(timelineItem).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></details></div>
-          <div class="detail">${renderConsensus(detail, flow)}<h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}${mcpBlock(detail.mcp)}<h3>Agent Matrix</h3>${renderAgentMatrix(detail)}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Coordinator Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No coordinator output available.")}</div>`}</div>
+          <div class="detail">
+            <h2 class="id-mono">${esc(roundId)}</h2>
+            <div>${status(detail.visible_status || detail.status.status || "unknown")}</div>
+            <h3>Operator Summary</h3>
+            <div class="reason-box">${renderOperatorSummary(detail.operator_summary)}</div>
+            ${renderDecisionFlow(detail)}
+            <h3>Timeline</h3>
+            <div class="timeline">${detail.timeline.length ? detail.timeline.map(timelineItem).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div>
+            ${coordOutputHtml}
+          </div>
+          <div class="detail">
+            ${renderConsensus(detail, flow)}
+            <h3>Final Review</h3>
+            ${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}
+            ${mcpBlock(detail.mcp)}
+            <h3>Agent Matrix</h3>${renderAgentMatrix(detail)}
+            <h3>Branches</h3>${branchesHtml}
+            <details class="diag-section"><summary>Raw source detail</summary><pre class="mono">${esc(JSON.stringify({ status: detail.status, events: detail.events, artifacts: detail.artifacts, spec_status: detail.spec_status }, null, 2))}</pre></details>
+          </div>
         </div>`;
       document.getElementById("back-rounds").onclick = () => setView("rounds");
     }
@@ -2779,22 +2865,29 @@ def nicegui_console_fragment() -> str:
 
 
 def build_nicegui_console_components(ui: Any) -> None:
-    with ui.header():
-        ui.label("Holly Ops Drive").classes("text-h6")
+    with ui.header().classes("items-center"):
+        ui.label("Holly Ops Drive").classes("text-h6 q-mr-md")
+        with ui.tabs().props('dense aria-label="Main navigation"').classes("text-weight-medium"):
+            ui.tab("overview", label="Overview").props('data-view="overview"')
+            ui.tab("rounds", label="Rounds").props('data-view="rounds"')
+            ui.tab("inbox", label="Inbox").props('data-view="inbox"')
+            ui.tab("runtime", label="Runtime").props('data-view="runtime"')
         with ui.element("nav"):
             ui.button("Overview").props('data-view="overview"').classes("active")
             ui.button("Rounds").props('data-view="rounds"')
             ui.button("Inbox").props('data-view="inbox"')
             ui.button("Runtime").props('data-view="runtime"')
-    with ui.element("main").props('id="nicegui-operator-console" data-framework="NiceGUI" data-live-source="/api/live"'):
+    with ui.element("main").props('id="nicegui-operator-console" data-framework="NiceGUI" data-live-source="/api/live"').classes("nicegui-content"):
         with ui.element("div").classes("bar live-bar"):
             with ui.element("div").props('id="refresh-state"').classes("live-state"):
-                ui.label("Loading...")
+                ui.label("Loading...").classes("text-caption")
         ui.element("section").props('id="overview"')
         ui.element("section").props('id="rounds"').classes("hidden")
         ui.element("section").props('id="round-detail"').classes("hidden")
         ui.element("section").props('id="inbox"').classes("hidden")
         ui.element("section").props('id="runtime"').classes("hidden")
+        with ui.expansion("Diagnostics", icon="bug_report").classes("diag-expansion hidden").props('id="nicegui-diag-expansion"'):
+            ui.element("div").props('id="nicegui-diag-content"')
 
 
 def json_response(payload: dict[str, Any], status_code: int = 200) -> Any:
