@@ -1,0 +1,28 @@
+{
+  "agent": "round-20260511t130743z-290c-impl-claude",
+  "blockers": [
+    "deploy/kind/cluster.yaml.tpl is not in owned paths but needs a new extraPortMappings entry for nodePort 30880 -> hostPort 8880 so the KIND cluster exposes the new-ui-eval at its default smoke URL (http://192.168.122.103:8880). Without this, operators must use kubectl port-forward.",
+    "image-build/new-ui-eval/Dockerfile expects new-ui-evaluation/adapter/ and new-ui-evaluation/frontend/dist/ which are created by Group A (frontend scaffold + adapter). build-images.sh skips the new-ui-eval build gracefully if new-ui-evaluation/ does not exist yet."
+  ],
+  "branch": "round-20260511t130743z-290c-impl-claude",
+  "changed_files": [
+    "deploy/kind/control-plane/new-ui-evaluation-deployment.yaml",
+    "deploy/kind/control-plane/new-ui-evaluation-service.yaml",
+    "deploy/kind/control-plane/kustomization.yaml",
+    "image-build/new-ui-eval/Dockerfile",
+    "scripts/build-images.sh",
+    "scripts/kind-control-plane-smoke.py",
+    "openspec/changes/base-framework-1/tasks.md"
+  ],
+  "head_sha": "c96fc756ebdd4fec66589cc5a1c011e18524125b",
+  "status": "complete",
+  "summary": "Group B complete. Separate K8s Deployment (port 8080, nodePort 30880) and Service for scion-ops-new-ui-eval added to control-plane manifests and kustomization. Dockerfile placeholder in image-build/new-ui-eval/ and build-images.sh wiring (--skip-new-ui-eval, --only new-ui-eval) added with graceful skip when Group A directory is absent. Smoke test extended with ensure_new_ui_eval() checking /api/overview and check_preview_coexistence() asserting distinct ports from existing web-app. Two dependency blockers noted: cluster.yaml.tpl port mapping (out of scope, needs separate update) and Group A frontend/adapter scaffold.",
+  "tasks_completed": [
+    "1.7",
+    "1.9",
+    "1.10"
+  ],
+  "tests_run": [
+    "python3 syntax check on kind-control-plane-smoke.py: passed"
+  ]
+}

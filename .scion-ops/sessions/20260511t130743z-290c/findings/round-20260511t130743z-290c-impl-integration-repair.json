@@ -1,0 +1,38 @@
+{
+  "agent": "round-20260511t130743z-290c-impl-integration-repair",
+  "blockers": [],
+  "branch": "round-20260511t130743z-290c-impl-integration-repair",
+  "changed_files": [
+    "Taskfile.yml",
+    "scripts/kind-scion-runtime.sh",
+    "new-ui-evaluation/fixtures/preview-fixtures.json",
+    "new-ui-evaluation/src/types.ts",
+    "new-ui-evaluation/src/__tests__/fixtures.test.tsx",
+    "new-ui-evaluation/tests/test_adapter.py",
+    "openspec/changes/base-framework-1/tasks.md"
+  ],
+  "head_sha": "a538972c31bdda3d549d996b6b435e7af62f4105",
+  "status": "completed",
+  "summary": "Completed the final integration repair by aligning preview runtime/task references with the Group B Kubernetes resource and image names, ensuring smoke receives the preview URL, and making the overview endpoint explicitly identify mocked data.",
+  "tasks_completed": [
+    "Aligned preview image default to localhost/scion-ops-new-ui-eval:latest.",
+    "Aligned Taskfile load, restart, status, logs, and control-plane rollout references to deploy/scion-ops-new-ui-eval and app.kubernetes.io/name=scion-ops-new-ui-eval.",
+    "Added SCION_OPS_NEW_UI_EVAL_URL propagation into kind:control-plane:smoke.",
+    "Made /api/overview return an explicit mocked: true marker by adding it to the overview fixture and TypeScript contract.",
+    "Updated adapter and frontend fixture tests for overview mocked metadata and preview service naming.",
+    "Marked OpenSpec task 1.11 complete after running the relevant no-spend checks."
+  ],
+  "tests_run": [
+    "task --list",
+    "python3 -m unittest discover -s tests -p 'test_*.py' (from new-ui-evaluation)",
+    "bash -n scripts/kind-scion-runtime.sh scripts/impl-publish-handoff.sh",
+    "python3 -m py_compile scripts/kind-control-plane-smoke.py new-ui-evaluation/adapter.py",
+    "python3 scripts/validate-openspec-change.py --project-root . --change base-framework-1",
+    "kubectl kustomize deploy/kind/control-plane with rg checks for scion-ops-new-ui-eval resource/image/ports",
+    "npm ci",
+    "npm run typecheck",
+    "npm test",
+    "npm run build",
+    "git diff --check"
+  ]
+}

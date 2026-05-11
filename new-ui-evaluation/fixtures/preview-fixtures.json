@@ -1,0 +1,261 @@
+{
+  "schemaVersion": "new-ui-evaluation.fixture.v1",
+  "mocked": true,
+  "fixtureProvenance": {
+    "source": "local preview fixtures",
+    "generatedAt": "2026-05-11T13:07:43Z",
+    "notes": "Representative, read-only examples for evaluation only. These records are not live scion-ops state."
+  },
+  "overview": {
+    "mocked": true,
+    "controlPlane": "evaluation-preview",
+    "summary": "Fixture-backed operator console preview",
+    "readiness": "degraded",
+    "freshness": {
+      "status": "stale",
+      "lastUpdated": "2026-05-11T12:54:00Z",
+      "oldestSourceAgeSeconds": 1820
+    },
+    "counts": {
+      "activeRounds": 4,
+      "blockedRounds": 2,
+      "failedRounds": 1,
+      "pendingReviews": 2,
+      "unreadMessages": 5
+    },
+    "sourceReadiness": [
+      { "source": "Hub", "status": "healthy", "freshnessSeconds": 38 },
+      { "source": "MCP", "status": "degraded", "freshnessSeconds": 310 },
+      { "source": "Kubernetes", "status": "mocked", "freshnessSeconds": 0 },
+      { "source": "Git", "status": "stale", "freshnessSeconds": 1820 },
+      { "source": "Model provider", "status": "mocked", "freshnessSeconds": 0 }
+    ],
+    "attentionTarget": {
+      "label": "Blocked final review",
+      "roundId": "round-20260511t091500z-117a",
+      "reason": "Validation passed, final review waiting on branch evidence"
+    },
+    "recentActivity": [
+      {
+        "id": "evt-101",
+        "timestamp": "2026-05-11T12:52:00Z",
+        "severity": "warning",
+        "summary": "MCP fixture source marked degraded",
+        "roundId": null
+      },
+      {
+        "id": "evt-102",
+        "timestamp": "2026-05-11T12:40:00Z",
+        "severity": "info",
+        "summary": "Adapter preview health checked from local fixture",
+        "roundId": null
+      },
+      {
+        "id": "evt-103",
+        "timestamp": "2026-05-11T12:36:00Z",
+        "severity": "critical",
+        "summary": "Round blocked by missing handoff artifact",
+        "roundId": "round-20260511t091500z-117a"
+      }
+    ]
+  },
+  "rounds": [
+    {
+      "id": "round-20260511t091500z-117a",
+      "goal": "Add review gate visibility",
+      "state": "blocked",
+      "phase": "final-review",
+      "owner": "implementation-steward",
+      "agents": ["codex-impl", "claude-review"],
+      "branchEvidence": { "branch": "round-117a-impl", "headSha": "7c1a22b", "status": "missing-handoff" },
+      "validation": { "state": "passed", "summary": "Unit and OpenSpec checks passed" },
+      "finalReview": { "state": "waiting", "summary": "Reviewer is waiting for handoff JSON" },
+      "blockers": ["handoff artifact missing"],
+      "startedAt": "2026-05-11T09:15:00Z",
+      "updatedAt": "2026-05-11T12:36:00Z",
+      "latestEvent": "Final review paused until branch evidence is complete"
+    },
+    {
+      "id": "round-20260511t103010z-208b",
+      "goal": "Refresh runtime summary cards",
+      "state": "active",
+      "phase": "implementation",
+      "owner": "round-steward",
+      "agents": ["codex-impl"],
+      "branchEvidence": { "branch": "round-208b-impl", "headSha": "f44be91", "status": "present" },
+      "validation": { "state": "running", "summary": "Frontend checks in progress" },
+      "finalReview": { "state": "not-started", "summary": "Awaiting validation" },
+      "blockers": [],
+      "startedAt": "2026-05-11T10:30:10Z",
+      "updatedAt": "2026-05-11T12:58:00Z",
+      "latestEvent": "Implementation agent updated runtime panel tests"
+    },
+    {
+      "id": "round-20260510t181200z-033c",
+      "goal": "Repair stale source indicator",
+      "state": "failed",
+      "phase": "validation",
+      "owner": "implementation-steward",
+      "agents": ["codex-impl", "gemini-review"],
+      "branchEvidence": { "branch": "round-033c-impl", "headSha": "d09ac41", "status": "present" },
+      "validation": { "state": "failed", "summary": "Adapter contract test failed" },
+      "finalReview": { "state": "blocked", "summary": "Validation must pass first" },
+      "blockers": ["contract drift", "fixture missing empty case"],
+      "startedAt": "2026-05-10T18:12:00Z",
+      "updatedAt": "2026-05-11T08:20:00Z",
+      "latestEvent": "Validation failed on source health shape"
+    },
+    {
+      "id": "round-20260509t142200z-490d",
+      "goal": "Document operator inbox workflow",
+      "state": "completed",
+      "phase": "archived",
+      "owner": "round-steward",
+      "agents": ["codex-impl"],
+      "branchEvidence": { "branch": "round-490d-docs", "headSha": "81aa9fe", "status": "present" },
+      "validation": { "state": "passed", "summary": "Docs lint and OpenSpec validation passed" },
+      "finalReview": { "state": "accepted", "summary": "Accepted with no follow-up" },
+      "blockers": [],
+      "startedAt": "2026-05-09T14:22:00Z",
+      "updatedAt": "2026-05-10T10:11:00Z",
+      "latestEvent": "Round archived"
+    },
+    {
+      "id": "round-empty-fixture",
+      "goal": "Empty-state evaluation record",
+      "state": "empty",
+      "phase": "not-started",
+      "owner": "fixture",
+      "agents": [],
+      "branchEvidence": { "branch": null, "headSha": null, "status": "none" },
+      "validation": { "state": "not-started", "summary": "No validation output yet" },
+      "finalReview": { "state": "not-started", "summary": "No review requested" },
+      "blockers": [],
+      "startedAt": null,
+      "updatedAt": "2026-05-11T12:00:00Z",
+      "latestEvent": "Empty case for table and detail states"
+    }
+  ],
+  "roundDetails": {
+    "round-20260511t091500z-117a": {
+      "id": "round-20260511t091500z-117a",
+      "decisions": [
+        "Keep current UI authoritative during evaluation",
+        "Require handoff artifact before final review"
+      ],
+      "timeline": [
+        { "id": "tl-1", "timestamp": "2026-05-11T09:15:00Z", "actor": "steward", "kind": "started", "summary": "Round created from accepted change" },
+        { "id": "tl-2", "timestamp": "2026-05-11T11:03:00Z", "actor": "codex-impl", "kind": "handoff", "summary": "Implementation branch pushed without JSON artifact" },
+        { "id": "tl-3", "timestamp": "2026-05-11T12:36:00Z", "actor": "claude-review", "kind": "blocked", "summary": "Final review requires branch evidence and handoff" }
+      ],
+      "participants": [
+        { "agent": "codex-impl", "role": "implementation", "status": "needs-handoff" },
+        { "agent": "claude-review", "role": "review", "status": "waiting" }
+      ],
+      "validationOutput": {
+        "state": "passed",
+        "commands": ["pytest scripts/test-openspec-change-validator.py", "python scripts/validate-openspec-change.py base-framework-1"],
+        "summary": "No failing checks in fixture output"
+      },
+      "artifacts": [
+        { "label": "implementation branch", "path": "round-117a-impl", "kind": "git-branch" },
+        { "label": "handoff JSON", "path": ".scion-ops/.../round-117a.json", "kind": "missing" }
+      ],
+      "runnerOutput": "preview fixture: validation completed; final review waiting for handoff artifact",
+      "relatedMessages": ["msg-1", "msg-3"],
+      "rawPayloadRef": "raw-round-blocked"
+    },
+    "round-20260511t103010z-208b": {
+      "id": "round-20260511t103010z-208b",
+      "decisions": ["Use client-side filters for evaluation tables"],
+      "timeline": [
+        { "id": "tl-4", "timestamp": "2026-05-11T10:30:10Z", "actor": "steward", "kind": "started", "summary": "Round assigned" },
+        { "id": "tl-5", "timestamp": "2026-05-11T12:58:00Z", "actor": "codex-impl", "kind": "progress", "summary": "Runtime cards updated in fixture UI" }
+      ],
+      "participants": [{ "agent": "codex-impl", "role": "implementation", "status": "active" }],
+      "validationOutput": { "state": "running", "commands": ["npm test"], "summary": "Tests still running in fixture" },
+      "artifacts": [{ "label": "implementation branch", "path": "round-208b-impl", "kind": "git-branch" }],
+      "runnerOutput": "preview fixture: frontend tests running",
+      "relatedMessages": ["msg-2"],
+      "rawPayloadRef": "raw-round-active"
+    }
+  },
+  "inbox": [
+    {
+      "id": "msg-1",
+      "group": "round-20260511t091500z-117a",
+      "source": "final-review",
+      "severity": "critical",
+      "timestamp": "2026-05-11T12:36:00Z",
+      "roundId": "round-20260511t091500z-117a",
+      "title": "Final review blocked",
+      "context": "Handoff artifact is missing from the expected findings path",
+      "readOnly": true
+    },
+    {
+      "id": "msg-2",
+      "group": "round-20260511t103010z-208b",
+      "source": "validation",
+      "severity": "info",
+      "timestamp": "2026-05-11T12:58:00Z",
+      "roundId": "round-20260511t103010z-208b",
+      "title": "Validation running",
+      "context": "Frontend fixture tests are in progress",
+      "readOnly": true
+    },
+    {
+      "id": "msg-3",
+      "group": "git",
+      "source": "git",
+      "severity": "warning",
+      "timestamp": "2026-05-11T12:20:00Z",
+      "roundId": "round-20260511t091500z-117a",
+      "title": "Branch evidence stale",
+      "context": "The newest fixture event is older than the adapter freshness target",
+      "readOnly": true
+    }
+  ],
+  "runtime": {
+    "sources": [
+      { "name": "Hub", "kind": "control-plane", "status": "healthy", "detail": "Fixture shows connected hub", "lastSeen": "2026-05-11T12:53:22Z" },
+      { "name": "MCP", "kind": "tooling", "status": "degraded", "detail": "Fixture includes delayed response example", "lastSeen": "2026-05-11T12:49:10Z" },
+      { "name": "Kubernetes", "kind": "orchestration", "status": "mocked", "detail": "No cluster read performed", "lastSeen": null },
+      { "name": "Git", "kind": "source", "status": "stale", "detail": "Branch evidence intentionally stale", "lastSeen": "2026-05-11T12:23:40Z" },
+      { "name": "Model provider", "kind": "provider", "status": "mocked", "detail": "No provider call performed", "lastSeen": null },
+      { "name": "Adapter", "kind": "preview-service", "status": "healthy", "detail": "Serving local static files and fixtures", "lastSeen": "2026-05-11T12:54:00Z" }
+    ],
+    "previewService": {
+      "name": "scion-ops-new-ui-eval",
+      "port": 8091,
+      "healthPath": "/healthz",
+      "fixtureOnly": true,
+      "liveReadsAllowed": false,
+      "mutationsAllowed": false
+    }
+  },
+  "diagnostics": {
+    "schemaVersion": "new-ui-evaluation.fixture.v1",
+    "sourceErrors": [
+      { "source": "MCP", "severity": "warning", "message": "Representative delayed tool response", "observedAt": "2026-05-11T12:52:00Z" },
+      { "source": "Git", "severity": "warning", "message": "Representative stale branch evidence", "observedAt": "2026-05-11T12:20:00Z" }
+    ],
+    "rawPayloads": {
+      "raw-round-blocked": {
+        "roundId": "round-20260511t091500z-117a",
+        "blocked": true,
+        "missing": ["handoff_file"],
+        "source": "fixture"
+      },
+      "raw-round-active": {
+        "roundId": "round-20260511t103010z-208b",
+        "running": ["npm test"],
+        "source": "fixture"
+      },
+      "raw-runtime": {
+        "sources": ["Hub", "MCP", "Kubernetes", "Git", "Model provider", "Adapter"],
+        "liveReadsAllowed": false,
+        "source": "fixture"
+      }
+    }
+  }
+}
