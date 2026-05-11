@@ -71,6 +71,8 @@ BROWSER_JSON_CONTRACT = {
         "final_review": "structured final-review verdict, normalized verdict, display label, source, and blockers",
         "agents": "normalized agent records with role, template, harness_config, phase, activity, and status",
         "decision_flow": "role-ordered outline of starts, reports, decisions, and terminal explanations with agent/template/harness provenance",
+        "operator_summary": "concise operator-facing state, agent counts, active agents, blockers, and important decisions",
+        "agent_matrix": "per-agent role, harness/LLM, runtime state, branch, and last meaningful action",
         "consensus": "multi-harness role participation and review/steward summary",
         "terminal_summary": "operator-facing current/terminal explanation, including blockers or stall context when available",
     },
@@ -774,7 +776,8 @@ def build_decision_flow(agents: list[dict[str, Any]], timeline: list[dict[str, A
         stage["latest_event"] = latest
         stage["summary"] = latest.get("summary") or ""
 
-    return sorted(stages, key=lambda item: (role_rank(item.get("role")), str(item.get("started_at") or item.get("updated_at") or ""), str(item.get("agent_name") or "")))
+    ordered = sorted(stages, key=lambda item: (role_rank(item.get("role")), str(item.get("started_at") or item.get("updated_at") or ""), str(item.get("agent_name") or "")))
+    return enrich_decision_flow(ordered)
 
 
 def build_terminal_summary(
@@ -800,11 +803,12 @@ def build_terminal_summary(
     if terminal_summary:
         return terminal_summary
 
-    latest_events = [
-        stage.get("latest_event")
-        for stage in decision_flow
-        if isinstance(stage.get("latest_event"), dict) and stage.get("latest_event", {}).get("summary")
-    ]
+    latest_events = []
+    for stage in decision_flow:
+        key_events = stage.get("key_events") if isinstance(stage.get("key_events"), list) else []
+        event = key_events[-1] if key_events else stage.get("latest_event")
+        if isinstance(event, dict) and event.get("summary"):
+            latest_events.append(event)
     latest_events.sort(key=lambda item: str(item.get("time") or ""))
     latest = latest_events[-1] if latest_events else {}
 
@@ -855,6 +859,233 @@ def build_consensus_summary(agents: list[dict[str, Any]], decision_flow: list[di
         "review": review_display,
         "summary": "; ".join(parts),
         "review_summary": review_summary,
+    }
+
+
+GENERIC_SIGNAL_SUMMARIES = {
+    "",
+    "stalled",
+    "idle",
+    "offline",
+    "running",
+    "completed",
+    "complete",
+    "succeeded",
+    "stopped",
+    "deleted",
+    "unknown",
+}
+
+
+def is_generic_signal_event(event: dict[str, Any]) -> bool:
+    summary = " ".join(str(event.get("summary") or "").lower().split())
+    label = str(event.get("label") or "").lower()
+    event_type = str(event.get("type") or "").lower()
+    if label == "started":
+        return False
+    if "has stalled (was idle): agent started" in summary:
+        return True
+    if event_type in {"agent", "agent_seen"} and summary in GENERIC_SIGNAL_SUMMARIES:
+        return True
+    return False
+
+
+def enrich_decision_flow(stages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    for stage in stages:
+        events = [event for event in stage.get("events", []) if isinstance(event, dict)]
+        key_events = [event for event in events if not is_generic_signal_event(event)]
+        if not key_events:
+            key_events = events[-2:]
+        preferred_messages = [
+            event
+            for event in key_events
+            if str(event.get("type") or "").lower() in {"message", "notification"}
+            and str(event.get("label") or "").lower() != "started"
+        ]
+        preferred = preferred_messages or [event for event in key_events if str(event.get("label") or "").lower() != "started"]
+        latest_meaningful = (preferred or key_events or [{}])[-1]
+        start_events = [event for event in key_events if str(event.get("label") or "").lower() == "started"]
+        display_events = (start_events[-1:] + preferred_messages) if preferred_messages else key_events
+        stage["key_events"] = display_events[-4:]
+        stage["latest_signal"] = stage.get("latest_event") or {}
+        if latest_meaningful.get("summary"):
+            stage["summary"] = latest_meaningful["summary"]
+    return stages
+
+
+def agent_branch(agent: dict[str, Any]) -> str:
+    for branch in structured_branch_refs(agent):
+        return branch
+    name = normalize_branch(agent.get("name") or agent.get("slug") or "")
+    if name.startswith("round-"):
+        return name
+    return ""
+
+
+def timeline_matches_agent(item: dict[str, Any], agent: dict[str, Any]) -> bool:
+    identities = {
+        str(agent.get("name") or ""),
+        str(agent.get("slug") or ""),
+        str(agent.get("id") or ""),
+        str(agent.get("agentId") or ""),
+    }
+    identities |= {f"agent:{identity}" for identity in list(identities) if identity}
+    raw = item.get("raw") if isinstance(item.get("raw"), dict) else {}
+    candidates = {
+        str(item.get("agent_name") or ""),
+        str(item.get("actor") or ""),
+        str(raw.get("id") or ""),
+        str(raw.get("agentId") or ""),
+        str(raw.get("sender") or ""),
+        str(raw.get("senderId") or ""),
+        str(raw.get("name") or ""),
+        str(raw.get("slug") or ""),
+    }
+    return bool({candidate for candidate in candidates if candidate} & {identity for identity in identities if identity})
+
+
+def build_agent_matrix(agents: list[dict[str, Any]], timeline: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    timeline_items = [item for item in timeline if isinstance(item, dict)]
+    for agent in [normalize_agent(item) for item in agents if isinstance(item, dict)]:
+        matching = [item for item in timeline_items if timeline_matches_agent(item, agent)]
+        meaningful = [
+            item
+            for item in matching
+            if not is_generic_signal_event({
+                "summary": item.get("summary"),
+                "type": item.get("type"),
+                "label": flow_label(item.get("summary"), status=agent.get("status"), event_type=item.get("type")),
+            })
+        ]
+        preferred_sources = [
+            item
+            for item in meaningful
+            if str(item.get("type") or "").lower() in {"message", "notification"}
+        ]
+        source = (preferred_sources or meaningful or matching or [{}])[-1]
+        last_action = source.get("summary") or agent.get("taskSummary") or agent.get("activity") or ""
+        rows.append({
+            "name": agent.get("name") or "",
+            "role": agent.get("role") or "",
+            "template": agent.get("template") or "",
+            "harness_config": agent.get("harness_config") or "",
+            "status": agent.get("status") or "unknown",
+            "phase": agent.get("phase") or "",
+            "activity": agent.get("activity") or "",
+            "runtime": agent.get("runtime") or "",
+            "container_status": agent.get("containerStatus") or "",
+            "branch": agent_branch(agent),
+            "last_action": short_text(last_action, 220),
+            "last_update": source.get("time") or agent.get("updated") or agent.get("created") or "",
+        })
+    return sorted(rows, key=lambda item: (role_rank(item.get("role")), str(item.get("last_update") or ""), str(item.get("name") or "")))
+
+
+def agent_count_summary(counts: dict[str, int]) -> str:
+    parts = [f"{counts['total']} agents"]
+    if counts["active"]:
+        active = f"{counts['active']} active"
+        if counts["offline"]:
+            active = f"{counts['offline']} active offline"
+        parts.append(active)
+    if counts["completed"]:
+        parts.append(f"{counts['completed']} complete")
+    if counts["blocked"]:
+        parts.append(f"{counts['blocked']} blocked")
+    return ": ".join([parts[0], ", ".join(parts[1:])]) if len(parts) > 1 else parts[0]
+
+
+def build_operator_summary(
+    *,
+    visible_status: str,
+    agents: list[dict[str, Any]],
+    decision_flow: list[dict[str, Any]],
+    final_review: dict[str, Any],
+    consensus: dict[str, Any],
+    mcp: dict[str, Any],
+    terminal_summary: str,
+) -> dict[str, Any]:
+    normalized_agents = [normalize_agent(agent) for agent in agents if isinstance(agent, dict)]
+    active_agents = [agent for agent in normalized_agents if agent.get("status") in {"running", "waiting"}]
+    blocked_agents = [agent for agent in normalized_agents if agent.get("status") == "blocked"]
+    completed_agents = [agent for agent in normalized_agents if agent.get("status") == "completed"]
+    offline_agents = [agent for agent in active_agents if str(agent.get("activity") or "").lower() == "offline"]
+    counts = {
+        "total": len(normalized_agents),
+        "active": len(active_agents),
+        "completed": len(completed_agents),
+        "blocked": len(blocked_agents),
+        "offline": len(offline_agents),
+        "stalled": len([agent for agent in normalized_agents if "stall" in str(agent.get("activity") or "").lower()]),
+        "idle": len([agent for agent in normalized_agents if str(agent.get("activity") or "").lower() == "idle"]),
+    }
+    review_display = str(final_review.get("display") or "")
+    review_text = f"final review {review_display}" if review_display else "no final verdict"
+    blockers = as_string_list(mcp.get("blockers"))
+    blocker_text = short_text("; ".join(blockers), 180) if blockers else "no blockers"
+    consensus_label = "multi-LLM" if consensus.get("mode") == "multi_harness" else "single harness"
+    agent_summary = agent_count_summary(counts)
+    status_label = str(visible_status or "unknown").replace("_", " ")
+    if active_agents:
+        active_names = ", ".join(
+            short_text(agent.get("name") or agent.get("role") or "agent", 64)
+            for agent in active_agents[:3]
+        )
+        active_state = f"{counts['active']} active"
+        if offline_agents:
+            active_state = f"{counts['offline']} active offline"
+        current_state = f"{status_label.capitalize()}: {active_state}; {counts['completed']} complete; {review_text}; {active_names}"
+    elif blockers:
+        current_state = f"{status_label.capitalize()}: {blocker_text}"
+    elif review_display:
+        current_state = f"{status_label.capitalize()}: {review_text}; {agent_summary}; {blocker_text}"
+    else:
+        current_state = terminal_summary or f"{status_label.capitalize()}: {agent_summary}; {review_text}"
+
+    outline = []
+    for stage in decision_flow:
+        events = stage.get("key_events") or stage.get("events") or []
+        event = next(
+            (
+                item
+                for item in reversed(events)
+                if str(item.get("type") or "").lower() in {"message", "notification"}
+                and str(item.get("label") or "").lower() != "started"
+            ),
+            next((item for item in reversed(events) if str(item.get("label") or "").lower() != "started"), events[-1] if events else {}),
+        )
+        if not event:
+            continue
+        outline.append({
+            "role": stage.get("role") or "observed",
+            "agent_name": stage.get("agent_name") or "",
+            "harness_config": stage.get("harness_config") or "",
+            "status": stage.get("status") or "",
+            "label": event.get("label") or "Reported",
+            "summary": short_text(event.get("summary") or stage.get("summary") or "", 220),
+            "time": event.get("time") or stage.get("updated_at") or "",
+        })
+
+    return {
+        "headline": " | ".join([status_label.capitalize(), consensus_label, agent_summary, review_text, blocker_text]),
+        "current_state": short_text(current_state, 420),
+        "agent_counts": counts,
+        "active_agents": [
+            {
+                "name": agent.get("name") or "",
+                "role": agent.get("role") or "",
+                "harness_config": agent.get("harness_config") or "",
+                "phase": agent.get("phase") or "",
+                "activity": agent.get("activity") or "",
+                "status": agent.get("status") or "",
+            }
+            for agent in active_agents
+        ],
+        "review": review_text,
+        "blockers": blockers,
+        "blocker_summary": blocker_text,
+        "decision_outline": outline,
     }
 
 
@@ -1541,7 +1772,17 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
             decision_flow=row["decision_flow"],
             outcome=row["outcome"],
         )
-        row["flow_summary"] = row["terminal_summary"] or row["outcome"] or row["latest_summary"]
+        row["agent_matrix"] = build_agent_matrix(row["agents"], row_timeline)
+        row["operator_summary"] = build_operator_summary(
+            visible_status=row["visible_status"],
+            agents=row["agents"],
+            decision_flow=row["decision_flow"],
+            final_review=row["final_review"],
+            consensus=row["consensus"],
+            mcp=row.get("mcp") or {},
+            terminal_summary=row["terminal_summary"],
+        )
+        row["flow_summary"] = row["operator_summary"].get("current_state") or row["terminal_summary"] or row["outcome"] or row["latest_summary"]
         if row["_structured_branches"]:
             row["branches"] = row["_structured_branches"]
             row["branch_source"] = "structured"
@@ -1624,6 +1865,44 @@ def build_health() -> dict[str, Any]:
         "status": "healthy",
         "service": "scion-ops-web-app",
         "generated_at": utc_now(),
+    }
+
+
+def safe_source_call(name: str, fn: Any) -> dict[str, Any]:
+    try:
+        payload = fn()
+    except Exception as exc:
+        return error_source(name, "runtime", str(exc))
+    if isinstance(payload, dict):
+        return payload
+    return error_source(name, "runtime", f"{name} returned {type(payload).__name__}")
+
+
+def build_overview(provider: RuntimeProvider | Any) -> dict[str, Any]:
+    generated_at = utc_now()
+    hub = normalize_hub(safe_source_call("hub", provider.hub_status))
+    messages = normalize_messages(safe_source_call("messages", provider.hub_messages))
+    notifications = normalize_notifications(safe_source_call("notifications", provider.hub_notifications))
+    agents = hub.get("agents", []) if hub.get("ok") else []
+    message_items = messages.get("items", []) if messages.get("ok") else []
+    notification_items = notifications.get("items", []) if notifications.get("ok") else []
+    rounds = build_rounds(agents, message_items, notification_items, provider=None)
+    latest = max([item.get("latest_update") or "" for item in rounds], default="")
+    source_states = [hub.get("status"), messages.get("status"), notifications.get("status")]
+    if all(state == "healthy" for state in source_states):
+        readiness = "ready"
+    elif any(source.get("ok") for source in (hub, messages, notifications)):
+        readiness = "degraded"
+    else:
+        readiness = "unavailable"
+    return {
+        "ok": any(source.get("ok") for source in (hub, messages, notifications)),
+        "generated_at": generated_at,
+        "readiness": readiness,
+        "active_round_count": len([item for item in rounds if item["status"] in {"running", "waiting", "blocked"}]),
+        "recent_round_count": len(rounds),
+        "agent_count": len(agents),
+        "latest_update": latest or generated_at,
     }
 
 
@@ -1769,6 +2048,16 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
         decision_flow=decision_flow,
         outcome=outcome,
     )
+    agent_matrix = build_agent_matrix(detail_agents, sorted_timeline)
+    operator_summary = build_operator_summary(
+        visible_status=visible_status,
+        agents=detail_agents,
+        decision_flow=decision_flow,
+        final_review=final_review,
+        consensus=consensus,
+        mcp=mcp,
+        terminal_summary=terminal_summary,
+    )
     return {
         "ok": bool(status.get("ok")) or bool(events.get("ok")),
         "round_id": round_id,
@@ -1776,6 +2065,8 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
         "events": events,
         "timeline": sorted_timeline,
         "decision_flow": decision_flow,
+        "operator_summary": operator_summary,
+        "agent_matrix": agent_matrix,
         "consensus": consensus,
         "terminal_summary": terminal_summary,
         "runner_output": runner_output,
@@ -1797,7 +2088,7 @@ INDEX_HTML = r"""<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>scion-ops hub</title>
+  <title>Holly Ops Drive</title>
   <style>
     :root { color-scheme: light; --bg:#f7f7f5; --panel:#ffffff; --text:#202225; --muted:#676b73; --line:#d8d9dc; --good:#217a3b; --warn:#a05a00; --bad:#b42318; --info:#1f5f99; }
     * { box-sizing: border-box; }
@@ -1816,8 +2107,8 @@ INDEX_HTML = r"""<!doctype html>
     .card, .table-wrap, .detail { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; }
     .status { display:inline-flex; align-items:center; gap:6px; font-weight:650; text-transform:capitalize; }
     .dot { width:9px; height:9px; border-radius:50%; background:var(--muted); display:inline-block; }
-    .ready .dot, .healthy .dot, .completed .dot, .accepted .dot, .connected .dot, .fallback-polling .dot { background:var(--good); }
-    .degraded .dot, .waiting .dot, .stale .dot, .observed .dot, .reconnecting .dot { background:var(--warn); }
+    .ready .dot, .healthy .dot, .completed .dot, .accepted .dot, .connected .dot { background:var(--good); }
+    .degraded .dot, .waiting .dot, .stale .dot, .observed .dot, .reconnecting .dot, .polling-fallback .dot, .fallback .dot { background:var(--warn); }
     .unavailable .dot, .blocked .dot, .error .dot, .changes-requested .dot, .failed .dot { background:var(--bad); }
     .running .dot { background:var(--info); }
     .muted { color:var(--muted); }
@@ -1845,6 +2136,11 @@ INDEX_HTML = r"""<!doctype html>
     .flow-event.accepted, .flow-event.ready, .flow-event.completed { border-left-color:var(--good); }
     .flow-strip { display:flex; flex-wrap:wrap; gap:6px; }
     .stage-pill { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line); border-radius:6px; padding:4px 6px; background:#fff; font-size:12px; }
+    .operator-summary { display:grid; gap:8px; }
+    .operator-headline { font-weight:650; color:#17324d; }
+    .decision-outline { display:grid; gap:6px; margin-top:8px; }
+    .decision-line { border-left:3px solid var(--info); padding-left:8px; }
+    .agent-matrix td, .agent-matrix th { font-size:13px; }
     .reason-box { border:1px solid #c9d7e6; background:#f4f8fc; color:#17324d; border-radius:6px; padding:10px; margin:8px 0; }
     .split { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr); gap:12px; }
     .error-box { border:1px solid #efb5b0; background:#fff7f6; color:#681a14; border-radius:6px; padding:10px; }
@@ -1853,7 +2149,7 @@ INDEX_HTML = r"""<!doctype html>
 </head>
 <body>
   <header>
-    <h1>scion-ops hub</h1>
+    <h1>Holly Ops Drive <span class="muted">HHD</span></h1>
     <nav>
       <button data-view="overview" class="active">Overview</button>
       <button data-view="rounds">Rounds</button>
@@ -1877,7 +2173,7 @@ INDEX_HTML = r"""<!doctype html>
       roundDetails: {},
       cursors: {},
       timelineKeys: {},
-      live: { state: "reconnecting", mode: "fallback", lastOk: "", error: "", source: "snapshot", cursor: "", roundId: "" },
+      live: { state: "reconnecting", mode: "fallback", lastOk: "", error: "", source: "snapshot", cursor: "", roundId: "", fallbackReason: "" },
       poll: { snapshot: null, detail: null, stale: null, reconnect: null },
       stream: null
     };
@@ -2019,10 +2315,21 @@ INDEX_HTML = r"""<!doctype html>
       const review = detail.final_review?.display || "";
       return { mode: harnesses.length > 1 ? "multi_harness" : "single_harness", harnesses, review, summary: `${harnesses.length > 1 ? "Multi-LLM" : "Single-harness"} flow across ${harnesses.map(item => item.harness).join(", ") || "unknown harness"}` };
     };
-    const renderFlowStrip = row => {
-      const flow = row.decision_flow || [];
-      return `<div class="flow-strip">${flow.map(stage => `<span class="stage-pill">${status(stage.status || "observed")}<span>${esc(stage.role || "role")}</span>${stage.harness_config ? `<span class="muted">${esc(stage.harness_config)}</span>` : ""}</span>`).join("")}</div><div class="muted">${esc(row.flow_summary || row.terminal_summary || row.latest_summary || "")}</div>`;
+    const renderDecisionOutline = summary => {
+      const outline = summary?.decision_outline || [];
+      return outline.length ? `<div class="decision-outline">${outline.slice(-4).map(item => `<div class="decision-line"><strong>${esc(item.role || "role")}</strong>${item.harness_config ? ` <span class="muted">${esc(item.harness_config)}</span>` : ""}<div><span class="muted">${esc(item.label || "Reported")}:</span> ${esc(item.summary || "")}</div></div>`).join("")}</div>` : "";
     };
+    const renderOperatorSummary = summary => {
+      if (!summary) return "";
+      const active = summary.active_agents || [];
+      return `<div class="operator-summary">
+        <div class="operator-headline">${esc(summary.headline || "")}</div>
+        <div>${esc(summary.current_state || "")}</div>
+        ${active.length ? `<div class="error-box">${esc(active.length)} active agent${active.length === 1 ? "" : "s"} need attention: ${esc(active.map(agent => `${agent.role || agent.name} ${agent.harness_config || ""} ${agent.activity || agent.phase || ""}`.trim()).join("; "))}</div>` : ""}
+        ${renderDecisionOutline(summary)}
+      </div>`;
+    };
+    const renderFlowStrip = row => renderOperatorSummary(row.operator_summary) || `<div class="muted">${esc(row.flow_summary || row.terminal_summary || row.latest_summary || "")}</div>`;
     const sourceErrorBanner = names => names
       .map(name => state.snapshot?.sources?.[name])
       .filter(source => source?.ok === false)
@@ -2035,19 +2342,21 @@ INDEX_HTML = r"""<!doctype html>
     }
     const captureScroll = () => ({ x: window.scrollX, y: window.scrollY });
     const restoreScroll = scroll => requestAnimationFrame(() => window.scrollTo(scroll.x, scroll.y));
-    const liveLabel = () => state.live.state === "fallback" ? "fallback polling" : state.live.state;
+    const liveLabel = () => state.live.state === "fallback" ? "Polling fallback" : state.live.state === "connected" ? "Push connected" : state.live.state;
     function updateLiveState(next) {
       state.live = { ...state.live, ...next };
       const fresh = state.live.lastOk ? `Last update ${fmt(state.live.lastOk)}` : "Waiting for first update";
       const context = state.live.roundId ? ` for ${state.live.roundId}` : "";
-      const detail = state.live.error ? `${state.live.source}: ${state.live.error}` : `${fresh} via ${state.live.mode}${context}`;
+      const fallback = state.live.state === "fallback" && state.live.fallbackReason ? state.live.fallbackReason : "";
+      const detail = state.live.error ? `${state.live.source}: ${state.live.error}` : `${fresh} via ${state.live.mode}${context}${fallback ? ` - ${fallback}` : ""}`;
       document.getElementById("refresh-state").innerHTML = `<div>${status(liveLabel())}</div><div class="muted">${esc(detail)}</div>`;
     }
     function markLiveOk(source) {
-      updateLiveState({ state: "fallback", mode: "fallback polling", lastOk: new Date().toISOString(), error: "", source });
+      const fallbackReason = state.live.fallbackReason || "Push stream is unavailable; using automatic polling.";
+      updateLiveState({ state: "fallback", mode: "fallback polling", lastOk: new Date().toISOString(), error: "", source, fallbackReason });
     }
     function markStreamOk(source) {
-      updateLiveState({ state: "connected", mode: "stream", lastOk: new Date().toISOString(), error: "", source });
+      updateLiveState({ state: "connected", mode: "stream", lastOk: new Date().toISOString(), error: "", source, fallbackReason: "" });
     }
     function markLiveError(source, err) {
       updateLiveState({ state: state.live.lastOk ? "reconnecting" : "failed", source, error: err.message || String(err) });
@@ -2239,7 +2548,7 @@ INDEX_HTML = r"""<!doctype html>
         state.poll.reconnect = null;
       }
       if (!("EventSource" in window)) {
-        updateLiveState({ state: "fallback", mode: "fallback polling", source: "snapshot", error: "" });
+        updateLiveState({ state: "fallback", mode: "fallback polling", source: "snapshot", error: "", fallbackReason: "Browser EventSource is unavailable; using automatic polling." });
         return;
       }
       try {
@@ -2248,7 +2557,7 @@ INDEX_HTML = r"""<!doctype html>
         if (state.selectedRound) params.set("round_id", state.selectedRound);
         params.set("format", "sse");
         const url = `/api/live?${params.toString()}`;
-        updateLiveState({ state: "reconnecting", mode: state.live.cursor ? "cursor resume" : "stream", source: "stream", error: "", roundId: state.selectedRound || "" });
+        updateLiveState({ state: "reconnecting", mode: state.live.cursor ? "cursor resume" : "stream", source: "stream", error: "", fallbackReason: "", roundId: state.selectedRound || "" });
         const stream = new EventSource(url);
         state.stream = stream;
         stream.onopen = () => markStreamOk("stream");
@@ -2266,11 +2575,11 @@ INDEX_HTML = r"""<!doctype html>
         stream.onerror = () => {
           stream.close();
           state.stream = null;
-          updateLiveState({ state: "fallback", mode: "fallback polling", source: "stream", error: "stream unavailable; using automatic polling" });
+          updateLiveState({ state: "fallback", mode: "fallback polling", source: "stream", error: "", fallbackReason: "Push stream unavailable; using automatic polling." });
           scheduleLiveReconnect();
         };
       } catch (err) {
-        updateLiveState({ state: "fallback", mode: "fallback polling", source: "stream", error: err.message || String(err) });
+        updateLiveState({ state: "fallback", mode: "fallback polling", source: "stream", error: "", fallbackReason: err.message || String(err) });
         scheduleLiveReconnect();
       }
     }
@@ -2306,8 +2615,8 @@ INDEX_HTML = r"""<!doctype html>
       const warnings = sourceErrorBanner(["messages", "notifications"]);
       document.getElementById("rounds").innerHTML = rows.length ? `
         ${warnings}
-        <div class="table-wrap"><table><thead><tr><th>Round</th><th>Status</th><th>Decision Flow</th><th>Latest</th><th>Outcome</th></tr></thead><tbody>
-        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}</td><td>${renderFlowStrip(row)}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td><td>${esc(row.terminal_summary || row.outcome || "")}${row.mcp?.blockers?.length ? `<div class="error-box">${esc(row.mcp.blockers.join("; "))}</div>` : ""}</td></tr>`).join("")}
+        <div class="table-wrap"><table><thead><tr><th>Round</th><th>State</th><th>Operator View</th><th>Last Signal</th></tr></thead><tbody>
+        ${rows.map(row => `<tr data-round="${esc(row.round_id)}"><td class="mono">${esc(row.round_id)}</td><td>${status(row.visible_status || row.status)}</td><td>${renderFlowStrip(row)}${row.mcp?.blockers?.length ? `<div class="error-box">${esc(row.mcp.blockers.join("; "))}</div>` : ""}</td><td>${fmt(row.latest_update)}<div class="muted">${esc(row.latest_summary)}</div></td></tr>`).join("")}
         </tbody></table></div>` : `${warnings}<div class="card"><strong>No rounds found</strong><div class="muted">Hub returned no round-identifiable agents, messages, or notifications.</div></div>`;
       document.querySelectorAll("[data-round]").forEach(row => row.onclick = () => openRound(row.dataset.round));
     }
@@ -2358,11 +2667,18 @@ INDEX_HTML = r"""<!doctype html>
         ${consensus.review ? `<div class="muted">Review: ${esc(consensus.review)}</div>` : ""}
         ${consensus.review_summary ? `<div class="muted">${esc(consensus.review_summary)}</div>` : ""}`;
     }
+    function renderAgentMatrix(detail) {
+      const rows = detail.agent_matrix || [];
+      if (!rows.length) return `<div class="muted">No agents found.</div>`;
+      return `<div class="table-wrap"><table class="agent-matrix"><thead><tr><th>Role</th><th>LLM/Harness</th><th>State</th><th>Last Action</th><th>Branch</th></tr></thead><tbody>
+        ${rows.map(agent => `<tr><td><strong>${esc(agent.role || "agent")}</strong><div class="muted">${esc(agent.template || "")}</div></td><td>${esc(agent.harness_config || "unknown")}</td><td>${status(agent.status || "unknown")}<div class="muted">${esc([agent.phase, agent.activity].filter(Boolean).join(" / "))}</div></td><td>${esc(agent.last_action || "")}<div class="muted">${fmt(agent.last_update)}</div></td><td class="mono">${esc(agent.branch || "")}</td></tr>`).join("")}
+      </tbody></table></div>`;
+    }
     function renderDecisionFlow(detail) {
-      const flow = buildDecisionFlow(detail);
-      const reason = terminalSummary(detail, flow);
+      const flow = detail.decision_flow?.length ? detail.decision_flow : buildDecisionFlow(detail);
+      const reason = detail.operator_summary?.current_state || terminalSummary(detail, flow);
       const stageHtml = flow.map(stage => {
-        const events = (stage.events || []).slice(-4);
+        const events = (stage.key_events || stage.events || []).slice(-4);
         return `<div class="flow-stage">
           <div class="flow-head">
             <div class="flow-title">
@@ -2388,12 +2704,12 @@ INDEX_HTML = r"""<!doctype html>
       const review = detail.final_review || {};
       const timelineItem = item => `<div class="item"><div>${status(item.type)}</div><div class="muted">${fmt(item.time)}</div><div>${esc(item.summary)}</div><div class="meta">${meta("agent", item.agent_name || item.actor)}${meta("role", item.role)}${meta("template", item.template)}${meta("harness", item.harness_config)}${meta("phase", item.phase)}${meta("activity", item.activity)}</div></div>`;
       const agentCard = agent => `<div class="agent-card"><div class="agent-head"><strong>${esc(agent.name || agent.slug)}</strong>${status(agent.status || agent.phase || "unknown")}</div><div class="meta">${meta("role", agent.role)}${meta("template", agent.template)}${meta("harness", agent.harness_config)}${meta("phase", agent.phase)}${meta("activity", agent.activity)}</div><div class="muted">${esc(agent.taskSummary || agent.activity || "")}</div></div>`;
-      const flow = buildDecisionFlow(detail);
+      const flow = detail.decision_flow?.length ? detail.decision_flow : buildDecisionFlow(detail);
       document.getElementById("round-detail").innerHTML = `
         <div class="bar"><button id="back-rounds">Back to rounds</button></div>
         <div class="split">
-          <div class="detail"><h2 class="mono">${esc(roundId)}</h2><div>${status(detail.visible_status || detail.status.status || "unknown")}</div>${renderDecisionFlow(detail)}<h3>Timeline</h3><div class="timeline">${detail.timeline.length ? detail.timeline.map(timelineItem).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></div>
-          <div class="detail">${renderConsensus(detail, flow)}<h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}${mcpBlock(detail.mcp)}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Agents</h3>${agents.length ? `<div class="agent-grid">${agents.map(agentCard).join("")}</div>` : `<div class="muted">No agents found.</div>`}<h3>Coordinator Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No coordinator output available.")}</div>`}</div>
+          <div class="detail"><h2 class="mono">${esc(roundId)}</h2><div>${status(detail.visible_status || detail.status.status || "unknown")}</div><h3>Operator Summary</h3><div class="reason-box">${renderOperatorSummary(detail.operator_summary)}</div>${renderDecisionFlow(detail)}<details><summary>Raw Timeline</summary><div class="timeline">${detail.timeline.length ? detail.timeline.map(timelineItem).join("") : `<div class="muted">No messages or notifications for this round.</div>`}</div></details></div>
+          <div class="detail">${renderConsensus(detail, flow)}<h3>Final Review</h3>${review.display ? `<div>${status(review.display)}</div><div class="muted">${esc(review.source || "")}${review.summary ? ` - ${esc(review.summary)}` : ""}</div>` : `<div class="muted">No final review available.</div>`}${mcpBlock(detail.mcp)}<h3>Agent Matrix</h3>${renderAgentMatrix(detail)}<h3>Branches</h3>${detail.branches?.length ? detail.branches.map(branch => `<div class="mono">${esc(branch)}</div>`).join("") + (detail.branch_source ? `<div class="muted">${esc(detail.branch_source)}</div>` : "") : `<div class="muted">No branch references available.</div>`}<h3>Coordinator Output</h3>${detail.runner_output ? `<pre class="mono">${esc(detail.runner_output)}</pre>` : `<div class="muted">${esc(detail.runner_output_error || "No coordinator output available.")}</div>`}</div>
         </div>`;
       document.getElementById("back-rounds").onclick = () => setView("rounds");
     }
@@ -2464,7 +2780,7 @@ def nicegui_console_fragment() -> str:
 
 def build_nicegui_console_components(ui: Any) -> None:
     with ui.header():
-        ui.label("scion-ops hub").classes("text-h6")
+        ui.label("Holly Ops Drive").classes("text-h6")
         with ui.element("nav"):
             ui.button("Overview").props('data-view="overview"').classes("active")
             ui.button("Rounds").props('data-view="rounds"')
@@ -2496,7 +2812,7 @@ async def live_sse_stream(provider: Any, *, cursor: str = "", round_id: str = ""
     deadline = time.monotonic() + max(1, min(seconds, 60))
     current_cursor = cursor
     while time.monotonic() <= deadline:
-        batch = build_live_update_batch(provider, cursor=current_cursor, round_id=round_id)
+        batch = await asyncio.to_thread(build_live_update_batch, provider, cursor=current_cursor, round_id=round_id)
         current_cursor = batch["cursor"]
         for event in batch["events"]:
             yield sse_frame(event)
@@ -2524,7 +2840,7 @@ def configure_api_routes(fastapi_app: Any, provider: RuntimeProvider | Any) -> N
 
     @fastapi_app.get("/api/snapshot")
     async def snapshot() -> Any:
-        return json_response(build_snapshot(current_provider()))
+        return json_response(await asyncio.to_thread(build_snapshot, current_provider()))
 
     @fastapi_app.get("/api/contract")
     async def contract() -> Any:
@@ -2541,31 +2857,36 @@ def configure_api_routes(fastapi_app: Any, provider: RuntimeProvider | Any) -> N
                 media_type="text/event-stream",
                 headers={"Cache-Control": "no-store", "Connection": "keep-alive"},
             )
-        return json_response(build_live_update_batch(current_provider(), cursor=cursor, round_id=round_id))
+        return json_response(await asyncio.to_thread(build_live_update_batch, current_provider(), cursor=cursor, round_id=round_id))
 
     @fastapi_app.get("/api/overview")
     async def overview() -> Any:
-        return json_response(build_snapshot(current_provider())["overview"])
+        return json_response(await asyncio.to_thread(build_overview, current_provider()))
 
     @fastapi_app.get("/api/rounds")
     async def rounds() -> Any:
-        return json_response({"rounds": build_snapshot(current_provider())["rounds"]})
+        snapshot_payload = await asyncio.to_thread(build_snapshot, current_provider())
+        return json_response({"rounds": snapshot_payload["rounds"]})
 
     @fastapi_app.get("/api/rounds/{round_id}/events")
     async def round_events(round_id: str, cursor: str = "") -> Any:
-        return json_response(current_provider().round_events(round_id, cursor=cursor, include_existing=False))
+        return json_response(
+            await asyncio.to_thread(current_provider().round_events, round_id, cursor=cursor, include_existing=False)
+        )
 
     @fastapi_app.get("/api/rounds/{round_id}")
     async def round_detail(round_id: str) -> Any:
-        return json_response(build_round_detail(current_provider(), round_id))
+        return json_response(await asyncio.to_thread(build_round_detail, current_provider(), round_id))
 
     @fastapi_app.get("/api/inbox")
     async def inbox() -> Any:
-        return json_response({"inbox": build_snapshot(current_provider())["inbox"]})
+        snapshot_payload = await asyncio.to_thread(build_snapshot, current_provider())
+        return json_response({"inbox": snapshot_payload["inbox"]})
 
     @fastapi_app.get("/api/runtime")
     async def runtime() -> Any:
-        return json_response({"sources": build_snapshot(current_provider())["sources"]})
+        snapshot_payload = await asyncio.to_thread(build_snapshot, current_provider())
+        return json_response({"sources": snapshot_payload["sources"]})
 
 
 def configure_nicegui_app(provider: RuntimeProvider | Any | None = None) -> Any:
@@ -2580,7 +2901,7 @@ def configure_nicegui_app(provider: RuntimeProvider | Any | None = None) -> Any:
 
     @ui.page("/")
     def index() -> None:
-        ui.page_title("scion-ops operator console")
+        ui.page_title("Holly Ops Drive")
         ui.add_head_html(nicegui_console_style())
         build_nicegui_console_components(ui)
         ui.timer(0.1, lambda: ui.run_javascript(nicegui_console_script()), once=True)
@@ -2617,7 +2938,7 @@ class HubRequestHandler(BaseHTTPRequestHandler):
                 else:
                     self.respond_json(build_live_update_batch(self.provider, cursor=cursor, round_id=round_id))
             elif path == "/api/overview":
-                self.respond_json(build_snapshot(self.provider)["overview"])
+                self.respond_json(build_overview(self.provider))
             elif path == "/api/rounds":
                 self.respond_json({"rounds": build_snapshot(self.provider)["rounds"]})
             elif path.startswith("/api/rounds/") and path.endswith("/events"):
@@ -2709,9 +3030,9 @@ def serve(host: str, port: int) -> None:
     from nicegui import ui
 
     configure_nicegui_app(RuntimeProvider())
-    print(f"scion-ops NiceGUI operator console listening on http://{host}:{port}")
+    print(f"Holly Ops Drive NiceGUI operator console listening on http://{host}:{port}")
     try:
-        ui.run(host=host, port=port, reload=False, show=False, title="scion-ops operator console")
+        ui.run(host=host, port=port, reload=False, show=False, title="Holly Ops Drive")
     except KeyboardInterrupt:
         pass
 

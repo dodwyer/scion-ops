@@ -262,6 +262,29 @@ def test_healthy_snapshot_is_ready():
     assert row["harnesses"] == ["claude", "codex-exec"]
     assert "clarifier" in row["roles"]
     assert "spec steward" in row["roles"]
+    assert row["operator_summary"]["headline"].startswith("Accepted | multi-LLM")
+    assert row["operator_summary"]["agent_counts"]["total"] == 3
+    assert row["operator_summary"]["decision_outline"]
+    assert row["agent_matrix"][0]["branch"].startswith("round-20260509t063201z-6c02")
+
+
+def test_overview_uses_lightweight_sources_without_round_enrichment():
+    class OverviewProvider(FixtureProvider):
+        def kubernetes_status(self):
+            raise AssertionError("overview should not shell out to Kubernetes")
+
+        def round_status(self, round_id):
+            raise AssertionError("overview should not fetch per-round status")
+
+        def round_artifacts(self, round_id):
+            raise AssertionError("overview should not fetch per-round artifacts")
+
+    overview = web_app_hub.build_overview(OverviewProvider())
+    assert overview["ok"] is True
+    assert overview["readiness"] == "ready"
+    assert overview["active_round_count"] == 1
+    assert overview["recent_round_count"] == 1
+    assert overview["agent_count"] == 3
 
 
 def test_round_detail_timeline_and_agents_expose_multi_llm_context():
@@ -282,11 +305,18 @@ def test_round_detail_timeline_and_agents_expose_multi_llm_context():
     assert detail["consensus"]["mode"] == "multi_harness"
     assert "claude" in {item["harness"] for item in detail["consensus"]["harnesses"]}
     assert detail["terminal_summary"].startswith("Completed:")
+    assert detail["operator_summary"]["headline"].startswith("Completed | multi-LLM")
+    assert detail["agent_matrix"][0]["last_action"]
+    assert detail["decision_flow"][1]["key_events"]
     assert "harness_config" in web_app_hub.BROWSER_JSON_CONTRACT["round"]["agents"]
     assert "decision_flow" in web_app_hub.BROWSER_JSON_CONTRACT["round"]
+    assert "operator_summary" in web_app_hub.BROWSER_JSON_CONTRACT["round"]
+    assert "agent_matrix" in web_app_hub.BROWSER_JSON_CONTRACT["round"]
     assert "terminal_summary" in web_app_hub.BROWSER_JSON_CONTRACT["round"]
     assert "Decision Flow" in web_app_hub.INDEX_HTML
     assert "Consensus" in web_app_hub.INDEX_HTML
+    assert "Agent Matrix" in web_app_hub.INDEX_HTML
+    assert "Operator Summary" in web_app_hub.INDEX_HTML
     assert "harness" in web_app_hub.INDEX_HTML
     assert "agentCard" in web_app_hub.INDEX_HTML
 
@@ -823,6 +853,9 @@ def test_frontend_live_update_contract_markers_are_present():
     assert "markStreamOk" in html
     assert "checkStaleness" in html
     assert "fallback polling" in html
+    assert "Polling fallback" in html
+    assert "Push stream unavailable" in html
+    assert "Holly Ops Drive" in html
     assert "Refresh snapshot" not in html
     assert "Troubleshooting snapshot refresh" not in html
     assert "Refresh timeline snapshot" not in html
