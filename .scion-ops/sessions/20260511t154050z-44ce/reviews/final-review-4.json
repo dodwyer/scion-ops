@@ -1,0 +1,36 @@
+{
+  "review_type": "final",
+  "scores": {
+    "correctness": 2,
+    "completeness": 3,
+    "style": 4
+  },
+  "verdict": "request_changes",
+  "blocking_issues": [
+    "Reconnect snapshot recovery is not actually applied by the browser. The backend emits an unknown-cursor recovery as a snapshot_ready event with payload.snapshot in new-ui-evaluation/adapter.py:754, but applyLiveEvent returns immediately for every snapshot_ready event in new-ui-evaluation/src/api.ts:90. After a rejected or missing cursor, the UI advances its cursor/connection status while continuing to display the stale pre-reconnect data, so the OpenSpec requirement to request and apply a safe read-only snapshot when resume is unavailable is not satisfied."
+  ],
+  "final_failure_classification": "implementation_defect",
+  "final_failure_evidence": "Static review shows snapshot_replacement_event includes the replacement snapshot, while the frontend reducer ignores all snapshot_ready payloads. Existing tests assert only that the SSE response contains the recovery snapshot, not that applyLiveEvent installs it. Verification run: python3 -m unittest tests/test_adapter.py from new-ui-evaluation passed 7 tests; npm test passed 9 tests; npm run build passed.",
+  "nits": [],
+  "spec": {
+    "change": "wire-new-ui-1",
+    "conformance": 2,
+    "spec_completeness": 4,
+    "task_coverage": 3,
+    "operational_verification": 3,
+    "checked_artifacts": [
+      "openspec/changes/wire-new-ui-1/specs/new-ui-evaluation/spec.md",
+      "openspec/changes/wire-new-ui-1/tasks.md",
+      "new-ui-evaluation/adapter.py",
+      "new-ui-evaluation/src/api.ts",
+      "new-ui-evaluation/src/App.tsx",
+      "new-ui-evaluation/src/__tests__/fixtures.test.tsx",
+      "new-ui-evaluation/tests/test_adapter.py"
+    ],
+    "unresolved_questions": [],
+    "gaps": [
+      "No frontend test covers snapshot_ready recovery replacing PreviewData from payload.snapshot after an unknown or expired cursor."
+    ]
+  },
+  "summary": "Final review rejects the latest repaired integration commit 7ced23e. Known-cursor replay is implemented on the backend and covered by adapter tests, but safe snapshot recovery remains incomplete because the client ignores the replacement snapshot carried by the recovery event. Automated adapter, frontend, and build checks pass, but they do not exercise this browser recovery path."
+}
