@@ -7,6 +7,7 @@
     "notes": "Representative, read-only examples for evaluation only. These records are not live scion-ops state."
   },
   "overview": {
+    "mocked": true,
     "controlPlane": "evaluation-preview",
     "summary": "Fixture-backed operator console preview",
     "readiness": "degraded",
@@ -224,7 +225,7 @@
       { "name": "Adapter", "kind": "preview-service", "status": "healthy", "detail": "Serving local static files and fixtures", "lastSeen": "2026-05-11T12:54:00Z" }
     ],
     "previewService": {
-      "name": "new-ui-evaluation",
+      "name": "scion-ops-new-ui-eval",
       "port": 8091,
       "healthPath": "/healthz",
       "fixtureOnly": true,

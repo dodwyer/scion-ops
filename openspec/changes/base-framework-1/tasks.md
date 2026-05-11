@@ -10,4 +10,4 @@
 - [x] 1.8 Document how operators start, reach, and evaluate the preview alongside the current UI.
 - [x] 1.9 Add focused checks for TypeScript types, frontend build, adapter mocked endpoints, fixture contract shape, and preview health.
 - [x] 1.10 Add coexistence checks proving the existing UI deployment, service, port, and health behavior remain unchanged.
-- [ ] 1.11 Run OpenSpec validation and the relevant no-spend static, unit, and manifest checks.
+- [x] 1.11 Run OpenSpec validation and the relevant no-spend static, unit, and manifest checks.

@@ -23,6 +23,7 @@ export interface FixtureProvenance {
 }
 
 export interface OverviewPayload {
+  mocked: true;
   controlPlane: string;
   summary: string;
   readiness: Status;

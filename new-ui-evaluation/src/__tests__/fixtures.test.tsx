@@ -16,6 +16,7 @@ function jsonResponse(body: unknown, status = 200) {
 describe("preview fixture contract", () => {
   it("keeps the UI data mocked and read-only", () => {
     expect(typedFixtures.mocked).toBe(true);
+    expect(typedFixtures.overview.mocked).toBe(true);
     expect(typedFixtures.runtime.previewService.fixtureOnly).toBe(true);
     expect(typedFixtures.runtime.previewService.liveReadsAllowed).toBe(false);
     expect(typedFixtures.runtime.previewService.mutationsAllowed).toBe(false);

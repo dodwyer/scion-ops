@@ -41,7 +41,7 @@ vars:
   SCION_OPS_NEW_UI_EVAL_URL:
     sh: printf 'http://%s:%s' "${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}" "${SCION_OPS_NEW_UI_EVAL_PORT:-8880}"
   SCION_OPS_NEW_UI_EVAL_IMAGE:
-    sh: printf '%s' "${SCION_OPS_NEW_UI_EVAL_IMAGE:-localhost/scion-new-ui-evaluation:latest}"
+    sh: printf '%s' "${SCION_OPS_NEW_UI_EVAL_IMAGE:-localhost/scion-ops-new-ui-eval:latest}"
   HOME:
     sh: echo "$HOME"
   GOPATH:
@@ -84,11 +84,12 @@ tasks:
     cmds:
       - task: kind:up
       - task: kind:workspace:status
-      - task kind:load-images -- localhost/scion-base:latest localhost/scion-ops-mcp:latest localhost/scion-claude:latest localhost/scion-codex:latest localhost/scion-gemini:latest
+      - task kind:load-images -- localhost/scion-base:latest localhost/scion-ops-mcp:latest localhost/scion-claude:latest localhost/scion-codex:latest localhost/scion-gemini:latest '{{.SCION_OPS_NEW_UI_EVAL_IMAGE}}'
       - task: kind:control-plane:apply
       - task: kind:control-plane:restart
       - task: kind:control-plane:status
       - task: kind:web-app:status
+      - task: kind:new-ui-eval:status
 
   test:
     desc: Smoke test the Kubernetes-hosted Hub, broker, MCP, and agent runtime.
@@ -189,7 +190,7 @@ tasks:
     desc: Reload the new UI evaluation image and restart its preview deployment.
     cmds:
       - task kind:load-images -- '{{.SCION_OPS_NEW_UI_EVAL_IMAGE}}'
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-new-ui-evaluation
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-ops-new-ui-eval
       - task: kind:new-ui-eval:status
 
   load:image:
@@ -287,6 +288,8 @@ tasks:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-mcp --timeout=120s
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-ops-web-app
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-web-app --timeout=120s
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-ops-new-ui-eval
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-new-ui-eval --timeout=120s
 
   kind:control-plane:status:
     cmds:
@@ -294,6 +297,7 @@ tasks:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-broker --timeout=120s
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-mcp --timeout=120s
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-web-app --timeout=120s
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-new-ui-eval --timeout=120s
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' get deploy,svc,pvc,cm -l app.kubernetes.io/part-of=scion-control-plane
 
   kind:control-plane:logs:
@@ -310,6 +314,7 @@ tasks:
         SCION_OPS_KIND_HUB_URL='{{.SCION_OPS_KIND_HUB_URL}}' \
         SCION_OPS_MCP_URL='{{.SCION_OPS_MCP_URL}}' \
         SCION_OPS_WEB_APP_URL='{{.SCION_OPS_WEB_APP_URL}}' \
+        SCION_OPS_NEW_UI_EVAL_URL='{{.SCION_OPS_NEW_UI_EVAL_URL}}' \
         uv run scripts/kind-control-plane-smoke.py {{.CLI_ARGS}}
 
   kind:control-plane:delete:
@@ -382,20 +387,20 @@ tasks:
   kind:new-ui-eval:restart:
     desc: Restart the new UI evaluation preview deployment.
     cmds:
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-new-ui-evaluation
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-ops-new-ui-eval
       - task: kind:new-ui-eval:status
 
   kind:new-ui-eval:status:
     desc: Show rollout and service status for the new UI evaluation preview.
     cmds:
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-new-ui-evaluation --timeout=120s
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' get deploy,svc -l app.kubernetes.io/name=scion-new-ui-evaluation
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-new-ui-eval --timeout=120s
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' get deploy,svc -l app.kubernetes.io/name=scion-ops-new-ui-eval
       - "printf 'New UI evaluation preview URL: %s\\n' '{{.SCION_OPS_NEW_UI_EVAL_URL}}'"
 
   kind:new-ui-eval:logs:
     desc: Follow logs for the new UI evaluation preview.
     cmds:
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' logs -f deploy/scion-new-ui-evaluation
+      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' logs -f deploy/scion-ops-new-ui-eval
 
   kind:new-ui-eval:smoke:
     desc: Smoke test the new UI evaluation preview health and mocked overview endpoints.
@@ -419,8 +424,8 @@ tasks:
                         payload = json.loads(body)
                     except json.JSONDecodeError as exc:
                         raise SystemExit(f"{url} did not return JSON: {exc}") from exc
-                    if payload.get("mocked") is not True and payload.get("data", {}).get("mocked") is not True:
-                        print(f"warning: {url} did not expose an explicit mocked=true marker", file=sys.stderr)
+                    if payload.get("mocked") is not True:
+                        raise SystemExit(f"{url} did not expose an explicit mocked=true marker")
                 print(f"ok {url}")
         PY
 
