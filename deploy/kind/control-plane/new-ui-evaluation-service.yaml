@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: scion-ops-new-ui-eval
+  labels:
+    app.kubernetes.io/name: scion-ops-new-ui-eval
+    app.kubernetes.io/component: new-ui-eval
+spec:
+  type: NodePort
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30880
+      name: http
+  selector:
+    app.kubernetes.io/name: scion-ops-new-ui-eval
