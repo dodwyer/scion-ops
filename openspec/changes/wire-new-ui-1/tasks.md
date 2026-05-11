@@ -12,3 +12,4 @@
 - [x] Add coexistence checks proving the existing UI deployment, service, port, routes, health checks, lifecycle, and operator access path remain unchanged.
 - [x] Repair live snapshot source health so Hub and MCP readiness comes from read-only operational API/probe results, with local metadata labeled only as fallback.
 - [x] Repair the SSE backend so source changes emit typed incremental events for rounds, timelines, inbox, runtime health, diagnostics, source status, stale state, and fallback state.
+- [x] Repair SSE reconnect cursor handling so known cursors replay missed typed events and unknown cursors emit explicit snapshot replacement recovery.

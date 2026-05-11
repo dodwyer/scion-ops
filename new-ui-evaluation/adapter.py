@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 from datetime import UTC, datetime
 from http import HTTPStatus
@@ -30,6 +31,7 @@ LIVE_SCHEMA_VERSION = "new-ui-evaluation.live.v1"
 EVENT_SCHEMA_VERSION = "new-ui-evaluation.event.v1"
 FIXTURE_SCHEMA_VERSION = "new-ui-evaluation.fixture.v1"
 READ_ONLY_COMMAND_TIMEOUT_SECONDS = 2
+SNAPSHOT_HISTORY_LIMIT = 8
 ROUND_ID_RE = re.compile(r"(?:round-)?(?P<id>\d{8}t\d{6}z-[a-z0-9]+)", re.IGNORECASE)
 
 Mode = Literal["live", "fixture"]
@@ -749,6 +751,22 @@ def event_batch(snapshot: dict[str, Any], *, cursor: str = "") -> dict[str, Any]
     return {"cursor": snapshot["cursor"], "events": events}
 
 
+def snapshot_replacement_event(snapshot: dict[str, Any], *, requested_cursor: str) -> dict[str, Any]:
+    return build_event(
+        "snapshot_ready",
+        "Adapter",
+        {
+            "status": "snapshot_recovery",
+            "reason": "requested cursor is no longer available for incremental replay",
+            "requestedCursor": requested_cursor,
+            "snapshotCursor": snapshot["cursor"],
+            "schemaVersion": snapshot["schemaVersion"],
+            "snapshot": snapshot,
+        },
+        cursor=snapshot["cursor"],
+    )
+
+
 def _items_by_id(items: list[dict[str, Any]], key: str = "id") -> dict[str, dict[str, Any]]:
     return {str(item.get(key)): item for item in items if isinstance(item, dict) and item.get(key)}
 
@@ -870,6 +888,28 @@ class PreviewHandler(BaseHTTPRequestHandler):
             return fixture_snapshot(self.fixture_path)
         return self.aggregator.build_snapshot()
 
+    def _remember_snapshot(self, snapshot: dict[str, Any]) -> None:
+        cursor = snapshot.get("cursor")
+        if not isinstance(cursor, str) or not cursor:
+            return
+        with self.server.snapshot_history_lock:  # type: ignore[attr-defined]
+            history = self.server.snapshot_history  # type: ignore[attr-defined]
+            if cursor in history:
+                history.pop(cursor)
+            history[cursor] = snapshot
+            while len(history) > SNAPSHOT_HISTORY_LIMIT:
+                oldest_cursor = next(iter(history))
+                history.pop(oldest_cursor)
+
+    def _reconnect_events(self, requested_cursor: str, snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+        if not requested_cursor or requested_cursor == snapshot.get("cursor"):
+            return []
+        with self.server.snapshot_history_lock:  # type: ignore[attr-defined]
+            previous_snapshot = self.server.snapshot_history.get(requested_cursor)  # type: ignore[attr-defined]
+        if previous_snapshot is None:
+            return [snapshot_replacement_event(snapshot, requested_cursor=requested_cursor)]
+        return incremental_events(previous_snapshot, snapshot)
+
     def _handle_read(self, head_only: bool = False) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
@@ -913,8 +953,12 @@ class PreviewHandler(BaseHTTPRequestHandler):
         if self.mode != "live":
             self._json({"error": "event stream is only available in live mode", "sourceMode": self.mode}, status=HTTPStatus.CONFLICT, head_only=head_only)
             return
+        requested_cursor = query.get("cursor", [""])[0]
         snapshot = self.snapshot()
-        batch = event_batch(snapshot, cursor=query.get("cursor", [""])[0])
+        reconnect_events = self._reconnect_events(requested_cursor, snapshot)
+        self._remember_snapshot(snapshot)
+        batch = event_batch(snapshot, cursor=requested_cursor)
+        batch["events"].extend(reconnect_events)
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -1008,6 +1052,8 @@ def build_server(host: str, port: int, static_root: Path, fixture_path: Path, *,
     server.static_root = static_root  # type: ignore[attr-defined]
     server.fixture_path = fixture_path  # type: ignore[attr-defined]
     server.aggregator = LiveSourceAggregator(project_root)  # type: ignore[attr-defined]
+    server.snapshot_history = {}  # type: ignore[attr-defined]
+    server.snapshot_history_lock = threading.Lock()  # type: ignore[attr-defined]
     return server
 
 
