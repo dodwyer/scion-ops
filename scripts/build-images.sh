@@ -179,9 +179,9 @@ if [[ "$BUILD_MCP" == "1" ]]; then
 fi
 
 if [[ "$BUILD_NEW_UI_EVAL" == "1" ]]; then
-  NEW_UI_EVAL_CONTEXT="$REPO_ROOT/new-ui-evaluation"
-  if [[ ! -d "$NEW_UI_EVAL_CONTEXT" ]]; then
-    red "new-ui-evaluation directory not found at $NEW_UI_EVAL_CONTEXT; skipping scion-ops-new-ui-eval build"
+  NEW_UI_EVAL_CONTEXT="$REPO_ROOT"
+  if [[ ! -d "$REPO_ROOT/new-ui-evaluation" ]]; then
+    red "new-ui-evaluation directory not found at $REPO_ROOT/new-ui-evaluation; skipping scion-ops-new-ui-eval build"
     red "Run the frontend scaffold (Group A) before building this image."
   else
     build "scion-ops-new-ui-eval" \
