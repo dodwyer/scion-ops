@@ -49,6 +49,7 @@ BROWSER_JSON_CONTRACT = {
     "snapshot": {
         "readiness": "ready|degraded|unavailable",
         "sources": ["hub", "broker", "mcp", "web_app", "kubernetes", "messages", "notifications"],
+        "overview": "concise operator overview with readiness_strip, priority_attention, recent_activity, and source_health",
         "rounds": "array of read-only round summaries",
         "inbox": "messages and notifications grouped by round_id",
     },
@@ -75,6 +76,7 @@ BROWSER_JSON_CONTRACT = {
         "agent_matrix": "per-agent role, harness/LLM, runtime state, branch, and last meaningful action",
         "consensus": "multi-harness role participation and review/steward summary",
         "terminal_summary": "operator-facing current/terminal explanation, including blockers or stall context when available",
+        "timeline": "backward-compatible rows with normalized entry_id, sequence, timestamp, agent, action, handoff, reason_for_handoff, status, source, and detail fields",
     },
     "live_updates": {
         "endpoint": "/api/live?cursor=<last_cursor>&round_id=<optional-round>",
@@ -182,6 +184,46 @@ MCP_PROGRESS_KEYS = {
     "project_root",
     "base_branch",
 }
+ACTION_FIELD_NAMES = (
+    "action",
+    "current_action",
+    "operation",
+    "event",
+    "step",
+    "task",
+    "task_summary",
+    "taskSummary",
+    "label",
+)
+HANDOFF_FIELD_NAMES = (
+    "handoff",
+    "handoff_to",
+    "handoffTarget",
+    "handoff_target",
+    "target",
+    "target_agent",
+    "destination",
+    "recipient",
+    "receiver",
+    "reviewer",
+    "coordinator",
+    "assigned_to",
+    "owner",
+    "to",
+)
+REASON_FIELD_NAMES = (
+    "reason_for_handoff",
+    "reasonForHandoff",
+    "handoff_reason",
+    "handoffReason",
+    "reason",
+    "why",
+    "blocker",
+    "blocking_reason",
+    "summary",
+    "notes",
+)
+STATUS_FIELD_NAMES = ("status", "state", "phase", "activity", "outcome", "verdict")
 
 
 def utc_now() -> str:
@@ -250,6 +292,47 @@ def as_string_list(value: Any) -> list[str]:
     if str(value or "").strip():
         return [str(value)]
     return []
+
+
+def first_text(*values: Any, limit: int = 180) -> str:
+    for value in values:
+        if isinstance(value, (dict, list)):
+            continue
+        text = short_text(value, limit)
+        if text:
+            return text
+    return ""
+
+
+def first_structured_text(data: dict[str, Any], keys: tuple[str, ...], *, limit: int = 180) -> str:
+    for key in keys:
+        if key in data:
+            text = first_text(data.get(key), limit=limit)
+            if text:
+                return text
+    return ""
+
+
+def timeline_payload(item: dict[str, Any]) -> dict[str, Any]:
+    return parse_json_object(item.get("msg") or item.get("message") or item.get("summary"))
+
+
+def normalize_timeline_status(*values: Any) -> str:
+    text = " ".join(str(value or "") for value in values).lower()
+    verdict = normalize_final_verdict(text)
+    if verdict == "accept":
+        return "completed"
+    if verdict in {"request_changes", "blocked"}:
+        return "blocked"
+    if any(token in text for token in ("blocked", "failed", "failure", "error", "changes requested", "request_changes")):
+        return "blocked" if "changes" not in text else "changes requested"
+    if any(token in text for token in ("complete", "completed", "task_completed", "succeeded", "accepted", "approved")):
+        return "completed"
+    if any(token in text for token in ("running", "working", "active", "started")):
+        return "running"
+    if any(token in text for token in ("waiting", "pending", "queued", "stalled", "idle")):
+        return "waiting"
+    return "unknown"
 
 
 def merge_unique_strings(values: list[str], additions: Any) -> None:
@@ -1119,12 +1202,13 @@ def stable_digest(value: Any) -> str:
     return hashlib.sha256(data).hexdigest()[:16]
 
 
-def stable_source_id(kind: str, item: dict[str, Any], *, round_id: str = "") -> str:
+def stable_source_id(kind: str, item: dict[str, Any], *, round_id: str = "", sequence: int | None = None) -> str:
     source_id = item.get("id") or item.get("source_id") or item.get("messageId") or item.get("notificationId")
     if source_id:
         return f"{kind}:{source_id}"
     fallback = {
         "round_id": round_id,
+        "sequence": sequence,
         "time": event_time(item),
         "actor": item.get("agentId") or item.get("sender") or item.get("senderId") or item.get("name") or "",
         "summary": short_text(item.get("msg") or item.get("message") or item.get("summary") or item.get("taskSummary") or item.get("activity"), 360),
@@ -1210,31 +1294,179 @@ def source_error_events(snapshot: dict[str, Any], *, cursor: str) -> list[dict[s
     return events
 
 
-def timeline_entry(event: dict[str, Any], *, round_id: str, agents_by_actor: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
+def timeline_entry(event: dict[str, Any], *, round_id: str, agents_by_actor: dict[str, dict[str, Any]] | None = None, sequence: int = 0) -> dict[str, Any]:
     item = event.get("message") or event.get("notification") or event.get("agent") or {}
     if not isinstance(item, dict):
         item = {}
     entry_type = str(event.get("type") or "event")
-    source_id = stable_source_id(entry_type, item, round_id=round_id)
+    source_id = stable_source_id(entry_type, item, round_id=round_id, sequence=sequence)
     actor = str(item.get("agentId") or item.get("sender") or item.get("senderId") or item.get("name") or item.get("slug") or "")
     lookup = agents_by_actor or {}
     agent = lookup.get(actor) or lookup.get(actor.removeprefix("agent:")) or {}
     if not agent and (item.get("template") or item.get("name") or item.get("slug")):
         agent = normalize_agent(item)
+    payload = timeline_payload(item)
+    sources = [payload, item, event]
+    summary = short_text(item.get("msg") or item.get("message") or item.get("summary") or item.get("taskSummary") or item.get("activity"), 360)
+    action = next((first_structured_text(data, ACTION_FIELD_NAMES) for data in sources if isinstance(data, dict) and first_structured_text(data, ACTION_FIELD_NAMES)), "")
+    handoff = next((first_structured_text(data, HANDOFF_FIELD_NAMES) for data in sources if isinstance(data, dict) and first_structured_text(data, HANDOFF_FIELD_NAMES)), "")
+    reason = next((first_structured_text(data, REASON_FIELD_NAMES, limit=260) for data in sources if isinstance(data, dict) and first_structured_text(data, REASON_FIELD_NAMES, limit=260)), "")
+    if not action:
+        action = flow_label(summary, status=item.get("status") or item.get("phase"), event_type=entry_type)
+    if not reason and handoff:
+        reason = summary
+    status = normalize_timeline_status(
+        *(first_structured_text(data, STATUS_FIELD_NAMES) for data in sources if isinstance(data, dict)),
+        summary,
+        entry_type,
+    )
+    timestamp = event_time(item)
     return {
         "id": source_id,
+        "entry_id": source_id,
         "source_id": source_id,
+        "sequence": sequence,
         "type": entry_type,
-        "time": event_time(item),
+        "source": entry_type,
+        "time": timestamp,
+        "timestamp": timestamp,
         "actor": actor,
+        "agent": agent.get("name") or actor,
         "agent_name": agent.get("name") or actor,
         "role": agent.get("role") or "",
         "template": agent.get("template") or "",
         "harness_config": agent.get("harness_config") or "",
         "phase": item.get("phase") or agent.get("phase") or "",
         "activity": item.get("activity") or agent.get("activity") or "",
-        "summary": short_text(item.get("msg") or item.get("message") or item.get("summary") or item.get("taskSummary") or item.get("activity"), 360),
+        "action": action,
+        "handoff": handoff,
+        "reason_for_handoff": reason,
+        "status": status,
+        "summary": summary,
+        "detail": item,
         "raw": item,
+    }
+
+
+def append_timeline_entry(entries: list[dict[str, Any]], event: dict[str, Any], *, round_id: str, agents_by_actor: dict[str, dict[str, Any]], sequence: int) -> None:
+    entry = timeline_entry(event, round_id=round_id, agents_by_actor=agents_by_actor, sequence=sequence)
+    if any(existing.get("entry_id") == entry["entry_id"] for existing in entries):
+        return
+    entries.append(entry)
+
+
+def overview_recent_activity(rounds: list[dict[str, Any]], *, limit: int = 6) -> list[dict[str, Any]]:
+    activities: list[dict[str, Any]] = []
+    for row in rounds:
+        timeline = row.get("timeline") if isinstance(row.get("timeline"), list) else []
+        if timeline:
+            for entry in timeline:
+                if not isinstance(entry, dict):
+                    continue
+                activities.append({
+                    "round_id": row.get("round_id") or "",
+                    "entry_id": entry.get("entry_id") or entry.get("id") or "",
+                    "timestamp": entry.get("timestamp") or entry.get("time") or "",
+                    "agent": entry.get("agent") or entry.get("agent_name") or entry.get("actor") or "",
+                    "action": entry.get("action") or entry.get("summary") or "",
+                    "handoff": entry.get("handoff") or "",
+                    "reason_for_handoff": entry.get("reason_for_handoff") or "",
+                    "status": entry.get("status") or row.get("visible_status") or row.get("status") or "",
+                    "source": entry.get("source") or entry.get("type") or "",
+                    "detail": entry.get("detail") or entry.get("raw") or {},
+                })
+            continue
+        activities.append({
+            "round_id": row.get("round_id") or "",
+            "entry_id": f"round:{row.get('round_id') or stable_digest(row)}",
+            "timestamp": row.get("latest_update") or "",
+            "agent": "",
+            "action": row.get("flow_summary") or row.get("latest_summary") or row.get("terminal_summary") or "",
+            "handoff": "",
+            "reason_for_handoff": row.get("outcome") or "",
+            "status": row.get("visible_status") or row.get("status") or "unknown",
+            "source": "round",
+            "detail": row,
+        })
+    return sorted(activities, key=lambda item: str(item.get("timestamp") or ""), reverse=True)[:limit]
+
+
+def overview_priority_target(rounds: list[dict[str, Any]], sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    for row in rounds:
+        if row.get("status") == "blocked" or str(row.get("visible_status") or "").lower() in {"blocked", "changes requested"}:
+            return {
+                "kind": "round",
+                "round_id": row.get("round_id") or "",
+                "status": row.get("visible_status") or row.get("status") or "blocked",
+                "action": row.get("flow_summary") or row.get("terminal_summary") or row.get("latest_summary") or "Inspect blocked round",
+                "handoff": "",
+                "reason_for_handoff": row.get("outcome") or "; ".join((row.get("mcp") or {}).get("blockers", [])),
+                "detail": {"round_id": row.get("round_id"), "mcp": row.get("mcp"), "final_review": row.get("final_review")},
+            }
+    for name in ("hub", "broker", "mcp", "web_app", "kubernetes", "messages", "notifications"):
+        source = sources.get(name, {})
+        if source and source.get("status") not in {"healthy", "ready"}:
+            return {
+                "kind": "source",
+                "source": name,
+                "status": source.get("status") or "unknown",
+                "action": f"Inspect {name} source health",
+                "handoff": "operator",
+                "reason_for_handoff": source.get("error") or source.get("error_kind") or "source is not healthy",
+                "detail": source,
+            }
+    active = next((row for row in rounds if row.get("status") in {"running", "waiting"}), None)
+    if active:
+        return {
+            "kind": "round",
+            "round_id": active.get("round_id") or "",
+            "status": active.get("visible_status") or active.get("status") or "running",
+            "action": active.get("flow_summary") or active.get("latest_summary") or "Inspect active round",
+            "handoff": "",
+            "reason_for_handoff": active.get("outcome") or "",
+            "detail": {"round_id": active.get("round_id")},
+        }
+    return {"kind": "none", "status": "ready", "action": "No priority target", "handoff": "", "reason_for_handoff": "", "detail": {}}
+
+
+def overview_payload(
+    *,
+    readiness: str,
+    rounds: list[dict[str, Any]],
+    agents: list[dict[str, Any]],
+    latest: str,
+    generated_at: str,
+    sources: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    active_round_count = len([item for item in rounds if item["status"] in {"running", "waiting", "blocked"}])
+    blocked_round_count = len([item for item in rounds if item["status"] == "blocked" or str(item.get("visible_status") or "").lower() in {"blocked", "changes requested"}])
+    source_health = [
+        {
+            "source": name,
+            "status": source.get("status") or "unknown",
+            "ok": bool(source.get("ok")),
+            "error_kind": source.get("error_kind") or "",
+            "error": source.get("error") or "",
+        }
+        for name, source in sources.items()
+    ]
+    return {
+        "readiness": readiness,
+        "active_round_count": active_round_count,
+        "blocked_round_count": blocked_round_count,
+        "recent_round_count": len(rounds),
+        "agent_count": len(agents),
+        "latest_update": latest or generated_at,
+        "readiness_strip": {
+            "control_plane": readiness,
+            "live_freshness": "stale" if source_stale(latest, parse_time(generated_at)) else "fresh",
+            "active_rounds": active_round_count,
+            "blocked_rounds": blocked_round_count,
+            "recent_completion_state": next((row.get("visible_status") or row.get("status") for row in rounds if row.get("status") == "completed"), ""),
+        },
+        "priority_attention": overview_priority_target(rounds, sources),
+        "recent_activity": overview_recent_activity(rounds),
+        "source_health": source_health,
     }
 
 
@@ -1758,10 +1990,14 @@ def build_rounds(agents: list[dict[str, Any]], messages: list[dict[str, Any]], n
         )
         agents_by_actor = agent_lookup(row["agents"])
         row_timeline: list[dict[str, Any]] = []
+        sequence = 0
         for message in row["messages"]:
-            row_timeline.append(timeline_entry({"type": "message", "message": message}, round_id=row["round_id"], agents_by_actor=agents_by_actor))
+            sequence += 1
+            append_timeline_entry(row_timeline, {"type": "message", "message": message}, round_id=row["round_id"], agents_by_actor=agents_by_actor, sequence=sequence)
         for notification in row["notifications"]:
-            row_timeline.append(timeline_entry({"type": "notification", "notification": notification}, round_id=row["round_id"], agents_by_actor=agents_by_actor))
+            sequence += 1
+            append_timeline_entry(row_timeline, {"type": "notification", "notification": notification}, round_id=row["round_id"], agents_by_actor=agents_by_actor, sequence=sequence)
+        row["timeline"] = sorted(row_timeline, key=lambda item: (item.get("timestamp") or "", item.get("sequence") or 0), reverse=True)
         row["decision_flow"] = build_decision_flow(row["agents"], row_timeline)
         row["consensus"] = build_consensus_summary(row["agents"], row["decision_flow"], row["final_review"], row.get("mcp") or {})
         row["terminal_summary"] = build_terminal_summary(
@@ -1895,14 +2131,23 @@ def build_overview(provider: RuntimeProvider | Any) -> dict[str, Any]:
         readiness = "degraded"
     else:
         readiness = "unavailable"
+    sources = {
+        "hub": hub,
+        "messages": messages,
+        "notifications": notifications,
+    }
+    overview = overview_payload(
+        readiness=readiness,
+        rounds=rounds,
+        agents=agents,
+        latest=latest,
+        generated_at=generated_at,
+        sources=sources,
+    )
     return {
         "ok": any(source.get("ok") for source in (hub, messages, notifications)),
         "generated_at": generated_at,
-        "readiness": readiness,
-        "active_round_count": len([item for item in rounds if item["status"] in {"running", "waiting", "blocked"}]),
-        "recent_round_count": len(rounds),
-        "agent_count": len(agents),
-        "latest_update": latest or generated_at,
+        **overview,
     }
 
 
@@ -1941,13 +2186,14 @@ def build_snapshot(provider: RuntimeProvider | Any) -> dict[str, Any]:
         "stale": stale,
         "readiness": status,
         "sources": sources,
-        "overview": {
-            "readiness": status,
-            "active_round_count": len([item for item in rounds if item["status"] in {"running", "waiting", "blocked"}]),
-            "recent_round_count": len(rounds),
-            "agent_count": len(agents),
-            "latest_update": latest or generated_at,
-        },
+        "overview": overview_payload(
+            readiness=status,
+            rounds=rounds,
+            agents=agents,
+            latest=latest,
+            generated_at=generated_at,
+            sources=sources,
+        ),
         "rounds": rounds,
         "inbox": build_inbox(message_items, notification_items),
     }
@@ -1983,7 +2229,7 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
         final_reviews.append(outcome_review)
     if events.get("ok"):
         merge_mcp_progress(mcp_holder, structured_mcp_progress(events, source="round_events"))
-        for event in events.get("events", []):
+        for sequence, event in enumerate(events.get("events", []), start=1):
             item = event.get("message") or event.get("notification") or event.get("agent") or {}
             payload = parse_json_object(item.get("msg") or item.get("message") or item.get("summary"))
             for branch in structured_branch_refs(item):
@@ -1997,7 +2243,7 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
                 review = final_review_from_item(item, source=str(event.get("type") or "event"))
                 if review:
                     final_reviews.append(review)
-            timeline.append(timeline_entry(event, round_id=round_id, agents_by_actor=agents_by_actor))
+            append_timeline_entry(timeline, event, round_id=round_id, agents_by_actor=agents_by_actor, sequence=sequence)
     artifacts: dict[str, Any] = {}
     try:
         artifacts = provider.round_artifacts(round_id)
@@ -2037,7 +2283,7 @@ def build_round_detail(provider: RuntimeProvider | Any, round_id: str) -> dict[s
         visible_status = "blocked"
     elif mcp.get("status") and visible_status == "unknown":
         visible_status = str(mcp["status"])
-    sorted_timeline = sorted(timeline, key=lambda item: item.get("time") or "", reverse=True)
+    sorted_timeline = sorted(timeline, key=lambda item: (item.get("timestamp") or item.get("time") or "", item.get("sequence") or 0), reverse=True)
     decision_flow = build_decision_flow(detail_agents, sorted_timeline)
     consensus = build_consensus_summary(detail_agents, decision_flow, final_review, mcp)
     terminal_summary = build_terminal_summary(
@@ -2429,23 +2675,34 @@ INDEX_HTML = r"""<!doctype html>
         markLiveError("snapshot", err);
       }
     }
-    const timelineKey = item => [item.type, item.time, item.summary, item.raw?.id || item.raw?.agentId || item.raw?.sender || ""].map(value => String(value || "")).join("|");
+    const timelineKey = item => [item.entry_id || item.id || "", item.type, item.sequence, item.time || item.timestamp, item.summary, item.raw?.id || item.raw?.agentId || item.raw?.sender || ""].map(value => String(value || "")).join("|");
     const eventToTimeline = (event, roundId = "") => {
       const item = event.message || event.notification || event.agent || {};
       const actor = item.agentId || item.sender || item.senderId || item.name || item.slug || "";
       const agents = state.roundDetails[roundId]?.status?.agents || [];
       const agent = agents.find(candidate => [candidate.name, candidate.slug, candidate.id, `agent:${candidate.name}`, `agent:${candidate.slug}`].filter(Boolean).includes(actor)) || {};
       return {
+        id: item.id || item.messageId || item.notificationId || "",
+        entry_id: item.id || item.messageId || item.notificationId || "",
+        sequence: event.sequence || 0,
         type: event.type || "event",
+        source: event.type || "event",
         time: item.createdAt || item.created || item.updatedAt || item.updated || item.timestamp || item.time || "",
+        timestamp: item.createdAt || item.created || item.updatedAt || item.updated || item.timestamp || item.time || "",
         actor,
+        agent: agent.name || item.name || item.slug || actor,
         agent_name: agent.name || item.name || item.slug || actor,
         role: item.role || agent.role || "",
         template: item.template || agent.template || "",
         harness_config: item.harness_config || item.harnessConfig || item.harness || agent.harness_config || "",
         phase: item.phase || agent.phase || "",
         activity: item.activity || agent.activity || "",
+        action: item.action || item.current_action || item.taskSummary || item.summary || item.msg || item.message || event.type || "event",
+        handoff: item.handoff || item.handoff_to || item.handoff_target || item.target || item.destination || item.reviewer || item.coordinator || "",
+        reason_for_handoff: item.reason_for_handoff || item.handoff_reason || item.reason || item.blocker || item.summary || "",
+        status: item.status || item.state || item.phase || "unknown",
         summary: item.msg || item.message || item.summary || item.taskSummary || item.activity || "",
+        detail: item,
         raw: item
       };
     };

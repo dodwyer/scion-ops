@@ -321,6 +321,109 @@ def test_round_detail_timeline_and_agents_expose_multi_llm_context():
     assert "agentCard" in web_app_hub.INDEX_HTML
 
 
+def test_timeline_normalizes_action_handoff_reason_and_keeps_json_compatible():
+    events = {
+        "ok": True,
+        "round_id": "20260509t063201z-6c02",
+        "cursor": "cursor-normalized",
+        "events": [
+            {
+                "type": "message",
+                "message": {
+                    "id": "handoff-1",
+                    "sender": "round-20260509t063201z-6c02-implementation-steward",
+                    "createdAt": "2026-05-09T06:45:00+00:00",
+                    "msg": json.dumps(
+                        {
+                            "action": "collect implementation handoff",
+                            "handoff_to": "round-20260509t063201z-6c02-impl-codex",
+                            "reason_for_handoff": "Group A data contract is ready",
+                            "status": "waiting",
+                        }
+                    ),
+                },
+            }
+        ],
+    }
+    detail = web_app_hub.build_round_detail(FixtureProvider(round_events=events), "20260509t063201z-6c02")
+    entry = detail["timeline"][0]
+    assert entry["id"] == "message:handoff-1"
+    assert entry["entry_id"] == entry["id"]
+    assert entry["sequence"] == 1
+    assert entry["timestamp"] == "2026-05-09T06:45:00+00:00"
+    assert entry["agent"].endswith("implementation-steward")
+    assert entry["action"] == "collect implementation handoff"
+    assert entry["handoff"] == "round-20260509t063201z-6c02-impl-codex"
+    assert entry["reason_for_handoff"] == "Group A data contract is ready"
+    assert entry["status"] == "waiting"
+    assert entry["source"] == "message"
+    assert entry["summary"]
+    assert entry["raw"] == entry["detail"]
+    assert "timeline" in web_app_hub.BROWSER_JSON_CONTRACT["round"]
+
+
+def test_timeline_preserves_distinct_duplicate_looking_handoffs_but_suppresses_replay_ids():
+    base_message = {
+        "sender": "round-20260509t063201z-6c02-implementation-steward",
+        "msg": json.dumps(
+            {
+                "action": "handoff for implementation",
+                "handoff_to": "round-20260509t063201z-6c02-impl-codex",
+                "reason_for_handoff": "implement assigned slice",
+                "status": "waiting",
+            }
+        ),
+        "createdAt": "2026-05-09T06:45:00+00:00",
+    }
+    events = {
+        "ok": True,
+        "round_id": "20260509t063201z-6c02",
+        "cursor": "cursor-duplicates",
+        "events": [
+            {"type": "message", "message": {**base_message, "id": "handoff-a"}},
+            {"type": "message", "message": {**base_message, "id": "handoff-b"}},
+            {"type": "message", "message": {**base_message, "id": "handoff-a"}},
+        ],
+    }
+    detail = web_app_hub.build_round_detail(FixtureProvider(round_events=events), "20260509t063201z-6c02")
+    ids = [entry["entry_id"] for entry in detail["timeline"]]
+    assert ids == ["message:handoff-b", "message:handoff-a"]
+    assert [entry["handoff"] for entry in detail["timeline"]] == [
+        "round-20260509t063201z-6c02-impl-codex",
+        "round-20260509t063201z-6c02-impl-codex",
+    ]
+
+
+def test_overview_defaults_prioritize_action_context_and_keep_diagnostics_deeper():
+    provider = FixtureProvider()
+    snapshot = web_app_hub.build_snapshot(provider)
+    overview = snapshot["overview"]
+    assert overview["readiness_strip"]["control_plane"] == snapshot["readiness"]
+    assert overview["priority_attention"]["kind"] in {"round", "source", "none"}
+    assert overview["source_health"]
+    activity = overview["recent_activity"][0]
+    assert {"round_id", "entry_id", "timestamp", "action", "handoff", "reason_for_handoff", "status", "source", "detail"} <= set(activity)
+    assert "raw" not in activity
+    assert isinstance(activity["detail"], dict)
+    assert snapshot["overview"]["blocked_round_count"] == 0
+
+
+def test_overview_endpoint_keeps_existing_count_fields_with_new_concise_fields():
+    original = web_app_hub.utc_now
+    try:
+        web_app_hub.utc_now = lambda: "2026-05-09T06:39:30+00:00"
+        overview = web_app_hub.build_overview(FixtureProvider())
+    finally:
+        web_app_hub.utc_now = original
+    assert overview["ok"] is True
+    assert overview["active_round_count"] == 1
+    assert overview["recent_round_count"] == 1
+    assert overview["agent_count"] == 3
+    assert overview["readiness_strip"]["live_freshness"] == "fresh"
+    assert overview["recent_activity"][0]["action"]
+    assert "priority_attention" in overview
+
+
 def test_empty_snapshot_distinguishes_no_rounds_from_source_failure():
     provider = FixtureProvider(
         hub={**healthy_hub(), "agents": []},
