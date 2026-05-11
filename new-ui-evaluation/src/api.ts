@@ -7,7 +7,9 @@ import type {
   PreviewData,
   RoundDetail,
   RoundSummary,
-  SourceHealth
+  RuntimeHealthEventPayload,
+  SourceHealth,
+  TimelineEntryEventPayload
 } from "./types";
 
 const headers = { Accept: "application/json" };
@@ -160,9 +162,16 @@ export function applyLiveEvent(data: PreviewData, event: LiveEvent): PreviewData
     return { ...next, roundDetails: { ...next.roundDetails, [detail.id]: detail } };
   }
 
-  if (event.type === "timeline_entry" && event.entityId) {
-    const entry = event.payload as RoundDetail["timeline"][number];
-    const current = next.roundDetails[event.entityId];
+  if (event.type === "timeline_entry") {
+    const payload = event.payload as Partial<TimelineEntryEventPayload>;
+    const entry = payload && "entry" in payload
+      ? payload.entry
+      : event.payload as RoundDetail["timeline"][number];
+    const roundId = payload && "roundId" in payload ? payload.roundId : event.entityId;
+    if (!roundId || !entry) {
+      return next;
+    }
+    const current = next.roundDetails[roundId];
     if (!current) {
       return next;
     }
@@ -170,7 +179,7 @@ export function applyLiveEvent(data: PreviewData, event: LiveEvent): PreviewData
       ...next,
       roundDetails: {
         ...next.roundDetails,
-        [event.entityId]: {
+        [roundId]: {
           ...current,
           timeline: upsertBy(current.timeline, entry, (item) => item.id).sort((left, right) => Date.parse(left.timestamp) - Date.parse(right.timestamp))
         }
@@ -195,9 +204,14 @@ export function applyLiveEvent(data: PreviewData, event: LiveEvent): PreviewData
   }
 
   if (event.type === "runtime_health") {
-    const source = event.payload as unknown as SourceHealth;
-    const sourceName = source.name ?? event.entityId ?? event.source;
-    const sources = upsertBy(next.sourceHealth, { ...source, name: String(sourceName) }, (item) => item.name);
+    const payload = event.payload as Partial<RuntimeHealthEventPayload> | SourceHealth;
+    const eventSources = "sources" in payload && Array.isArray(payload.sources)
+      ? payload.sources
+      : [payload as SourceHealth];
+    const sources = eventSources.reduce((items, source) => {
+      const sourceName = source.name ?? event.entityId ?? event.source;
+      return upsertBy(items, { ...source, name: String(sourceName) }, (item) => item.name);
+    }, next.sourceHealth);
     return {
       ...next,
       sources,
