@@ -1,0 +1,186 @@
+{
+  "base": "main",
+  "base_commit": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+  "change": "wire-new-ui-1",
+  "created": true,
+  "draft": false,
+  "gh": {
+    "create": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "create",
+        "--base",
+        "main",
+        "--head",
+        "round-20260511t151636z-0bbd-spec-integration",
+        "--title",
+        "OpenSpec: wire-new-ui-1",
+        "--body",
+        "Created by scion-ops after successful spec steward validation.\n\n- Session: `20260511t151636z-0bbd`\n- Change: `wire-new-ui-1`\n- Head: `round-20260511t151636z-0bbd-spec-integration` (`5458d3caa843`)\n- Base: `main` (`cab29ae8cd72`)\n- Steward validation: passed\n- OpenSpec review: `accept`"
+      ],
+      "ok": true,
+      "output": "Warning: 1 uncommitted change\nhttps://github.com/dodwyer/scion-ops/pull/144\n",
+      "returncode": 0
+    },
+    "list": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "list",
+        "--head",
+        "round-20260511t151636z-0bbd-spec-integration",
+        "--base",
+        "main",
+        "--state",
+        "all",
+        "--json",
+        "number,url,state,title,baseRefName,headRefName",
+        "--limit",
+        "1"
+      ],
+      "ok": true,
+      "output": "[]\n",
+      "returncode": 0
+    }
+  },
+  "head": "round-20260511t151636z-0bbd-spec-integration",
+  "head_commit": "5458d3caa84373207d83a232c191c23698e8cd50",
+  "kind": "spec",
+  "ok": true,
+  "pr": {
+    "base": "main",
+    "head": "round-20260511t151636z-0bbd-spec-integration",
+    "title": "OpenSpec: wire-new-ui-1",
+    "url": "https://github.com/dodwyer/scion-ops/pull/144"
+  },
+  "pr_url": "https://github.com/dodwyer/scion-ops/pull/144",
+  "project_root": "/workspace",
+  "session_id": "20260511t151636z-0bbd",
+  "source": "steward_pr_finalizer",
+  "state_recording": {
+    "pr_path": "/workspace/.scion-ops/sessions/20260511t151636z-0bbd/pr.json",
+    "state_path": "/workspace/.scion-ops/sessions/20260511t151636z-0bbd/state.json"
+  },
+  "validation": {
+    "agent_harnesses": {
+      "author": "codex-exec",
+      "clarifier": "claude",
+      "explorer": "codex-exec",
+      "ops_review": "claude"
+    },
+    "branch": {
+      "base_branch": "main",
+      "base_commit": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+      "base_resolved_ref": "origin/main",
+      "branch": "round-20260511t151636z-0bbd-spec-integration",
+      "commit": "5458d3caa84373207d83a232c191c23698e8cd50",
+      "resolved_ref": "origin/round-20260511t151636z-0bbd-spec-integration"
+    },
+    "change": "wire-new-ui-1",
+    "errors": [],
+    "kind": "spec",
+    "ok": true,
+    "openspec_validation": {
+      "change": "wire-new-ui-1",
+      "change_path": "openspec/changes/wire-new-ui-1",
+      "errors": [],
+      "ok": true,
+      "project_root": "/workspace",
+      "required_files": {
+        "design.md": "openspec/changes/wire-new-ui-1/design.md",
+        "proposal.md": "openspec/changes/wire-new-ui-1/proposal.md",
+        "tasks.md": "openspec/changes/wire-new-ui-1/tasks.md"
+      },
+      "spec_files": [
+        "openspec/changes/wire-new-ui-1/specs/new-ui-evaluation/spec.md"
+      ],
+      "warnings": []
+    },
+    "openspec_validation_source": "worktree",
+    "project_root": "/workspace",
+    "session_id": "20260511t151636z-0bbd",
+    "state": {
+      "agents": {
+        "author": {
+          "branch": "round-20260511t151636z-0bbd-spec-author",
+          "harness_config": "codex-exec",
+          "name": "round-20260511t151636z-0bbd-spec-author",
+          "status": "completed",
+          "template": "spec-author"
+        },
+        "clarifier": {
+          "branch": "round-20260511t151636z-0bbd-spec-clarifier",
+          "harness_config": "claude",
+          "name": "round-20260511t151636z-0bbd-spec-clarifier",
+          "status": "completed",
+          "template": "spec-goal-clarifier-claude"
+        },
+        "explorer": {
+          "branch": "round-20260511t151636z-0bbd-spec-explorer",
+          "harness_config": "codex-exec",
+          "name": "round-20260511t151636z-0bbd-spec-explorer",
+          "status": "completed",
+          "template": "spec-repo-explorer"
+        },
+        "ops_review": {
+          "branch": "round-20260511t151636z-0bbd-spec-ops-review",
+          "harness_config": "claude",
+          "name": "round-20260511t151636z-0bbd-spec-ops-review",
+          "status": "completed",
+          "template": "spec-ops-reviewer-claude"
+        }
+      },
+      "base_branch": "main",
+      "blockers": [],
+      "branches": {
+        "author": "round-20260511t151636z-0bbd-spec-author",
+        "clarifier": "round-20260511t151636z-0bbd-spec-clarifier",
+        "explorer": "round-20260511t151636z-0bbd-spec-explorer",
+        "integration": "round-20260511t151636z-0bbd-spec-integration",
+        "review": "round-20260511t151636z-0bbd-spec-ops-review",
+        "steward": "round-20260511t151636z-0bbd-spec-steward"
+      },
+      "change": "wire-new-ui-1",
+      "consensus": {
+        "harnesses": {
+          "author": "codex-exec",
+          "clarifier": "claude",
+          "explorer": "codex-exec",
+          "ops_review": "claude"
+        },
+        "mode": "multi_harness",
+        "required_multi_harness": true,
+        "templates": {
+          "author": "spec-author",
+          "clarifier": "spec-goal-clarifier-claude",
+          "explorer": "spec-repo-explorer",
+          "ops_review": "spec-ops-reviewer-claude"
+        }
+      },
+      "kind": "spec",
+      "next_actions": [
+        "Use round-20260511t151636z-0bbd-spec-integration for OpenSpec review or implementation planning"
+      ],
+      "phase": "complete",
+      "review": {
+        "agent": "round-20260511t151636z-0bbd-spec-ops-review",
+        "summary": "Ops review accepted wire-new-ui-1 as operationally ready. It passed live data flow, push-based delivery, connection health and staleness, read-only safety, graceful reconnect, stale-data preservation, fixture-to-live migration, and existing/new UI separation checks; only minor implementation guidance was noted.",
+        "verdict": "accept"
+      },
+      "round_id": "20260511t151636z-0bbd",
+      "session_id": "20260511t151636z-0bbd",
+      "status": "ready",
+      "validation": {
+        "command": "python3 scripts/validate-openspec-change.py --project-root . --change wire-new-ui-1",
+        "integration_branch": "round-20260511t151636z-0bbd-spec-integration",
+        "review_agent": "round-20260511t151636z-0bbd-spec-ops-review",
+        "status": "passed"
+      },
+      "version": 1
+    },
+    "state_path": "/workspace/.scion-ops/sessions/20260511t151636z-0bbd/state.json",
+    "state_source": "round-20260511t151636z-0bbd-spec-steward:.scion-ops/sessions/20260511t151636z-0bbd/state.json",
+    "warnings": []
+  }
+}

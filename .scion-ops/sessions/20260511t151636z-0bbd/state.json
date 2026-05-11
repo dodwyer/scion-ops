@@ -72,8 +72,27 @@
     "integration_branch": "round-20260511t151636z-0bbd-spec-integration",
     "review_agent": "round-20260511t151636z-0bbd-spec-ops-review"
   },
+  "pull_request": {
+    "source": "steward_pr_finalizer",
+    "session_id": "20260511t151636z-0bbd",
+    "kind": "spec",
+    "change": "wire-new-ui-1",
+    "head": "round-20260511t151636z-0bbd-spec-integration",
+    "base": "main",
+    "head_commit": "5458d3caa84373207d83a232c191c23698e8cd50",
+    "base_commit": "cab29ae8cd72450c39f2cc3d07a16d3a9f309fac",
+    "created": true,
+    "draft": false,
+    "pr": {
+      "url": "https://github.com/dodwyer/scion-ops/pull/144",
+      "head": "round-20260511t151636z-0bbd-spec-integration",
+      "base": "main",
+      "title": "OpenSpec: wire-new-ui-1"
+    },
+    "pr_url": "https://github.com/dodwyer/scion-ops/pull/144"
+  },
   "blockers": [],
   "next_actions": [
-    "Use round-20260511t151636z-0bbd-spec-integration for OpenSpec review or implementation planning"
+    "Review pull request https://github.com/dodwyer/scion-ops/pull/144"
   ]
 }
