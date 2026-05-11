@@ -65,6 +65,8 @@ Use current NiceGUI elements where practical instead of legacy hand-built HTML:
 
 Custom CSS should be limited to layout constraints, responsive behavior, focus treatment, wrapping, and semantic status polish that NiceGUI components do not provide directly.
 
+The follow-on implementation should concentrate on the NiceGUI operator surfaces in `scripts/web_app_hub.py`. The legacy raw HTML/JavaScript path is not a redesign target for this change; only touch it when preserving an existing health, snapshot, round detail, round events, or live update compatibility contract requires a narrow bridge.
+
 ## Responsiveness
 
 The page should render correctly at representative desktop and mobile widths. Desktop should use available width for scanning without page-level horizontal overflow. Mobile should preserve the primary workflow by stacking navigation, summary, and timeline rows; secondary diagnostics may collapse behind controls.

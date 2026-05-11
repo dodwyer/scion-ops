@@ -63,6 +63,13 @@ The system SHALL provide a selected-round timeline that presents each meaningful
 - AND message text, notification text, task summaries, or agent names are used only as fallback sources
 - AND newly added normalized fields are backward-compatible additions to existing browser-facing JSON contracts.
 
+#### Scenario: Legacy raw frontend path is not redesigned
+
+- GIVEN the existing web app contains legacy raw HTML or JavaScript rendering code as well as NiceGUI operator surfaces
+- WHEN this change is implemented
+- THEN the operator overview and selected-round detail improvements are made in the NiceGUI path
+- AND the legacy raw HTML or JavaScript path is changed only when required to preserve existing health, snapshot, round detail, round event, or live update compatibility.
+
 ## ADDED Requirements
 
 ### Requirement: Modern NiceGUI Information Layout

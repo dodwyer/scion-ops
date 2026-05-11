@@ -7,8 +7,9 @@
 - [ ] 1.5 Preserve distinct repeated handoff entries involving the same agent or same agent pair; only suppress exact replay duplicates with the same stable source identity.
 - [ ] 1.6 Move raw payloads, long logs, runner output, and low-level diagnostics behind one-level-deeper NiceGUI controls.
 - [ ] 1.7 Rework overview and round detail rendering with current NiceGUI components for tables or row lists, tabs, expansions, chips or badges, tooltips, and responsive containers.
-- [ ] 1.8 Verify desktop rendering has no page-level horizontal overflow, overlapping controls, or clipped key timeline fields with representative long data.
-- [ ] 1.9 Verify mobile rendering preserves navigation, overview summary, selected round context, and timeline action/handoff/reason fields without overspill.
-- [ ] 1.10 Add focused no-spend tests or fixtures for normalization, duplicate preservation, concise defaults, endpoint compatibility, and responsive layout checks.
-- [ ] 1.11 Run OpenSpec validation for this change.
-- [ ] 1.12 Run relevant web app static checks and fixture tests after implementation.
+- [ ] 1.8 Keep the legacy raw HTML/JavaScript path out of scope except for narrow endpoint or compatibility bridges required by existing contracts.
+- [ ] 1.9 Verify desktop rendering has no page-level horizontal overflow, overlapping controls, or clipped key timeline fields with representative long data.
+- [ ] 1.10 Verify mobile rendering preserves navigation, overview summary, selected round context, and timeline action/handoff/reason fields without overspill.
+- [ ] 1.11 Add focused no-spend tests or fixtures for normalization, duplicate preservation, concise defaults, endpoint compatibility, and responsive layout checks.
+- [ ] 1.12 Run OpenSpec validation for this change.
+- [ ] 1.13 Run relevant web app static checks and fixture tests after implementation.
