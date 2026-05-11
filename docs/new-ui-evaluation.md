@@ -14,7 +14,7 @@ This stack keeps the browser layer typed and component-oriented while keeping th
 
 The preview is read-only. Browser controls may load snapshots, subscribe to the stream, reconnect, filter client-side tables, select records, navigate between views, or expand diagnostics.
 
-The adapter only allows `GET`, `HEAD`, and `OPTIONS`. Mutation verbs return `405` with a read-only error. Live mode reads only local operational state from `.scion-ops/sessions`, `mcp_servers/scion_ops.py`, `openspec/`, `git rev-parse`, and `kubectl get pods`. It does not start, retry, abort, delete, archive, or mutate rounds; it does not write Kubernetes resources, Hub records, MCP state, git refs or files, OpenSpec files, secrets, PVCs, runtime broker state, or model/provider state.
+The adapter only allows `GET`, `HEAD`, and `OPTIONS`. Mutation verbs return `405` with a read-only error. Live mode reads Hub state through the existing read-only MCP/Hub operational APIs when they are configured and available, probes the MCP HTTP endpoint, and reads Kubernetes, git, and OpenSpec status through read-only commands or file reads. Local `.scion-ops/sessions` metadata is retained only as explicit degraded fallback metadata when Hub reads are unavailable. It does not start, retry, abort, delete, archive, or mutate rounds; it does not write Kubernetes resources, Hub records, MCP state, git refs or files, OpenSpec files, secrets, PVCs, runtime broker state, or model/provider state.
 
 Fixture mode is available only with `--mode fixture` or `NEW_UI_EVALUATION_MODE=fixture`. Fixture safety checks require:
 
@@ -60,8 +60,8 @@ Open the Vite URL, normally `http://127.0.0.1:5174`.
 
 ## Live Contract
 
-- `GET /api/snapshot` returns a versioned `new-ui-evaluation.live.v1` snapshot containing `sourceMode`, `generatedAt`, `cursor`, source health, connection metadata, overview, rounds, round details, inbox, runtime, diagnostics, and raw payload references.
-- `GET /api/events` returns `text/event-stream` frames using `new-ui-evaluation.event.v1`. Events include type, stable id, entity id when applicable, source, timestamp, version/cursor, payload, source status, stale flag, and error metadata.
+- `GET /api/snapshot` returns a versioned `new-ui-evaluation.live.v1` snapshot containing `sourceMode`, `generatedAt`, a content cursor, source health, connection metadata, overview, rounds, round details, inbox, runtime, diagnostics, and raw payload references. Hub and MCP source health is based on read-only operational API/probe results, not local file or module existence.
+- `GET /api/events` returns `text/event-stream` frames using `new-ui-evaluation.event.v1`. Events include type, stable id, entity id when applicable, source, timestamp, version/cursor, payload, source status, stale flag, and error metadata. After the initial connection frame, the stream polls read-only sources and emits typed incremental events such as `round_updated`, `timeline_entry`, `inbox_item`, `runtime_health`, `diagnostic`, `source_status`, `stale`, and `fallback` when those source slices change.
 - Reconnect uses the `cursor` query parameter when available. If a future client cannot resume safely, it can request a fresh read-only snapshot from `/api/snapshot`.
 
 ## Endpoints

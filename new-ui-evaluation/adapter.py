@@ -5,16 +5,21 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import mimetypes
 import os
+import re
 import subprocess
+import sys
 import time
 from datetime import UTC, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Literal
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 from urllib.parse import parse_qs, unquote, urlparse
 
 ROOT = Path(__file__).resolve().parent
@@ -25,6 +30,7 @@ LIVE_SCHEMA_VERSION = "new-ui-evaluation.live.v1"
 EVENT_SCHEMA_VERSION = "new-ui-evaluation.event.v1"
 FIXTURE_SCHEMA_VERSION = "new-ui-evaluation.fixture.v1"
 READ_ONLY_COMMAND_TIMEOUT_SECONDS = 2
+ROUND_ID_RE = re.compile(r"(?:round-)?(?P<id>\d{8}t\d{6}z-[a-z0-9]+)", re.IGNORECASE)
 
 Mode = Literal["live", "fixture"]
 
@@ -103,6 +109,19 @@ def run_read_only_command(args: list[str], cwd: Path = PROJECT_ROOT) -> tuple[bo
         return False, str(exc)
     output = (completed.stdout or completed.stderr).strip()
     return completed.returncode == 0, output
+
+
+def stable_digest(value: Any) -> str:
+    data = json.dumps(value, sort_keys=True, default=str, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(data).hexdigest()[:16]
+
+
+def extract_round_id(*values: Any) -> str:
+    for value in values:
+        match = ROUND_ID_RE.search(str(value or ""))
+        if match:
+            return match.group("id")
+    return ""
 
 
 def load_fixtures(path: Path = FIXTURE_PATH) -> dict[str, Any]:
@@ -193,29 +212,31 @@ class LiveSourceAggregator:
         self.project_root = project_root
         self.sessions_root = project_root / ".scion-ops" / "sessions"
         self.openspec_root = project_root / "openspec"
+        self._scion_ops_module: Any | None = None
 
     def build_snapshot(self) -> dict[str, Any]:
         generated_at = iso_now()
-        session_records = self._read_sessions(generated_at)
+        hub_read = self._read_hub_operational(generated_at)
+        mcp_read = self._read_mcp_operational(generated_at)
+        session_records = self._read_sessions(generated_at, hub_read=hub_read)
         rounds = [record["summary"] for record in session_records]
         round_details = {record["summary"]["id"]: record["detail"] for record in session_records}
-        source_health = self._source_health(generated_at, session_records)
+        source_health = self._source_health(generated_at, session_records, hub_read=hub_read, mcp_read=mcp_read)
         inbox = self._build_inbox(session_records, source_health, generated_at)
         recent_activity = self._recent_activity(session_records, source_health, generated_at)
         source_errors = self._source_errors(source_health, generated_at)
-        cursor = stable_id(LIVE_SCHEMA_VERSION, generated_at, len(rounds), self._git_head())
         snapshot = {
             "schemaVersion": LIVE_SCHEMA_VERSION,
             "sourceMode": "live",
             "mocked": False,
             "generatedAt": generated_at,
-            "cursor": cursor,
+            "cursor": "",
             "sources": source_health,
             "sourceHealth": source_health,
             "connection": {
                 "status": "live",
                 "transport": "sse",
-                "lastEventId": cursor,
+                "lastEventId": "",
                 "lastHeartbeatAt": generated_at,
                 "reconnect": {"supported": True, "maxBackoffSeconds": 30, "resumeParam": "cursor"},
             },
@@ -243,12 +264,66 @@ class LiveSourceAggregator:
                 "generatedAt": generated_at,
                 "sourceErrors": source_errors,
                 "sourceHealth": source_health,
-                "rawPayloads": self._raw_payloads(session_records, source_health),
+                "rawPayloads": self._raw_payloads(session_records, source_health, hub_read=hub_read, mcp_read=mcp_read),
             },
         }
+        snapshot["cursor"] = self._snapshot_cursor(snapshot)
+        snapshot["connection"]["lastEventId"] = snapshot["cursor"]
         return snapshot
 
-    def _read_sessions(self, generated_at: str) -> list[dict[str, Any]]:
+    def _load_scion_ops(self) -> Any | None:
+        if self._scion_ops_module is not None:
+            return self._scion_ops_module
+        module_path = self.project_root / "mcp_servers" / "scion_ops.py"
+        if not module_path.exists():
+            return None
+        try:
+            spec = importlib.util.spec_from_file_location("new_ui_eval_scion_ops", module_path)
+            if spec is None or spec.loader is None:
+                return None
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[spec.name] = module
+            spec.loader.exec_module(module)
+        except Exception:
+            return None
+        self._scion_ops_module = module
+        return module
+
+    def _read_hub_operational(self, generated_at: str) -> dict[str, Any]:
+        module = self._load_scion_ops()
+        if module is None or not hasattr(module, "scion_ops_hub_status"):
+            return {"ok": False, "status": "degraded", "source": "hub_api", "fallback": True, "generatedAt": generated_at, "error": "MCP Hub read tools unavailable"}
+        try:
+            status = module.scion_ops_hub_status(project_root=str(self.project_root))
+        except Exception as exc:
+            return {"ok": False, "status": "degraded", "source": "hub_api", "fallback": True, "generatedAt": generated_at, "error": f"Hub status read failed: {exc}"}
+        if not isinstance(status, dict):
+            return {"ok": False, "status": "degraded", "source": "hub_api", "fallback": True, "generatedAt": generated_at, "error": "Hub status returned an invalid payload"}
+        return {**status, "status": "healthy" if status.get("ok") else "degraded", "fallback": not bool(status.get("ok")), "generatedAt": generated_at}
+
+    def _read_mcp_operational(self, generated_at: str) -> dict[str, Any]:
+        url = os.environ.get("SCION_OPS_MCP_URL", "").strip()
+        if not url:
+            host = os.environ.get("SCION_OPS_MCP_HOST", "127.0.0.1")
+            port = os.environ.get("SCION_OPS_MCP_PORT", "8765")
+            path = os.environ.get("SCION_OPS_MCP_PATH", "/mcp")
+            url = f"http://{host}:{port}{path if path.startswith('/') else '/' + path}"
+        req = urllib_request.Request(url, headers={"Accept": "application/json"}, method="GET")
+        try:
+            with urllib_request.urlopen(req, timeout=2) as response:
+                return {"ok": True, "status": "healthy", "source": "mcp_http", "url": url, "httpStatus": response.status, "generatedAt": generated_at}
+        except urllib_error.HTTPError as exc:
+            if exc.code < 500:
+                return {"ok": True, "status": "healthy", "source": "mcp_http", "url": url, "httpStatus": exc.code, "generatedAt": generated_at}
+            return {"ok": False, "status": "degraded", "source": "mcp_http", "url": url, "httpStatus": exc.code, "fallback": True, "generatedAt": generated_at, "error": f"MCP returned HTTP {exc.code}"}
+        except (OSError, TimeoutError, urllib_error.URLError) as exc:
+            return {"ok": False, "status": "degraded", "source": "mcp_http", "url": url, "fallback": True, "generatedAt": generated_at, "error": f"MCP read failed: {exc}"}
+
+    def _read_sessions(self, generated_at: str, *, hub_read: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        if hub_read and hub_read.get("ok") and isinstance(hub_read.get("agents"), list):
+            records = self._records_from_hub(hub_read, generated_at)
+            if records:
+                return records
         if not self.sessions_root.exists():
             return []
         records: list[dict[str, Any]] = []
@@ -294,7 +369,8 @@ class LiveSourceAggregator:
                 "updatedAt": updated_at,
                 "latestEvent": summary_text,
                 "sourceMode": "live",
-                "source": "Hub",
+                "source": "Hub fallback",
+                "fallback": True,
             }
             detail = {
                 "id": round_id,
@@ -314,21 +390,86 @@ class LiveSourceAggregator:
                 "relatedMessages": [f"msg-{round_id}"] if blockers else [],
                 "rawPayloadRef": f"raw-round-{round_id}",
                 "sourceMode": "live",
+                "fallback": True,
             }
             records.append({"summary": summary, "detail": detail, "raw": latest_handoff or {"session": round_id}})
         return records
 
-    def _source_health(self, generated_at: str, session_records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _records_from_hub(self, hub_read: dict[str, Any], generated_at: str) -> list[dict[str, Any]]:
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for agent in hub_read.get("agents", []):
+            if not isinstance(agent, dict):
+                continue
+            round_id = extract_round_id(agent.get("name"), agent.get("slug"), agent.get("taskSummary"))
+            if round_id:
+                grouped.setdefault(round_id, []).append(agent)
+        records: list[dict[str, Any]] = []
+        for round_id, agents in sorted(grouped.items(), reverse=True):
+            latest_agent = max(agents, key=lambda item: str(item.get("updated") or item.get("created") or ""))
+            updated_at = str(latest_agent.get("updated") or latest_agent.get("created") or generated_at)
+            blockers = [
+                str(agent.get("taskSummary"))
+                for agent in agents
+                if "blocked" in str(agent.get("taskSummary") or agent.get("activity") or "").lower()
+            ][:5]
+            active = any(str(agent.get("phase") or agent.get("activity") or "").lower() in {"running", "pending", "starting", "idle"} for agent in agents)
+            state = "blocked" if blockers else ("active" if active else "completed")
+            summary_text = str(latest_agent.get("taskSummary") or f"Hub reported {len(agents)} agents for {round_id}")
+            summary = {
+                "id": round_id,
+                "goal": summary_text.split(".")[0][:120],
+                "state": state,
+                "phase": self._phase_from_state(state),
+                "owner": str(latest_agent.get("name") or latest_agent.get("slug") or "hub"),
+                "agents": sorted({str(agent.get("name") or agent.get("slug")) for agent in agents if agent.get("name") or agent.get("slug")}),
+                "branchEvidence": {"branch": None, "headSha": self._git_head(), "status": "hub-observed"},
+                "validation": {"state": "not-started", "summary": "Validation status read from Hub agent state"},
+                "finalReview": {"state": "blocked" if blockers else "waiting", "summary": "Hub operational state"},
+                "blockers": blockers,
+                "startedAt": self._session_started_at(round_id),
+                "updatedAt": updated_at,
+                "latestEvent": summary_text,
+                "sourceMode": "live",
+                "source": "Hub",
+                "fallback": False,
+            }
+            timeline = [
+                {
+                    "id": stable_id("timeline", round_id, agent.get("name") or agent.get("slug"), agent.get("updated") or index),
+                    "timestamp": str(agent.get("updated") or agent.get("created") or generated_at),
+                    "actor": str(agent.get("name") or agent.get("slug") or "hub"),
+                    "kind": "agent_state",
+                    "summary": str(agent.get("taskSummary") or agent.get("activity") or agent.get("phase") or "Hub agent observed"),
+                }
+                for index, agent in enumerate(agents)
+            ]
+            detail = {
+                "id": round_id,
+                "decisions": [item["summary"] for item in timeline[:8]] or ["Hub operational state observed"],
+                "timeline": timeline,
+                "participants": [{"agent": name, "role": "implementation", "status": "observed"} for name in summary["agents"]],
+                "validationOutput": summary["validation"],
+                "artifacts": [],
+                "runnerOutput": summary_text,
+                "relatedMessages": [f"msg-{round_id}"] if blockers else [],
+                "rawPayloadRef": f"raw-round-{round_id}",
+                "sourceMode": "live",
+                "fallback": False,
+            }
+            records.append({"summary": summary, "detail": detail, "raw": {"hub": hub_read.get("hub"), "agents": agents}})
+        return records
+
+    def _source_health(self, generated_at: str, session_records: list[dict[str, Any]], *, hub_read: dict[str, Any], mcp_read: dict[str, Any]) -> list[dict[str, Any]]:
         git_ok, git_detail = run_read_only_command(["git", "rev-parse", "--abbrev-ref", "HEAD"], self.project_root)
         head_ok, head = run_read_only_command(["git", "rev-parse", "--short=12", "HEAD"], self.project_root)
         kube_ok, kube_detail = run_read_only_command(["kubectl", "get", "pods", "-A", "--request-timeout=1s"], self.project_root)
         openspec_ok = (self.openspec_root / "changes").exists()
-        mcp_ok = (self.project_root / "mcp_servers" / "scion_ops.py").exists()
-        hub_ok = self.sessions_root.exists()
         latest_round_update = max((record["summary"]["updatedAt"] for record in session_records), default=generated_at)
+        hub_ok = bool(hub_read.get("ok"))
+        mcp_ok = bool(mcp_read.get("ok"))
         return [
-            source_state("Hub", "control-plane", "healthy" if hub_ok else "degraded", f"{len(session_records)} session records discovered", latest_round_update if hub_ok else None, error=None if hub_ok else "sessions directory unavailable"),
-            source_state("MCP", "tooling", "healthy" if mcp_ok else "degraded", "MCP server module present" if mcp_ok else "MCP server module missing", generated_at if mcp_ok else None, error=None if mcp_ok else "mcp_servers/scion_ops.py unavailable"),
+            source_state("Hub", "control-plane", "healthy" if hub_ok else "degraded", f"Hub API read succeeded with {hub_read.get('agent_count', len(hub_read.get('agents', [])))} agents" if hub_ok else f"Hub API unavailable; using local fallback metadata for {len(session_records)} sessions", latest_round_update if session_records else (generated_at if hub_ok else None), error=None if hub_ok else str(hub_read.get("error") or hub_read.get("error_kind") or "Hub API read failed"), fallback=not hub_ok),
+            source_state("MCP", "tooling", "healthy" if mcp_ok else "degraded", f"MCP operational endpoint read succeeded ({mcp_read.get('httpStatus')})" if mcp_ok else "MCP operational endpoint unavailable", generated_at if mcp_ok else None, error=None if mcp_ok else str(mcp_read.get("error") or "MCP operational read failed"), fallback=not mcp_ok),
             source_state("Kubernetes", "orchestration", "healthy" if kube_ok else "degraded", "kubectl read succeeded" if kube_ok else kube_detail[:240] or "kubectl unavailable", generated_at if kube_ok else None, error=None if kube_ok else "kubectl get pods read failed"),
             source_state("Git", "source", "healthy" if git_ok and head_ok else "degraded", f"{git_detail}@{head}" if git_ok and head_ok else git_detail[:240], generated_at if git_ok and head_ok else None, error=None if git_ok and head_ok else "git read failed"),
             source_state("OpenSpec", "specs", "healthy" if openspec_ok else "degraded", "OpenSpec changes directory present" if openspec_ok else "OpenSpec changes directory missing", generated_at if openspec_ok else None, error=None if openspec_ok else "openspec/changes unavailable"),
@@ -437,10 +578,12 @@ class LiveSourceAggregator:
             if source["error"]
         ]
 
-    def _raw_payloads(self, session_records: list[dict[str, Any]], source_health: list[dict[str, Any]]) -> dict[str, Any]:
+    def _raw_payloads(self, session_records: list[dict[str, Any]], source_health: list[dict[str, Any]], *, hub_read: dict[str, Any], mcp_read: dict[str, Any]) -> dict[str, Any]:
         raw: dict[str, Any] = {
             "raw-runtime": {"sources": source_health, "liveReadsAllowed": True, "mutationsAllowed": False, "source": "live-adapter"},
             "raw-openspec": self._openspec_summary(),
+            "raw-hub": {key: value for key, value in hub_read.items() if key not in {"agents"}},
+            "raw-mcp": mcp_read,
         }
         for record in session_records[:20]:
             raw[f"raw-round-{record['summary']['id']}"] = record["raw"]
@@ -530,10 +673,42 @@ class LiveSourceAggregator:
         ok, head = run_read_only_command(["git", "rev-parse", "--short=12", "HEAD"], self.project_root)
         return head if ok else "unknown"
 
+    def _snapshot_cursor(self, snapshot: dict[str, Any]) -> str:
+        payload = {
+            "rounds": [
+                {
+                    "id": row.get("id"),
+                    "state": row.get("state"),
+                    "updatedAt": row.get("updatedAt"),
+                    "latestEvent": row.get("latestEvent"),
+                    "blockers": row.get("blockers"),
+                    "branchEvidence": row.get("branchEvidence"),
+                }
+                for row in snapshot.get("rounds", [])
+                if isinstance(row, dict)
+            ],
+            "inbox": snapshot.get("inbox"),
+            "sources": [
+                {
+                    "name": source.get("name"),
+                    "status": source.get("status"),
+                    "detail": source.get("detail"),
+                    "error": source.get("error"),
+                    "fallback": source.get("fallback"),
+                    "stale": source.get("stale"),
+                }
+                for source in snapshot.get("sourceHealth", [])
+                if isinstance(source, dict)
+            ],
+            "openspec": snapshot.get("diagnostics", {}).get("rawPayloads", {}).get("raw-openspec"),
+            "git": self._git_head(),
+        }
+        return f"live:{stable_digest(payload)}"
+
 
 def build_event(event_type: str, source: str, payload: dict[str, Any], *, entity_id: str | None = None, cursor: str | None = None) -> dict[str, Any]:
     timestamp = iso_now()
-    event_id = stable_id(EVENT_SCHEMA_VERSION, event_type, source, entity_id, cursor or timestamp, json.dumps(payload, sort_keys=True, default=str))
+    event_id = stable_id(EVENT_SCHEMA_VERSION, event_type, source, entity_id, cursor or stable_digest(payload), json.dumps(payload, sort_keys=True, default=str))
     return {
         "schemaVersion": EVENT_SCHEMA_VERSION,
         "type": event_type,
@@ -572,6 +747,75 @@ def event_batch(snapshot: dict[str, Any], *, cursor: str = "") -> dict[str, Any]
             )
         )
     return {"cursor": snapshot["cursor"], "events": events}
+
+
+def _items_by_id(items: list[dict[str, Any]], key: str = "id") -> dict[str, dict[str, Any]]:
+    return {str(item.get(key)): item for item in items if isinstance(item, dict) and item.get(key)}
+
+
+def incremental_events(previous: dict[str, Any], current: dict[str, Any]) -> list[dict[str, Any]]:
+    cursor = current["cursor"]
+    events: list[dict[str, Any]] = []
+    previous_rounds = _items_by_id(previous.get("rounds", []))
+    for round_item in current.get("rounds", []):
+        if not isinstance(round_item, dict):
+            continue
+        round_id = str(round_item.get("id") or "")
+        comparable = {
+            "state": round_item.get("state"),
+            "updatedAt": round_item.get("updatedAt"),
+            "latestEvent": round_item.get("latestEvent"),
+            "blockers": round_item.get("blockers"),
+            "branchEvidence": round_item.get("branchEvidence"),
+        }
+        previous_item = previous_rounds.get(round_id, {})
+        previous_comparable = {
+            "state": previous_item.get("state"),
+            "updatedAt": previous_item.get("updatedAt"),
+            "latestEvent": previous_item.get("latestEvent"),
+            "blockers": previous_item.get("blockers"),
+            "branchEvidence": previous_item.get("branchEvidence"),
+        }
+        if comparable != previous_comparable:
+            events.append(build_event("round_updated", str(round_item.get("source") or "Hub"), round_item, entity_id=round_id, cursor=cursor))
+
+    previous_details = previous.get("roundDetails", {}) if isinstance(previous.get("roundDetails"), dict) else {}
+    for round_id, detail in (current.get("roundDetails", {}) or {}).items():
+        if not isinstance(detail, dict):
+            continue
+        old_entries = _items_by_id((previous_details.get(round_id) or {}).get("timeline", []) if isinstance(previous_details.get(round_id), dict) else [])
+        for entry in detail.get("timeline", []):
+            if isinstance(entry, dict) and entry.get("id") and old_entries.get(str(entry["id"])) != entry:
+                events.append(build_event("timeline_entry", "Hub", {"roundId": round_id, "entry": entry}, entity_id=str(entry["id"]), cursor=cursor))
+
+    previous_inbox = _items_by_id(previous.get("inbox", []))
+    for item in current.get("inbox", []):
+        if isinstance(item, dict) and item.get("id") and previous_inbox.get(str(item["id"])) != item:
+            events.append(build_event("inbox_item", str(item.get("source") or "Hub"), item, entity_id=str(item["id"]), cursor=cursor))
+
+    previous_sources = _items_by_id(previous.get("sourceHealth", []), key="name")
+    runtime_changed = False
+    for source in current.get("sourceHealth", []):
+        if not isinstance(source, dict):
+            continue
+        name = str(source.get("name") or "")
+        comparable = {key: source.get(key) for key in ("status", "detail", "error", "stale", "fallback")}
+        previous_comparable = {key: previous_sources.get(name, {}).get(key) for key in ("status", "detail", "error", "stale", "fallback")}
+        if comparable != previous_comparable:
+            runtime_changed = True
+            events.append(build_event("source_status", name, source, entity_id=name, cursor=cursor))
+            if source.get("stale"):
+                events.append(build_event("stale", name, source, entity_id=name, cursor=cursor))
+            if source.get("fallback"):
+                events.append(build_event("fallback", name, source, entity_id=name, cursor=cursor))
+    if runtime_changed:
+        events.append(build_event("runtime_health", "Adapter", {"sources": current.get("sourceHealth", [])}, cursor=cursor))
+
+    previous_errors = previous.get("diagnostics", {}).get("sourceErrors", [])
+    current_errors = current.get("diagnostics", {}).get("sourceErrors", [])
+    if previous_errors != current_errors:
+        events.append(build_event("diagnostic", "Adapter", {"sourceErrors": current_errors}, cursor=cursor))
+    return events
 
 
 class PreviewHandler(BaseHTTPRequestHandler):
@@ -686,8 +930,15 @@ class PreviewHandler(BaseHTTPRequestHandler):
             self.close_connection = True
             return
         deadline = time.monotonic() + max(1, min(int(query.get("seconds", ["30"])[0]), 60))
+        interval = max(0.1, min(float(query.get("interval", ["2"])[0]), 15.0))
+        previous_snapshot = snapshot
         while time.monotonic() < deadline:
-            time.sleep(15)
+            time.sleep(interval)
+            current_snapshot = self.snapshot()
+            events = incremental_events(previous_snapshot, current_snapshot)
+            if events:
+                previous_snapshot = current_snapshot
+                batch["cursor"] = current_snapshot["cursor"]
             heartbeat = build_event(
                 "heartbeat",
                 "Adapter",
@@ -695,10 +946,13 @@ class PreviewHandler(BaseHTTPRequestHandler):
                 cursor=batch["cursor"],
             )
             try:
+                for event in events:
+                    self._write_sse_event(event)
                 self._write_sse_event(heartbeat)
                 self.wfile.flush()
             except (BrokenPipeError, ConnectionResetError):
                 return
+        self.close_connection = True
 
     def _write_sse_event(self, event: dict[str, Any]) -> None:
         data = json.dumps(event, sort_keys=True, default=str)
