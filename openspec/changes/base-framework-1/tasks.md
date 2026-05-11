@@ -1,6 +1,6 @@
 # Tasks
 
-- [ ] 1.1 Inventory current UI deployment, service, port, health, and lifecycle paths that must remain untouched by the preview.
+- [x] 1.1 Inventory current UI deployment, service, port, health, and lifecycle paths that must remain untouched by the preview.
 - [ ] 1.2 Scaffold the evaluation frontend with TypeScript, React, and Vite in a location that is clearly separate from the existing UI implementation.
 - [ ] 1.3 Add a small Python HTTP/API adapter that serves the Vite build and mocked JSON data for the preview.
 - [ ] 1.4 Define typed mock data models and fixtures for overview, rounds, round detail, timeline, inbox, runtime/source health, diagnostics, and raw payloads.
