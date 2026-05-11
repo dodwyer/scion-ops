@@ -1,0 +1,168 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t192341z-3a78/reviews/final-review.json",
+  "artifact_json": {
+    "base_branch": "main",
+    "blocking_issues": [],
+    "change": "make-live-1",
+    "pr_readiness": "ready_with_environment_smoke_gap",
+    "repair_verification": {
+      "evidence": [
+        "scripts/kind-control-plane-smoke.py:473 checks sourceMode=live and fixtureBacked=false.",
+        "scripts/kind-control-plane-smoke.py:480 reads runtime.liveService.",
+        "scripts/kind-control-plane-smoke.py:481-499 validates liveReadsAllowed=true, mutationsAllowed=false, snapshotPath=/api/snapshot, and streamPath=/api/events.",
+        "git grep found no mocked, previewService, new-ui-eval, or new_ui_eval references in scripts/kind-control-plane-smoke.py."
+      ],
+      "requested_repair": "Verify scripts/kind-control-plane-smoke.py now checks fixtureBacked/runtime.liveService rather than mocked/runtime.previewService.",
+      "result": "passed"
+    },
+    "review_type": "final",
+    "reviewed_branch": "round-20260511t192341z-3a78-integration",
+    "reviewed_sha": "594e7bae6711b606b0ad8dbd2cdfea943d1a33e8",
+    "scores": {
+      "completeness": 5,
+      "correctness": 5,
+      "style": 4
+    },
+    "session_id": "20260511t192341z-3a78",
+    "spec": {
+      "checked_artifacts": [
+        "openspec/changes/make-live-1/proposal.md",
+        "openspec/changes/make-live-1/design.md",
+        "openspec/changes/make-live-1/specs/new-ui-evaluation/spec.md",
+        "openspec/changes/make-live-1/specs/web-app-hub/spec.md",
+        "openspec/changes/make-live-1/tasks.md",
+        "scripts/kind-control-plane-smoke.py",
+        "new-ui-evaluation/adapter.py",
+        "new-ui-evaluation/src/api.ts",
+        "new-ui-evaluation/src/App.tsx",
+        "new-ui-evaluation/tests/test_adapter.py",
+        "deploy/kind/control-plane/kustomization.yaml",
+        "deploy/kind/control-plane/web-app-deployment.yaml",
+        "docs/kind-control-plane.md",
+        "docs/new-ui-evaluation.md",
+        "Taskfile.yml"
+      ],
+      "conformance": 5,
+      "operational_verification": 4,
+      "spec_completeness": 5,
+      "task_coverage": 5,
+      "unresolved_questions": []
+    },
+    "summary": "Verdict: accept. The previous blocking smoke-contract defect is repaired: kind-control-plane smoke now validates the promoted live web-app snapshot through fixtureBacked=false and runtime.liveService, including read-only safeguards and snapshot/event paths, and no longer references mocked/runtime.previewService or the retired new-ui-eval endpoint. OpenSpec validation, frontend typecheck/test/build, adapter tests, and rendered kustomize inspection pass. PR is ready subject to the remaining environment-only gap of running the full no-spend kind smoke on an available kind control-plane cluster.",
+    "verdict": "accept",
+    "verification": [
+      {
+        "command": "python3 scripts/validate-openspec-change.py --project-root . --change make-live-1",
+        "result": "passed"
+      },
+      {
+        "command": "npm ci --prefix new-ui-evaluation",
+        "result": "passed"
+      },
+      {
+        "command": "npm --prefix new-ui-evaluation run typecheck",
+        "result": "passed"
+      },
+      {
+        "command": "npm --prefix new-ui-evaluation test -- --run",
+        "details": "1 test file passed, 10 tests passed",
+        "result": "passed"
+      },
+      {
+        "command": "npm --prefix new-ui-evaluation run build",
+        "result": "passed"
+      },
+      {
+        "command": "uv run --with pytest python -m pytest tests/test_adapter.py",
+        "details": "8 tests passed",
+        "result": "passed",
+        "workdir": "new-ui-evaluation"
+      },
+      {
+        "command": "kubectl kustomize deploy/kind/control-plane",
+        "details": "Rendered manifest contains scion-ops-web-app Service and Deployment and no separate scion-ops-new-ui-eval resource.",
+        "result": "passed"
+      },
+      {
+        "command": "kubectl config get-contexts",
+        "details": "No Kubernetes contexts are configured in the review workspace; live kind smoke could not be executed.",
+        "result": "not_run"
+      }
+    ],
+    "verification_gaps": [
+      "Full no-spend kind control-plane smoke was not run because this review workspace has no configured Kubernetes context or kind-scion-ops cluster access."
+    ]
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "594e7bae6711b606b0ad8dbd2cdfea943d1a33e8",
+      "checked_at": "2026-05-11T19:57:19.839595Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "594e7bae6711b606b0ad8dbd2cdfea943d1a33e8",
+      "checked_at": "2026-05-11T19:57:40.246179Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "594e7bae6711b606b0ad8dbd2cdfea943d1a33e8",
+      "checked_at": "2026-05-11T19:58:00.674498Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "594e7bae6711b606b0ad8dbd2cdfea943d1a33e8",
+      "checked_at": "2026-05-11T19:58:21.108470Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "594e7bae6711b606b0ad8dbd2cdfea943d1a33e8",
+      "checked_at": "2026-05-11T19:58:41.533979Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "594e7bae6711b606b0ad8dbd2cdfea943d1a33e8",
+      "checked_at": "2026-05-11T19:59:01.998337Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "594e7bae6711b606b0ad8dbd2cdfea943d1a33e8",
+      "checked_at": "2026-05-11T19:59:22.454229Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "38cce943eaea245b68842fa93f6f0edc94669979",
+      "checked_at": "2026-05-11T19:59:42.910318Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t192341z-3a78-final-review-2",
+  "branch_head": "38cce943eaea245b68842fa93f6f0edc94669979",
+  "completed_at": "2026-05-11T19:59:43.500230Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
