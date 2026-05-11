@@ -4,6 +4,7 @@ import type {
   InboxMessage,
   LiveConnection,
   LiveEvent,
+  LiveSnapshot,
   PreviewData,
   RoundDetail,
   RoundSummary,
@@ -87,7 +88,30 @@ export function applyLiveEvent(data: PreviewData, event: LiveEvent): PreviewData
     connection
   };
 
-  if (event.type === "heartbeat" || event.type === "snapshot_ready") {
+  if (event.type === "snapshot_ready") {
+    const snapshot = getSnapshotReadySnapshot(event.payload);
+    if (snapshot) {
+      return {
+        ...snapshot,
+        loadedAt: data.loadedAt,
+        cursor: cursor ?? snapshot.cursor ?? data.cursor,
+        connection: {
+          ...snapshot.connection,
+          status: connection.status,
+          lastEventId: cursor ?? snapshot.connection.lastEventId ?? data.connection.lastEventId,
+          error: connection.error,
+          reconnect: {
+            ...snapshot.connection.reconnect,
+            attempt: 0,
+            nextDelaySeconds: undefined
+          }
+        }
+      };
+    }
+    return next;
+  }
+
+  if (event.type === "heartbeat") {
     return next;
   }
 
@@ -286,4 +310,34 @@ function upsertBy<T>(items: T[], item: T, key: (item: T) => string): T[] {
   const next = new Map(items.map((existing) => [key(existing), existing]));
   next.set(key(item), item);
   return Array.from(next.values());
+}
+
+function getSnapshotReadySnapshot(payload: unknown): LiveSnapshot | null {
+  if (!isRecord(payload) || !isRecord(payload.snapshot)) {
+    return null;
+  }
+  const snapshot = payload.snapshot;
+  if (
+    typeof snapshot.schemaVersion !== "string" ||
+    typeof snapshot.sourceMode !== "string" ||
+    typeof snapshot.mocked !== "boolean" ||
+    typeof snapshot.generatedAt !== "string" ||
+    typeof snapshot.cursor !== "string" ||
+    !Array.isArray(snapshot.rounds) ||
+    !isRecord(snapshot.roundDetails) ||
+    !Array.isArray(snapshot.inbox) ||
+    !isRecord(snapshot.overview) ||
+    !isRecord(snapshot.runtime) ||
+    !isRecord(snapshot.diagnostics) ||
+    !Array.isArray(snapshot.sources) ||
+    !Array.isArray(snapshot.sourceHealth) ||
+    !isRecord(snapshot.connection)
+  ) {
+    return null;
+  }
+  return snapshot as unknown as LiveSnapshot;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
