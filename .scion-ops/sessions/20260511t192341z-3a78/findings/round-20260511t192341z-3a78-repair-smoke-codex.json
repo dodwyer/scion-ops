@@ -1,0 +1,37 @@
+{
+  "agent": "round-20260511t192341z-3a78-repair-smoke-codex",
+  "blockers": [
+    "Live kind smoke was not run because kubectl current-context is unset in this workspace."
+  ],
+  "branch": "round-20260511t192341z-3a78-repair-smoke-codex",
+  "changed_files": [
+    "scripts/kind-control-plane-smoke.py",
+    "docs/new-ui-evaluation.md",
+    "deploy/kind/control-plane/web-app-deployment.yaml",
+    "image-build/web-app/Dockerfile"
+  ],
+  "head_sha": "66f80e7946996c6dd444d085331ca80e6a6ec4ad",
+  "status": "completed",
+  "summary": "Final-review verification_contract blocker repaired. The single live scion-ops-web-app smoke now validates the promoted live adapter contract and no longer reads mocked or runtime.previewService, while owned production-facing docs and env references use SCION_OPS_WEB_APP_MODE, local-fixtures, fixtureBacked, runtime.liveService, and scion-ops-web-app schema wording.",
+  "tasks_completed": [
+    "Updated ensure_web_app to validate the promoted scion-ops-web-app live adapter contract using fixtureBacked=false, sourceMode=live, runtime.liveService.liveReadsAllowed=true, runtime.liveService.mutationsAllowed=false, snapshotPath=/api/snapshot, and streamPath=/api/events.",
+    "Removed smoke-script reads of mocked and runtime.previewService.",
+    "Replaced stale production-facing NEW_UI_EVALUATION_MODE, preview-fixtures, previewService, mocked, and old schema wording in owned docs/deployment/Dockerfile references.",
+    "Pushed branch round-20260511t192341z-3a78-repair-smoke-codex at 66f80e7946996c6dd444d085331ca80e6a6ec4ad."
+  ],
+  "tests_run": [
+    "python3 -m py_compile scripts/kind-control-plane-smoke.py",
+    "git diff --check",
+    "kubectl kustomize deploy/kind/control-plane | rg -n \"name: scion-ops-web-app|SCION_OPS_WEB_APP_MODE|NEW_UI_EVALUATION_MODE|previewService|preview-fixtures|fixtureBacked|liveService|image: localhost/scion-ops-web-app:latest\"",
+    "python3 scripts/validate-openspec-change.py make-live-1 --json",
+    "python3 scripts/test-openspec-change-validator.py",
+    "uv run scripts/kind-control-plane-smoke.py --help",
+    "npm ci",
+    "npm run typecheck",
+    "npm test",
+    "python3 -m unittest discover -s tests",
+    "npm run build",
+    "rg -n \"NEW_UI_EVALUATION_MODE|preview-fixtures|previewService|runtime\\.previewService|mocked|new-ui-evaluation\\.live|new-ui-evaluation\\.event|preview\" docs/new-ui-evaluation.md deploy/kind/control-plane/web-app-deployment.yaml image-build/web-app/Dockerfile scripts/kind-control-plane-smoke.py",
+    "uv run --with 'mcp>=1.13,<2' python - <<'PY' ... smoke.ensure_web_app(...) against a local live-contract HTTP stub"
+  ]
+}
