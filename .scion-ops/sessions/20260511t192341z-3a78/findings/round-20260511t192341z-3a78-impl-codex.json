@@ -1,0 +1,33 @@
+{
+  "agent": "round-20260511t192341z-3a78-impl-codex",
+  "blockers": [],
+  "branch": "round-20260511t192341z-3a78-impl-codex",
+  "changed_files": [
+    "new-ui-evaluation/adapter.py",
+    "new-ui-evaluation/fixtures/local-fixtures.json",
+    "new-ui-evaluation/fixtures/preview-fixtures.json",
+    "new-ui-evaluation/index.html",
+    "new-ui-evaluation/package-lock.json",
+    "new-ui-evaluation/package.json",
+    "new-ui-evaluation/src/App.tsx",
+    "new-ui-evaluation/src/__tests__/fixtures.test.tsx",
+    "new-ui-evaluation/src/api.ts",
+    "new-ui-evaluation/src/styles.css",
+    "new-ui-evaluation/src/types.ts",
+    "new-ui-evaluation/tests/test_adapter.py",
+    "openspec/changes/make-live-1/tasks.md"
+  ],
+  "head_sha": "974e113f1e572339e84e2f29595783d036e5faeb",
+  "status": "completed",
+  "summary": "Renamed the React/Vite adapter and frontend live contract to scion-ops-web-app naming, including schema versions, health metadata, runtime liveService shape, source kind, read-only errors, package/title text, and operator-console wording. Renamed fixture data to local-fixtures.json and kept it explicitly marked as local fixture fallback data. Added adapter static asset coverage while preserving health, snapshot, SSE, and read-only mutation rejection tests. Branch pushed to origin at 974e113f1e57.",
+  "tasks_completed": [
+    "Rename production-facing schema, runtime, service, health, and diagnostic metadata to remove preview/evaluation naming.",
+    "Keep fixture data and fixture mode available only as explicit local development and test fallback paths."
+  ],
+  "tests_run": [
+    "python3 -m unittest discover -s tests (from new-ui-evaluation)",
+    "npm test (from new-ui-evaluation)",
+    "npm run build (from new-ui-evaluation)",
+    "python3 scripts/validate-openspec-change.py --project-root . --change make-live-1"
+  ]
+}

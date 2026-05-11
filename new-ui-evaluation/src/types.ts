@@ -2,7 +2,7 @@ export type Status =
   | "healthy"
   | "degraded"
   | "stale"
-  | "mocked"
+  | "fixture"
   | "live"
   | "reconnecting"
   | "fallback"
@@ -58,7 +58,7 @@ export interface LiveConnection {
 }
 
 export interface OverviewPayload {
-  mocked: boolean;
+  fixtureBacked: boolean;
   sourceMode?: SourceMode;
   controlPlane: string;
   summary: string;
@@ -134,7 +134,7 @@ export interface InboxMessage {
 
 export interface RuntimePayload {
   sources: SourceHealth[];
-  previewService: {
+  liveService: {
     name: string;
     port: number;
     healthPath: string;
@@ -156,10 +156,10 @@ export interface DiagnosticsPayload {
   rawPayloads: Record<string, unknown>;
 }
 
-export interface PreviewFixtures {
+export interface OperatorFixtures {
   schemaVersion: string;
   sourceMode?: SourceMode;
-  mocked: boolean;
+  fixtureBacked: boolean;
   generatedAt?: string;
   cursor?: string;
   sources?: SourceHealth[];
@@ -177,7 +177,7 @@ export interface PreviewFixtures {
 export interface LiveSnapshot {
   schemaVersion: string;
   sourceMode: SourceMode;
-  mocked: boolean;
+  fixtureBacked: boolean;
   generatedAt: string;
   cursor: string;
   sources: SourceHealth[];
@@ -192,7 +192,7 @@ export interface LiveSnapshot {
   diagnostics: DiagnosticsPayload;
 }
 
-export interface PreviewData extends LiveSnapshot {
+export interface OperatorData extends LiveSnapshot {
   loadedAt: string;
 }
 

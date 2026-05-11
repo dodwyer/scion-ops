@@ -38,11 +38,9 @@ KIND_LISTEN_ADDRESS="${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}"
 HUB_HOST_PORT="${SCION_OPS_KIND_HUB_PORT:-18090}"
 MCP_HOST_PORT="${SCION_OPS_MCP_PORT:-8765}"
 WEB_APP_HOST_PORT="${SCION_OPS_WEB_APP_PORT:-8808}"
-NEW_UI_EVAL_HOST_PORT="${SCION_OPS_NEW_UI_EVAL_PORT:-8880}"
 HUB_NODE_PORT="30090"
 MCP_NODE_PORT="30876"
 WEB_APP_NODE_PORT="30808"
-NEW_UI_EVAL_NODE_PORT="30880"
 CONTEXT="kind-${CLUSTER_NAME}"
 SCION_SETTINGS_TEMPLATE="${SCION_SETTINGS_TEMPLATE:-${REPO_ROOT}/deploy/kind/scion-settings.base.yaml}"
 KIND_IMAGE_PLATFORM="${SCION_OPS_KIND_IMAGE_PLATFORM:-linux/amd64}"
@@ -84,8 +82,6 @@ Environment:
                                  (default: 192.168.122.103)
   SCION_OPS_KIND_HUB_PORT        Host port for the Hub service (default: 18090)
   SCION_OPS_MCP_PORT             Host port for the MCP service (default: 8765)
-  SCION_OPS_NEW_UI_EVAL_PORT     Host port for the new UI evaluation preview
-                                 (default: 8880)
   SCION_OPS_KIND_IMAGE_PLATFORM  Platform for direct kind image imports
                                  (default: linux/amd64)
 EOF
@@ -143,8 +139,6 @@ render_cluster_config() {
     -e "s|__MCP_HOST_PORT__|$(sed_replacement_escape "$MCP_HOST_PORT")|g" \
     -e "s|__WEB_APP_NODE_PORT__|$(sed_replacement_escape "$WEB_APP_NODE_PORT")|g" \
     -e "s|__WEB_APP_HOST_PORT__|$(sed_replacement_escape "$WEB_APP_HOST_PORT")|g" \
-    -e "s|__NEW_UI_EVAL_NODE_PORT__|$(sed_replacement_escape "$NEW_UI_EVAL_NODE_PORT")|g" \
-    -e "s|__NEW_UI_EVAL_HOST_PORT__|$(sed_replacement_escape "$NEW_UI_EVAL_HOST_PORT")|g" \
     -e "s|__KIND_LISTEN_ADDRESS__|$(sed_replacement_escape "$(yaml_dq_escape "$KIND_LISTEN_ADDRESS")")|g" \
     -e "s|__WORKSPACE_HOST_PATH__|$(sed_replacement_escape "$(yaml_dq_escape "$WORKSPACE_HOST_PATH")")|g" \
     -e "s|__WORKSPACE_NODE_PATH__|$(sed_replacement_escape "$(yaml_dq_escape "$WORKSPACE_NODE_PATH")")|g" \
@@ -190,11 +184,9 @@ kind_native_ports_present() {
   [[ "$bindings" == *"\"${HUB_NODE_PORT}/tcp\""* ]] &&
     [[ "$bindings" == *"\"${MCP_NODE_PORT}/tcp\""* ]] &&
     [[ "$bindings" == *"\"${WEB_APP_NODE_PORT}/tcp\""* ]] &&
-    [[ "$bindings" == *"\"${NEW_UI_EVAL_NODE_PORT}/tcp\""* ]] &&
     [[ "$bindings" == *"\"HostPort\":\"${HUB_HOST_PORT}\""* ]] &&
     [[ "$bindings" == *"\"HostPort\":\"${MCP_HOST_PORT}\""* ]] &&
     [[ "$bindings" == *"\"HostPort\":\"${WEB_APP_HOST_PORT}\""* ]] &&
-    [[ "$bindings" == *"\"HostPort\":\"${NEW_UI_EVAL_HOST_PORT}\""* ]] &&
     [[ "$bindings" == *"\"HostIp\":\"${KIND_LISTEN_ADDRESS}\""* ]]
 }
 
@@ -221,7 +213,6 @@ Required mappings:
   ${KIND_LISTEN_ADDRESS}:${HUB_HOST_PORT} -> kind node ${HUB_NODE_PORT} -> scion-hub
   ${KIND_LISTEN_ADDRESS}:${MCP_HOST_PORT} -> kind node ${MCP_NODE_PORT} -> scion-ops-mcp
   ${KIND_LISTEN_ADDRESS}:${WEB_APP_HOST_PORT} -> kind node ${WEB_APP_NODE_PORT} -> scion-ops-web-app
-  ${KIND_LISTEN_ADDRESS}:${NEW_UI_EVAL_HOST_PORT} -> kind node ${NEW_UI_EVAL_NODE_PORT} -> scion-ops-new-ui-eval
 EOF
 }
 
@@ -281,12 +272,6 @@ configure_mcp_root() {
   kubectl_ctx -n "$NAMESPACE" set env deploy/scion-ops-web-app \
     "SCION_OPS_ROOT=${SCION_OPS_REPO_NODE_PATH}" \
     >/dev/null
-  kubectl_ctx -n "$NAMESPACE" set env deploy/scion-ops-new-ui-eval \
-    "SCION_OPS_ROOT=${SCION_OPS_REPO_NODE_PATH}" \
-    "SCION_OPS_MCP_URL=http://scion-ops-mcp:8765/mcp" \
-    "SCION_OPS_HUB_ENDPOINT=http://scion-hub:8090" \
-    "SCION_HUB_ENDPOINT=http://scion-hub:8090" \
-    >/dev/null
 }
 
 cmd_up() {
@@ -332,7 +317,6 @@ cmd_status() {
   printf 'Hub host URL:     http://%s:%s\n' "$KIND_LISTEN_ADDRESS" "$HUB_HOST_PORT"
   printf 'MCP host URL:     http://%s:%s/mcp\n' "$KIND_LISTEN_ADDRESS" "$MCP_HOST_PORT"
   printf 'Web app host URL: http://%s:%s\n\n' "$KIND_LISTEN_ADDRESS" "$WEB_APP_HOST_PORT"
-  printf 'New UI preview:   http://%s:%s\n\n' "$KIND_LISTEN_ADDRESS" "$NEW_UI_EVAL_HOST_PORT"
 
   if ! cluster_exists; then
     die "kind cluster $CLUSTER_NAME does not exist"

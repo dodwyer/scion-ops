@@ -139,7 +139,7 @@ small {
   color: #84251f;
 }
 
-.connection-strip.mocked {
+.connection-strip.fixture {
   background: #f0edf8;
   border-color: #d6cde8;
   color: #513f78;
@@ -291,7 +291,7 @@ small {
   color: #9c2d26;
 }
 
-.badge.mocked {
+.badge.fixture {
   background: #ece7f7;
   color: #5b4591;
 }

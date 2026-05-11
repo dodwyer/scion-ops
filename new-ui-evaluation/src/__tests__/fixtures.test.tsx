@@ -1,11 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import fixtures from "../../fixtures/preview-fixtures.json";
-import { applyLiveEvent, loadPreviewData, markPreviewDataStale, openLiveEventStream } from "../api";
+import fixtures from "../../fixtures/local-fixtures.json";
+import { applyLiveEvent, loadOperatorData, markOperatorDataStale, openLiveEventStream } from "../api";
 import { App } from "../App";
-import type { LiveEvent, LiveSnapshot, PreviewData, PreviewFixtures, RuntimeHealthEventPayload, SourceHealth, TimelineEntryEventPayload } from "../types";
+import type { LiveEvent, LiveSnapshot, OperatorData, OperatorFixtures, RuntimeHealthEventPayload, SourceHealth, TimelineEntryEventPayload } from "../types";
 
-const typedFixtures = fixtures as PreviewFixtures;
+const typedFixtures = fixtures as OperatorFixtures;
 
 const liveSources: SourceHealth[] = [
   {
@@ -35,7 +35,7 @@ const liveSources: SourceHealth[] = [
 
 const liveSnapshot: LiveSnapshot = {
   ...typedFixtures,
-  mocked: false,
+  fixtureBacked: false,
   sourceMode: "live",
   generatedAt: "2026-05-11T15:40:50Z",
   cursor: "cursor-1",
@@ -50,15 +50,15 @@ const liveSnapshot: LiveSnapshot = {
   },
   overview: {
     ...typedFixtures.overview,
-    mocked: false,
+    fixtureBacked: false,
     sourceMode: "live",
     summary: "Live read-only operator console snapshot",
     sourceReadiness: liveSources.map((source) => ({ source: source.name, status: source.status, freshnessSeconds: source.freshnessSeconds ?? 0 }))
   },
   runtime: {
     sources: liveSources,
-    previewService: {
-      name: "scion-ops-new-ui-eval",
+    liveService: {
+      name: "scion-ops-web-app",
       port: 8091,
       healthPath: "/healthz",
       fixtureOnly: false,
@@ -71,7 +71,7 @@ const liveSnapshot: LiveSnapshot = {
   },
   diagnostics: {
     ...typedFixtures.diagnostics,
-    schemaVersion: "new-ui-evaluation.live.v1",
+    schemaVersion: "scion-ops-web-app.live.v1",
     sourceMode: "live",
     sourceHealth: liveSources,
     sourceErrors: [{ source: "Git", severity: "warning", message: "git read delayed", observedAt: "2026-05-11T15:40:50Z" }]
@@ -116,32 +116,32 @@ afterEach(() => {
   MockEventSource.instances = [];
 });
 
-describe("preview live contract", () => {
+describe("live UI contract", () => {
   it("keeps fixture data explicit and read-only", () => {
-    expect(typedFixtures.mocked).toBe(true);
-    expect(typedFixtures.overview.mocked).toBe(true);
-    expect(typedFixtures.runtime.previewService.fixtureOnly).toBe(true);
-    expect(typedFixtures.runtime.previewService.liveReadsAllowed).toBe(false);
-    expect(typedFixtures.runtime.previewService.mutationsAllowed).toBe(false);
+    expect(typedFixtures.fixtureBacked).toBe(true);
+    expect(typedFixtures.overview.fixtureBacked).toBe(true);
+    expect(typedFixtures.runtime.liveService.fixtureOnly).toBe(true);
+    expect(typedFixtures.runtime.liveService.liveReadsAllowed).toBe(false);
+    expect(typedFixtures.runtime.liveService.mutationsAllowed).toBe(false);
   });
 
   it("loads the live snapshot endpoint by default", async () => {
     const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(liveSnapshot)));
     vi.stubGlobal("fetch", fetchMock);
 
-    const data = await loadPreviewData();
+    const data = await loadOperatorData();
 
     expect(data.sourceMode).toBe("live");
-    expect(data.runtime.previewService.streamPath).toBe("/api/events");
+    expect(data.runtime.liveService.streamPath).toBe("/api/events");
     expect(fetchMock).toHaveBeenCalledWith("/api/snapshot", expect.objectContaining({ method: "GET" }));
   });
 
   it("uses fixture fallback only when explicitly requested", async () => {
-    const fixtureSnapshot = { ...liveSnapshot, sourceMode: "fixture", mocked: true };
+    const fixtureSnapshot = { ...liveSnapshot, sourceMode: "fixture", fixtureBacked: true };
     const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(fixtureSnapshot)));
     vi.stubGlobal("fetch", fetchMock);
 
-    await loadPreviewData({ fixtureMode: true });
+    await loadOperatorData({ fixtureMode: true });
 
     expect(fetchMock).toHaveBeenCalledWith("/api/fixtures", expect.objectContaining({ method: "GET" }));
   });
@@ -152,15 +152,15 @@ describe("preview live contract", () => {
 
     render(<App />);
 
-    await waitFor(() => expect(screen.getByText("Preview Console")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Operator Console")).toBeInTheDocument());
     expect(screen.getByText(/SSE updates via \/api\/events/i)).toBeInTheDocument();
     expect(screen.getByText("Git need attention")).toBeInTheDocument();
   });
 
   it("merges replayed events idempotently and preserves existing data", () => {
-    const initial: PreviewData = { ...liveSnapshot, loadedAt: "2026-05-11T15:40:51Z" };
+    const initial: OperatorData = { ...liveSnapshot, loadedAt: "2026-05-11T15:40:51Z" };
     const event: LiveEvent<SourceHealth> = {
-      schemaVersion: "new-ui-evaluation.event.v1",
+      schemaVersion: "scion-ops-web-app.event.v1",
       type: "source_status",
       id: "evt-git",
       eventId: "evt-git",
@@ -181,7 +181,7 @@ describe("preview live contract", () => {
   });
 
   it("replaces stale data from snapshot_ready payload snapshots", () => {
-    const initial: PreviewData = { ...liveSnapshot, loadedAt: "2026-05-11T15:40:51Z" };
+    const initial: OperatorData = { ...liveSnapshot, loadedAt: "2026-05-11T15:40:51Z" };
     const recoveredSnapshot: LiveSnapshot = {
       ...liveSnapshot,
       generatedAt: "2026-05-11T15:41:30Z",
@@ -198,7 +198,7 @@ describe("preview live contract", () => {
       }
     };
     const event: LiveEvent<{ snapshot: LiveSnapshot }> = {
-      schemaVersion: "new-ui-evaluation.event.v1",
+      schemaVersion: "scion-ops-web-app.event.v1",
       type: "snapshot_ready",
       id: "evt-snapshot-ready",
       eventId: "evt-snapshot-ready",
@@ -224,7 +224,7 @@ describe("preview live contract", () => {
   });
 
   it("merges backend timeline entry events by payload round id", () => {
-    const initial: PreviewData = { ...liveSnapshot, loadedAt: "2026-05-11T15:40:51Z" };
+    const initial: OperatorData = { ...liveSnapshot, loadedAt: "2026-05-11T15:40:51Z" };
     const roundId = initial.rounds[0].id;
     const entry = {
       id: "timeline-entry-live",
@@ -234,7 +234,7 @@ describe("preview live contract", () => {
       summary: "Live timeline update"
     };
     const event: LiveEvent<TimelineEntryEventPayload> = {
-      schemaVersion: "new-ui-evaluation.event.v1",
+      schemaVersion: "scion-ops-web-app.event.v1",
       type: "timeline_entry",
       id: "evt-timeline-entry-live",
       eventId: "evt-timeline-entry-live",
@@ -255,13 +255,13 @@ describe("preview live contract", () => {
   });
 
   it("merges backend runtime health source aggregates idempotently", () => {
-    const initial: PreviewData = { ...liveSnapshot, loadedAt: "2026-05-11T15:40:51Z" };
+    const initial: OperatorData = { ...liveSnapshot, loadedAt: "2026-05-11T15:40:51Z" };
     const sources: SourceHealth[] = [
       { ...liveSources[0], status: "degraded", detail: "hub probe delayed", freshnessSeconds: 15 },
       { ...liveSources[1], status: "healthy", detail: "branch read recovered", stale: false, error: null }
     ];
     const event: LiveEvent<RuntimeHealthEventPayload> = {
-      schemaVersion: "new-ui-evaluation.event.v1",
+      schemaVersion: "scion-ops-web-app.event.v1",
       type: "runtime_health",
       id: "evt-runtime-health",
       eventId: "evt-runtime-health",
@@ -281,8 +281,8 @@ describe("preview live contract", () => {
   });
 
   it("marks preserved data stale when heartbeats age out", () => {
-    const initial: PreviewData = { ...liveSnapshot, loadedAt: "2026-05-11T15:40:51Z" };
-    const stale = markPreviewDataStale(initial, Date.parse("2026-05-11T15:42:00Z"), 10_000);
+    const initial: OperatorData = { ...liveSnapshot, loadedAt: "2026-05-11T15:40:51Z" };
+    const stale = markOperatorDataStale(initial, Date.parse("2026-05-11T15:42:00Z"), 10_000);
 
     expect(stale.connection.status).toBe("stale");
     expect(stale.overview.freshness.status).toBe("stale");
@@ -298,7 +298,7 @@ describe("preview live contract", () => {
       onEvent: (event) => received.push(event)
     });
     const event: LiveEvent = {
-      schemaVersion: "new-ui-evaluation.event.v1",
+      schemaVersion: "scion-ops-web-app.event.v1",
       type: "heartbeat",
       id: "evt-heartbeat",
       source: "Adapter",

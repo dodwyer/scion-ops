@@ -1,7 +1,7 @@
 import { AlertTriangle, CheckCircle2, CircleDot, Database, GitBranch, Inbox, RefreshCcw, Server, ShieldCheck, Wifi, WifiOff } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { applyLiveEvent, fixtureModeRequested, loadPreviewData, markPreviewDataStale, openLiveEventStream } from "./api";
-import type { DiagnosticsPayload, InboxMessage, LiveConnection, LiveEvent, PreviewData, RoundDetail, RoundSummary, SourceHealth, Status } from "./types";
+import { applyLiveEvent, fixtureModeRequested, loadOperatorData, markOperatorDataStale, openLiveEventStream } from "./api";
+import type { DiagnosticsPayload, InboxMessage, LiveConnection, LiveEvent, OperatorData, RoundDetail, RoundSummary, SourceHealth, Status } from "./types";
 
 type View = "overview" | "rounds" | "detail" | "inbox" | "runtime" | "diagnostics";
 
@@ -23,8 +23,8 @@ const statusClass: Record<string, string> = {
   active: "info",
   running: "info",
   reconnecting: "info",
-  mocked: "mocked",
-  fallback: "mocked",
+  fixture: "fixture",
+  fallback: "fixture",
   waiting: "warn",
   stale: "warn",
   degraded: "warn",
@@ -37,7 +37,7 @@ const statusClass: Record<string, string> = {
 
 export function App() {
   const fixtureMode = useMemo(() => fixtureModeRequested(), []);
-  const [data, setData] = useState<PreviewData | null>(null);
+  const [data, setData] = useState<OperatorData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [view, setView] = useState<View>("overview");
   const [selectedRoundId, setSelectedRoundId] = useState<string>("");
@@ -49,11 +49,11 @@ export function App() {
   async function refresh() {
     setLoadError(null);
     try {
-      const previewData = await loadPreviewData({ fixtureMode });
-      setData(previewData);
-      setSelectedRoundId((current) => (previewData.rounds.some((round) => round.id === current) ? current : previewData.rounds[0]?.id ?? ""));
+      const operatorData = await loadOperatorData({ fixtureMode });
+      setData(operatorData);
+      setSelectedRoundId((current) => (operatorData.rounds.some((round) => round.id === current) ? current : operatorData.rounds[0]?.id ?? ""));
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "Unable to load preview data");
+      setLoadError(error instanceof Error ? error.message : "Unable to load operator data");
     }
   }
 
@@ -71,7 +71,7 @@ export function App() {
     if (!data || data.sourceMode !== "live") {
       return;
     }
-    const timer = window.setInterval(() => setData((current) => (current ? markPreviewDataStale(current) : current)), 5_000);
+    const timer = window.setInterval(() => setData((current) => (current ? markOperatorDataStale(current) : current)), 5_000);
     return () => window.clearInterval(timer);
   }, [data?.sourceMode]);
 
@@ -81,7 +81,7 @@ export function App() {
       eventSource.current = null;
       return;
     }
-    const streamPath = data.runtime.previewService.streamPath ?? "/api/events";
+    const streamPath = data.runtime.liveService.streamPath ?? "/api/events";
     connectStream(streamPath, data.cursor);
     return () => {
       eventSource.current?.close();
@@ -90,7 +90,7 @@ export function App() {
         window.clearTimeout(reconnectTimer.current);
       }
     };
-  }, [data?.sourceMode, data?.runtime.previewService.streamPath]);
+  }, [data?.sourceMode, data?.runtime.liveService.streamPath]);
 
   function connectStream(streamPath: string, cursor: string) {
     eventSource.current?.close();
@@ -107,7 +107,7 @@ export function App() {
       reconnectTimer.current = window.setTimeout(() => {
         setData((current) => {
           if (!current || current.sourceMode !== "live") return current;
-          connectStream(current.runtime.previewService.streamPath ?? streamPath, current.cursor);
+          connectStream(current.runtime.liveService.streamPath ?? streamPath, current.cursor);
           return current;
         });
       }, delaySeconds * 1_000);
@@ -154,7 +154,7 @@ export function App() {
     return (
       <main className="shell">
         <Header loadedAt={null} connection={null} onRefresh={refresh} />
-        <section className="loading">Loading live preview snapshot...</section>
+        <section className="loading">Loading live operator snapshot...</section>
       </main>
     );
   }
@@ -165,7 +165,7 @@ export function App() {
     <main className="shell">
       <Header loadedAt={data.loadedAt} connection={data.connection} onRefresh={refresh} />
       <ConnectionStrip data={data} />
-      <nav className="tabs" aria-label="Preview views">
+      <nav className="tabs" aria-label="Operator views">
         {views.map((item) => (
           <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}>
             {item.label}
@@ -193,7 +193,7 @@ export function App() {
   );
 }
 
-function withConnection(data: PreviewData, update: { status: LiveConnection["status"]; error?: string | null; attempt?: number; nextDelaySeconds?: number }): PreviewData {
+function withConnection(data: OperatorData, update: { status: LiveConnection["status"]; error?: string | null; attempt?: number; nextDelaySeconds?: number }): OperatorData {
   return {
     ...data,
     connection: {
@@ -214,12 +214,12 @@ function Header({ loadedAt, connection, onRefresh }: { loadedAt: string | null; 
     <header className="topbar">
       <div>
         <p className="eyebrow">Scion Ops</p>
-        <h1>Preview Console</h1>
+        <h1>Operator Console</h1>
       </div>
       <div className="topbar-actions">
         <span className="timestamp">{loadedAt ? `Snapshot loaded ${formatTime(loadedAt)}` : "Snapshot loading"}</span>
         {connection && <Badge value={connection.status} />}
-        <button className="icon-button" onClick={onRefresh} aria-label="Refresh preview snapshot" title="Refresh preview snapshot">
+        <button className="icon-button" onClick={onRefresh} aria-label="Refresh operator snapshot" title="Refresh operator snapshot">
           <RefreshCcw size={18} />
         </button>
       </div>
@@ -227,12 +227,12 @@ function Header({ loadedAt, connection, onRefresh }: { loadedAt: string | null; 
   );
 }
 
-function ConnectionStrip({ data }: { data: PreviewData }) {
+function ConnectionStrip({ data }: { data: OperatorData }) {
   const Icon = data.connection.status === "failed" || data.connection.status === "stale" ? WifiOff : Wifi;
   const staleSources = data.sourceHealth.filter((source) => source.stale || source.status === "stale" || source.status === "failed" || source.error);
   const message = data.sourceMode === "fixture"
     ? data.fixtureProvenance?.notes ?? "Explicit fixture fallback is active."
-    : `${data.connection.transport.toUpperCase()} updates via ${data.runtime.previewService.streamPath ?? "/api/events"}`;
+    : `${data.connection.transport.toUpperCase()} updates via ${data.runtime.liveService.streamPath ?? "/api/events"}`;
   return (
     <section className={`connection-strip ${statusClass[data.connection.status] ?? "muted"}`}>
       <Icon size={18} />
@@ -244,7 +244,7 @@ function ConnectionStrip({ data }: { data: PreviewData }) {
   );
 }
 
-function Overview({ data, onOpenRound }: { data: PreviewData; onOpenRound: (roundId: string) => void }) {
+function Overview({ data, onOpenRound }: { data: OperatorData; onOpenRound: (roundId: string) => void }) {
   const counts = data.overview.counts;
   return (
     <section className="view-grid">
@@ -400,7 +400,7 @@ function InboxView({ messages, onOpenRound }: { messages: InboxMessage[]; onOpen
   );
 }
 
-function RuntimeView({ data }: { data: PreviewData }) {
+function RuntimeView({ data }: { data: OperatorData }) {
   return (
     <section className="two-column">
       <div className="panel">
@@ -416,14 +416,14 @@ function RuntimeView({ data }: { data: PreviewData }) {
         </div>
       </div>
       <div className="panel">
-        <PanelTitle icon={<ShieldCheck size={18} />} title="Preview safeguards" />
+        <PanelTitle icon={<ShieldCheck size={18} />} title="Live safeguards" />
         <dl className="facts">
-          <div><dt>Service</dt><dd>{data.runtime.previewService.name}</dd></div>
-          <div><dt>Snapshot</dt><dd>{data.runtime.previewService.snapshotPath ?? "/api/snapshot"}</dd></div>
-          <div><dt>Stream</dt><dd>{data.runtime.previewService.streamPath ?? "disabled"}</dd></div>
-          <div><dt>Fixture only</dt><dd>{String(data.runtime.previewService.fixtureOnly)}</dd></div>
-          <div><dt>Live reads</dt><dd>{String(data.runtime.previewService.liveReadsAllowed)}</dd></div>
-          <div><dt>Mutations</dt><dd>{String(data.runtime.previewService.mutationsAllowed)}</dd></div>
+          <div><dt>Service</dt><dd>{data.runtime.liveService.name}</dd></div>
+          <div><dt>Snapshot</dt><dd>{data.runtime.liveService.snapshotPath ?? "/api/snapshot"}</dd></div>
+          <div><dt>Stream</dt><dd>{data.runtime.liveService.streamPath ?? "disabled"}</dd></div>
+          <div><dt>Local fixture fallback</dt><dd>{String(data.runtime.liveService.fixtureOnly)}</dd></div>
+          <div><dt>Live reads</dt><dd>{String(data.runtime.liveService.liveReadsAllowed)}</dd></div>
+          <div><dt>Mutations</dt><dd>{String(data.runtime.liveService.mutationsAllowed)}</dd></div>
         </dl>
       </div>
     </section>
