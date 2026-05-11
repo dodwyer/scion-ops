@@ -32,6 +32,11 @@
       "branch": "round-20260511t154050z-44ce-impl-ui-codex",
       "status": "completed",
       "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-impl-ui-codex.json"
+    },
+    "round-20260511t154050z-44ce-repair-live-codex": {
+      "branch": "round-20260511t154050z-44ce-repair-live-codex",
+      "status": "completed",
+      "handoff": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-repair-live-codex.json"
     }
   },
   "implementation": {
@@ -68,7 +73,7 @@
       "agent": "round-20260511t154050z-44ce-final-review",
       "branch": "round-20260511t154050z-44ce-final-review",
       "cause": "final_review_request_changes",
-      "status": "repair_planned",
+      "status": "repair_completed",
       "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-wait.json",
       "summary": "Final review requested changes for incomplete live source push updates and incomplete Hub/MCP live reads."
     }

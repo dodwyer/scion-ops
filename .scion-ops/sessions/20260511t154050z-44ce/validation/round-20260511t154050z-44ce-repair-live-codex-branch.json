@@ -1,0 +1,21 @@
+{
+  "base_branch": "round-20260511t154050z-44ce-integration",
+  "base_sha": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+  "branch": "round-20260511t154050z-44ce-repair-live-codex",
+  "child_sha": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+  "completed_at": "2026-05-11T16:19:24.986665Z",
+  "created": true,
+  "fetch": {
+    "ok": true,
+    "output": "",
+    "returncode": 0
+  },
+  "ok": true,
+  "project_root": "/workspace",
+  "push": {
+    "ok": true,
+    "output": "remote: \nremote: Create a pull request for 'round-20260511t154050z-44ce-repair-live-codex' on GitHub by visiting:        \nremote:      https://github.com/dodwyer/scion-ops/pull/new/round-20260511t154050z-44ce-repair-live-codex        \nremote: \nTo https://github.com/dodwyer/scion-ops.git\n * [new branch]      origin/round-20260511t154050z-44ce-integration -> round-20260511t154050z-44ce-repair-live-codex\n",
+    "returncode": 0
+  },
+  "reason": ""
+}

@@ -1,0 +1,187 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t154050z-44ce/findings/round-20260511t154050z-44ce-repair-live-codex.json",
+  "artifact_json": {
+    "agent": "round-20260511t154050z-44ce-repair-live-codex",
+    "blockers": [],
+    "branch": "round-20260511t154050z-44ce-repair-live-codex",
+    "changed_files": [
+      "docs/new-ui-evaluation.md",
+      "new-ui-evaluation/adapter.py",
+      "new-ui-evaluation/tests/test_adapter.py",
+      "openspec/changes/wire-new-ui-1/tasks.md"
+    ],
+    "head_sha": "2a083fb9a65d889da85c0bd266dfc3057fceb331",
+    "status": "completed",
+    "summary": "Repaired the backend live adapter so snapshots prefer real read-only Hub/MCP operational reads when available and clearly mark fallback metadata when degraded. Reworked the SSE stream to poll read-only snapshots and emit stable typed incremental events for operational changes instead of only startup events and heartbeats. Branch pushed to origin.",
+    "tasks_completed": [
+      "Changed /api/snapshot live source health to read Hub through the read-only MCP/Hub operational API and MCP through an HTTP operational probe, with local .scion-ops session metadata labeled as degraded fallback only.",
+      "Added content cursors and read-only snapshot diffing for /api/events so the SSE stream emits typed incremental events for round, timeline, inbox, runtime health, diagnostic, source status, stale, and fallback changes.",
+      "Added backend tests that simulate Hub/MCP operational reads and source changes, proving typed SSE incremental events are emitted without snapshot replacement semantics.",
+      "Updated the new UI evaluation docs and OpenSpec task list for the repair."
+    ],
+    "tests_run": [
+      "cd new-ui-evaluation && python3 -m py_compile adapter.py tests/test_adapter.py",
+      "cd new-ui-evaluation && python3 -m unittest discover -s tests"
+    ]
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+      "checked_at": "2026-05-11T16:19:54.086430Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+      "checked_at": "2026-05-11T16:20:14.492864Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+      "checked_at": "2026-05-11T16:20:34.930840Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+      "checked_at": "2026-05-11T16:20:55.388183Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+      "checked_at": "2026-05-11T16:21:15.808342Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+      "checked_at": "2026-05-11T16:21:36.216820Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+      "checked_at": "2026-05-11T16:21:56.705768Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+      "checked_at": "2026-05-11T16:22:17.126577Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+      "checked_at": "2026-05-11T16:22:37.533374Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+      "checked_at": "2026-05-11T16:22:57.942531Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+      "checked_at": "2026-05-11T16:23:18.354739Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+      "checked_at": "2026-05-11T16:23:38.768214Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+      "checked_at": "2026-05-11T16:23:59.197221Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+      "checked_at": "2026-05-11T16:24:19.597702Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+      "checked_at": "2026-05-11T16:24:40.030104Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+      "checked_at": "2026-05-11T16:25:00.455665Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "080f1b2b2cef29ad32691d3b20c682d087658a50",
+      "checked_at": "2026-05-11T16:25:20.860772Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "2a083fb9a65d889da85c0bd266dfc3057fceb331",
+      "checked_at": "2026-05-11T16:25:41.255525Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "f17913d8114b6522ba6c29d386b7ea7447b010a2",
+      "checked_at": "2026-05-11T16:26:01.835678Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t154050z-44ce-repair-live-codex",
+  "branch_head": "f17913d8114b6522ba6c29d386b7ea7447b010a2",
+  "completed_at": "2026-05-11T16:26:02.436153Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
