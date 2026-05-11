@@ -31,6 +31,7 @@ button {
 
 .topbar,
 .fixture-strip,
+.connection-strip,
 .tabs,
 .panel,
 .notice {
@@ -107,7 +108,8 @@ small {
   place-items: center;
 }
 
-.fixture-strip {
+.fixture-strip,
+.connection-strip {
   align-items: center;
   background: #eef6f0;
   border: 1px solid #c9ddcd;
@@ -117,6 +119,30 @@ small {
   gap: 10px;
   margin-bottom: 12px;
   padding: 10px 12px;
+}
+
+.connection-strip.info {
+  background: #edf5fc;
+  border-color: #c9d9e7;
+  color: #254b6a;
+}
+
+.connection-strip.warn {
+  background: #fff7e6;
+  border-color: #e7cf9f;
+  color: #704900;
+}
+
+.connection-strip.bad {
+  background: #fae9e7;
+  border-color: #e1b1ad;
+  color: #84251f;
+}
+
+.connection-strip.mocked {
+  background: #f0edf8;
+  border-color: #d6cde8;
+  color: #513f78;
 }
 
 .tabs {
@@ -294,6 +320,15 @@ small {
   padding: 11px;
   text-align: left;
   width: 100%;
+}
+
+.source-row.is-stale {
+  border-color: #e3c070;
+  background: #fffaf0;
+}
+
+.source-row strong {
+  display: block;
 }
 
 .activity:disabled,

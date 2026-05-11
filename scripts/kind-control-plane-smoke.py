@@ -490,12 +490,13 @@ def ensure_web_app(*, url: str, timeout_seconds: int) -> None:
 
 
 def ensure_new_ui_eval(*, url: str, timeout_seconds: int) -> None:
-    overview_url = url.rstrip("/") + "/api/overview"
+    snapshot_url = url.rstrip("/") + "/api/snapshot"
+    events_url = url.rstrip("/") + "/api/events?once=1"
     deadline = time.monotonic() + timeout_seconds
     last_error: Exception | None = None
     while time.monotonic() <= deadline:
         try:
-            with urllib.request.urlopen(overview_url, timeout=2) as response:
+            with urllib.request.urlopen(snapshot_url, timeout=2) as response:
                 if 200 <= response.status < 300:
                     body = response.read(4096).decode(errors="replace")
                     try:
@@ -510,14 +511,40 @@ def ensure_new_ui_eval(*, url: str, timeout_seconds: int) -> None:
                             hint="Check new-ui-eval logs:\n  task kind:new-ui-eval:logs",
                             output=json.dumps(data, indent=2),
                         )
-                    if not data.get("mocked", True) and data.get("mocked") is False:
+                    service = data.get("runtime", {}).get("previewService", {})
+                    if data.get("sourceMode") != "live" or data.get("mocked") is not False:
                         raise SmokeFailure(
                             "new_ui_eval",
-                            "new-ui-eval overview did not identify data as mocked",
-                            hint="The adapter must set mocked=true in all fixture responses",
+                            "new-ui-eval snapshot did not identify live source mode",
+                            hint="Check NEW_UI_EVALUATION_MODE and the adapter live snapshot path",
                             output=json.dumps(data, indent=2),
                         )
-                    return
+                    if service.get("streamPath") != "/api/events" or service.get("snapshotPath") != "/api/snapshot":
+                        raise SmokeFailure(
+                            "new_ui_eval",
+                            "new-ui-eval preview service paths do not match the live contract",
+                            hint="The adapter must expose snapshotPath=/api/snapshot and streamPath=/api/events",
+                            output=json.dumps(service, indent=2),
+                        )
+                    if service.get("mutationsAllowed") is not False:
+                        raise SmokeFailure(
+                            "new_ui_eval",
+                            "new-ui-eval live path did not preserve read-only safeguards",
+                            hint="The adapter must report mutationsAllowed=false",
+                            output=json.dumps(service, indent=2),
+                        )
+            with urllib.request.urlopen(events_url, timeout=5) as response:
+                content_type = response.headers.get("Content-Type", "")
+                body = response.read(4096).decode(errors="replace")
+                if "text/event-stream" not in content_type or "event: heartbeat" not in body:
+                    raise SmokeFailure(
+                        "new_ui_eval",
+                        "new-ui-eval SSE endpoint did not return a heartbeat event",
+                        hint="Check the adapter /api/events implementation and logs",
+                        output=body,
+                    )
+                log(f"kind new-ui-eval SSE is reachable at {events_url}")
+                return
         except SmokeFailure:
             raise
         except Exception as exc:

@@ -63,6 +63,7 @@ kubectl --context kind-scion-ops -n scion-agents logs deploy/scion-ops-web-app
 | Hub URL | `http://192.168.122.103:18090` |
 | MCP URL | `http://192.168.122.103:8765/mcp` |
 | Web app URL | `http://192.168.122.103:8808` |
+| New UI evaluation URL | `http://192.168.122.103:8880` |
 | workspace host path | `~/workspace` when possible |
 | workspace pod path | `/workspace` |
 
@@ -86,6 +87,14 @@ task kind:mcp:smoke
 Open the NiceGUI operator console in a browser at the configured web app URL
 (default `http://192.168.122.103:8808`). The web app reads operational state
 from Hub and MCP using the same in-cluster credentials as the MCP server.
+
+Open the separate React/Vite evaluation console at the configured new UI
+evaluation URL (default `http://192.168.122.103:8880`). It is served by the
+`scion-ops-new-ui-eval` Deployment and Service, uses `/api/snapshot` for the
+initial live read-only snapshot, and uses `/api/events` for SSE updates. Fixture
+fallback is explicit: start the adapter with `NEW_UI_EVALUATION_MODE=fixture` or
+request the browser UI with `?fixture=1`/`?mode=fixture`; fixture data is not the
+default kind runtime path.
 
 The MCP pod reads Hub through the in-cluster `scion-hub` Service and uses the
 `scion-hub-dev-auth` Secret restored by `task bootstrap`.
@@ -134,7 +143,8 @@ task spec:implement  # steward-based implementation from an approved change
 ```
 
 `task test` verifies kind, Hub health, broker registration, MCP tool surface,
-web app endpoint readiness, and no-auth Kubernetes agent dispatch.
+web app endpoint readiness, new UI live snapshot/SSE readiness, UI endpoint
+coexistence, and no-auth Kubernetes agent dispatch.
 
 Use the steward tasks before a release, after credential changes, or when
 diagnosing model-backed dispatch.
@@ -183,6 +193,20 @@ An old cluster without the web app port mapping must be recreated:
 task down
 task up
 ```
+
+## New UI Evaluation Troubleshooting
+
+```bash
+task kind:new-ui-eval:status    # rollout status and service info
+task kind:new-ui-eval:logs      # streaming logs
+task kind:new-ui-eval:smoke     # new-UI-only snapshot/SSE smoke check
+```
+
+The new UI evaluation service is intentionally separate from the NiceGUI web
+app. Its default NodePort is `30880`, normally reached at
+`http://192.168.122.103:8880`, while the existing web app remains on
+`http://192.168.122.103:8808`. The smoke script fails the new-UI-only check if
+the two endpoints are configured to the same host and port.
 
 ## Destroy
 

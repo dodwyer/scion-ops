@@ -18,11 +18,43 @@ export type Status =
   | "accepted";
 
 export type Severity = "info" | "warning" | "critical";
+export type SourceMode = "live" | "fixture";
+export type ConnectionStatus = "live" | "reconnecting" | "stale" | "fallback" | "failed";
 
 export interface FixtureProvenance {
   source: string;
   generatedAt: string;
   notes: string;
+}
+
+export interface SourceHealth {
+  name: string;
+  source?: string;
+  kind: string;
+  status: Status;
+  detail: string;
+  lastSeen: string | null;
+  lastSuccessfulUpdate?: string | null;
+  freshnessSeconds?: number | null;
+  stale?: boolean;
+  sourceMode?: SourceMode;
+  fallback?: boolean;
+  error?: string | null;
+}
+
+export interface LiveConnection {
+  status: ConnectionStatus;
+  transport: "sse" | "fixture" | "websocket" | "polling" | "none" | string;
+  lastEventId: string | null;
+  lastHeartbeatAt: string | null;
+  reconnect: {
+    supported: boolean;
+    maxBackoffSeconds: number;
+    resumeParam?: string;
+    attempt?: number;
+    nextDelaySeconds?: number;
+  };
+  error?: string | null;
 }
 
 export interface OverviewPayload {
@@ -100,37 +132,8 @@ export interface InboxMessage {
   sourceMode?: SourceMode;
 }
 
-export type SourceMode = "live" | "fixture";
-
-export interface SourceHealth {
-  name: string;
-  source: string;
-  kind: string;
-  status: Status;
-  detail: string;
-  lastSeen: string | null;
-  lastSuccessfulUpdate: string | null;
-  freshnessSeconds: number | null;
-  stale: boolean;
-  sourceMode: SourceMode;
-  fallback: boolean;
-  error: string | null;
-}
-
-export interface ConnectionState {
-  status: Status;
-  transport: "sse" | "fixture" | "websocket" | "polling";
-  lastEventId: string | null;
-  lastHeartbeatAt: string | null;
-  reconnect: {
-    supported: boolean;
-    maxBackoffSeconds: number;
-    resumeParam?: string;
-  };
-}
-
 export interface RuntimePayload {
-  sources: Array<SourceHealth | { name: string; kind: string; status: Status; detail: string; lastSeen: string | null }>;
+  sources: SourceHealth[];
   previewService: {
     name: string;
     port: number;
@@ -161,7 +164,7 @@ export interface PreviewFixtures {
   cursor?: string;
   sources?: SourceHealth[];
   sourceHealth?: SourceHealth[];
-  connection?: ConnectionState;
+  connection?: LiveConnection;
   fixtureProvenance: FixtureProvenance;
   overview: OverviewPayload;
   rounds: RoundSummary[];
@@ -171,23 +174,30 @@ export interface PreviewFixtures {
   diagnostics: DiagnosticsPayload;
 }
 
-export interface PreviewData extends PreviewFixtures {
-  loadedAt: string;
-}
-
-export interface LiveSnapshot extends Omit<PreviewFixtures, "fixtureProvenance"> {
-  schemaVersion: "new-ui-evaluation.live.v1";
-  sourceMode: "live";
-  mocked: false;
+export interface LiveSnapshot {
+  schemaVersion: string;
+  sourceMode: SourceMode;
+  mocked: boolean;
   generatedAt: string;
   cursor: string;
   sources: SourceHealth[];
   sourceHealth: SourceHealth[];
-  connection: ConnectionState;
+  connection: LiveConnection;
+  fixtureProvenance?: FixtureProvenance;
+  overview: OverviewPayload;
+  rounds: RoundSummary[];
+  roundDetails: Record<string, RoundDetail>;
+  inbox: InboxMessage[];
+  runtime: RuntimePayload;
+  diagnostics: DiagnosticsPayload;
 }
 
-export interface LiveEvent {
-  schemaVersion: "new-ui-evaluation.event.v1";
+export interface PreviewData extends LiveSnapshot {
+  loadedAt: string;
+}
+
+export interface LiveEvent<TPayload = unknown> {
+  schemaVersion: string;
   type:
     | "heartbeat"
     | "snapshot_ready"
@@ -199,16 +209,24 @@ export interface LiveEvent {
     | "diagnostic"
     | "stale"
     | "fallback"
-    | "fatal";
+    | "fatal"
+    | "round"
+    | "round_summary"
+    | "round_removed"
+    | "round_detail"
+    | "inbox"
+    | "activity"
+    | "diagnostics"
+    | string;
   id: string;
-  eventId: string;
-  entityId: string | null;
+  eventId?: string;
+  entityId?: string | null;
   source: string;
   timestamp: string;
-  version: string;
-  cursor: string;
-  payload: Record<string, unknown>;
-  sourceStatus?: Status;
-  stale: boolean;
+  version?: string;
+  cursor?: string;
+  payload: TPayload;
+  sourceStatus?: Status | string | null;
+  stale?: boolean;
   error?: string | null;
 }
