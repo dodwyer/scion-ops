@@ -1,0 +1,53 @@
+{
+  "session_id": "20260511t125050z-3e38",
+  "change": "base-framework-1",
+  "reviewer_role": "ops-review",
+  "verdict": "accepted",
+  "summary": "The spec is operationally safe, complete, and correctly isolated. The evaluation UI adds a parallel Kubernetes workload with no changes to the existing scion-ops-web-app Deployment, Service (port 8787/NodePort 30808), or lifecycle. Mocked-only data and no write operations satisfy the read-only and no-spend requirements.",
+  "findings": [
+    {
+      "area": "operational_safety",
+      "status": "pass",
+      "notes": "Spec explicitly prohibits any live Hub, MCP, Kubernetes, git, OpenSpec, or model-backed reads. No ServiceAccount, Secrets, PVC, or mutation privileges are permitted in the preview. Preview lifecycle is fully independent of the existing scion-ops-web-app."
+    },
+    {
+      "area": "completeness",
+      "status": "pass",
+      "notes": "All required elements are present: framework decision with rationale and alternatives, deployment shape (separate Deployment + Service + distinct port), full mock data contract (overview, rounds, round detail, inbox, runtime/source health, diagnostics/raw payloads), six core views, coexistence requirements, and 11 granular actionable tasks."
+    },
+    {
+      "area": "validation",
+      "status": "pass",
+      "notes": "Verification strategy covers TypeScript type checks, frontend build, adapter mocked endpoint tests, fixture contract shape, Kubernetes manifest separation checks, health endpoint smoke, and coexistence checks proving existing UI paths unchanged. No live provider spend required."
+    },
+    {
+      "area": "coexistence",
+      "status": "pass",
+      "notes": "Existing scion-ops-web-app (NiceGUI Python, port 8787, NodePort 30808, Deployment/Service named scion-ops-web-app) is explicitly protected. The spec requires the preview to use distinct names, labels, container port, and service port. Preview can be started, stopped, or removed without affecting current UI."
+    },
+    {
+      "area": "framework_decision",
+      "status": "pass",
+      "notes": "TypeScript + React + Vite + Python adapter rationale is documented with explicit tradeoffs against NiceGUI/Python-native, plain server-rendered HTML, alternative JS frameworks (Svelte/Vue/Solid), and Node-only serving. Introducing a second technology stack is a deliberate, scoped evaluation choice acknowledged in the design."
+    },
+    {
+      "area": "minor_gaps",
+      "status": "advisory",
+      "notes": "The spec does not pin a specific port number for the evaluation UI (only requires it to differ from 8787). This is acceptable to resolve at implementation time, but the implementing agent should pick and document a concrete port (e.g. 8788 or 3000) in the Kubernetes manifests. Exact resource names for the evaluation Deployment and Service are also left to implementation — they should be distinguishable (e.g. scion-ops-new-ui-eval) and documented in tasks 1.7 and 1.8."
+    }
+  ],
+  "reviewed_artifacts": [
+    "openspec/changes/base-framework-1/proposal.md",
+    "openspec/changes/base-framework-1/design.md",
+    "openspec/changes/base-framework-1/specs/new-ui-evaluation/spec.md",
+    "openspec/changes/base-framework-1/tasks.md"
+  ],
+  "existing_ui_baseline": {
+    "deployment_name": "scion-ops-web-app",
+    "service_name": "scion-ops-web-app",
+    "container_port": 8787,
+    "service_port": 8787,
+    "node_port": 30808,
+    "framework": "NiceGUI (Python)"
+  }
+}
