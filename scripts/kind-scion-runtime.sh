@@ -278,6 +278,15 @@ configure_mcp_root() {
     "SCION_OPS_HOST_WORKSPACE_ROOT=${WORKSPACE_HOST_PATH}" \
     "SCION_OPS_CONTAINER_WORKSPACE_ROOT=${WORKSPACE_NODE_PATH}" \
     >/dev/null
+  kubectl_ctx -n "$NAMESPACE" set env deploy/scion-ops-web-app \
+    "SCION_OPS_ROOT=${SCION_OPS_REPO_NODE_PATH}" \
+    >/dev/null
+  kubectl_ctx -n "$NAMESPACE" set env deploy/scion-ops-new-ui-eval \
+    "SCION_OPS_ROOT=${SCION_OPS_REPO_NODE_PATH}" \
+    "SCION_OPS_MCP_URL=http://scion-ops-mcp:8765/mcp" \
+    "SCION_OPS_HUB_ENDPOINT=http://scion-hub:8090" \
+    "SCION_HUB_ENDPOINT=http://scion-hub:8090" \
+    >/dev/null
 }
 
 cmd_up() {

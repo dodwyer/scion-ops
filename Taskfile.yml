@@ -403,7 +403,7 @@ tasks:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' logs -f deploy/scion-ops-new-ui-eval
 
   kind:new-ui-eval:smoke:
-    desc: Smoke test the new UI evaluation preview health and mocked overview endpoints.
+    desc: Smoke test the new UI evaluation preview health and live read-only endpoints.
     cmds:
       - |
         PYTHONDONTWRITEBYTECODE=1 SCION_OPS_NEW_UI_EVAL_URL='{{.SCION_OPS_NEW_UI_EVAL_URL}}' python3 - <<'PY'
@@ -413,19 +413,28 @@ tasks:
         import urllib.request
 
         base = os.environ["SCION_OPS_NEW_UI_EVAL_URL"].rstrip("/")
-        for path in ("/healthz", "/api/overview"):
+        for path in ("/healthz", "/api/overview", "/api/snapshot"):
             url = base + path
             with urllib.request.urlopen(url, timeout=5) as response:
-                body = response.read(4096).decode(errors="replace")
+                body = response.read().decode(errors="replace")
                 if response.status < 200 or response.status >= 300:
                     raise SystemExit(f"{url} returned HTTP {response.status}")
-                if path == "/api/overview":
+                if path != "/healthz":
                     try:
                         payload = json.loads(body)
                     except json.JSONDecodeError as exc:
                         raise SystemExit(f"{url} did not return JSON: {exc}") from exc
-                    if payload.get("mocked") is not True:
-                        raise SystemExit(f"{url} did not expose an explicit mocked=true marker")
+                    if payload.get("sourceMode") != "live":
+                        raise SystemExit(f"{url} did not identify live sourceMode")
+                    if path == "/api/overview" and payload.get("mocked") is not False:
+                        raise SystemExit(f"{url} did not expose mocked=false")
+                    if path == "/api/snapshot":
+                        preview = payload.get("runtime", {}).get("previewService", {})
+                        if preview.get("liveReadsAllowed") is not True or preview.get("mutationsAllowed") is not False:
+                            raise SystemExit(f"{url} did not preserve live read-only safeguards")
+                        diagnostics = payload.get("diagnostics", {})
+                        if diagnostics.get("sourceErrors"):
+                            raise SystemExit(f"{url} reported source errors: {diagnostics['sourceErrors']}")
                 print(f"ok {url}")
         PY
 

@@ -24,7 +24,14 @@ from urllib import request as urllib_request
 from urllib.parse import parse_qs, unquote, urlparse
 
 ROOT = Path(__file__).resolve().parent
-PROJECT_ROOT = ROOT.parent
+
+
+def configured_project_root(raw: str | None = None) -> Path:
+    configured = (raw or os.environ.get("SCION_OPS_ROOT") or os.environ.get("NEW_UI_EVALUATION_PROJECT_ROOT") or "").strip()
+    return Path(configured).expanduser().resolve() if configured else ROOT.parent
+
+
+PROJECT_ROOT = configured_project_root()
 FIXTURE_PATH = ROOT / "fixtures" / "preview-fixtures.json"
 DEFAULT_STATIC_ROOT = ROOT / "dist"
 LIVE_SCHEMA_VERSION = "new-ui-evaluation.live.v1"
@@ -111,6 +118,13 @@ def run_read_only_command(args: list[str], cwd: Path = PROJECT_ROOT) -> tuple[bo
         return False, str(exc)
     output = (completed.stdout or completed.stderr).strip()
     return completed.returncode == 0, output
+
+
+def kubectl_pods_args() -> list[str]:
+    namespace = os.environ.get("SCION_K8S_NAMESPACE", "").strip()
+    if namespace:
+        return ["kubectl", "get", "pods", "-n", namespace, "--request-timeout=1s"]
+    return ["kubectl", "get", "pods", "-A", "--request-timeout=1s"]
 
 
 def stable_digest(value: Any) -> str:
@@ -464,7 +478,7 @@ class LiveSourceAggregator:
     def _source_health(self, generated_at: str, session_records: list[dict[str, Any]], *, hub_read: dict[str, Any], mcp_read: dict[str, Any]) -> list[dict[str, Any]]:
         git_ok, git_detail = run_read_only_command(["git", "rev-parse", "--abbrev-ref", "HEAD"], self.project_root)
         head_ok, head = run_read_only_command(["git", "rev-parse", "--short=12", "HEAD"], self.project_root)
-        kube_ok, kube_detail = run_read_only_command(["kubectl", "get", "pods", "-A", "--request-timeout=1s"], self.project_root)
+        kube_ok, kube_detail = run_read_only_command(kubectl_pods_args(), self.project_root)
         openspec_ok = (self.openspec_root / "changes").exists()
         latest_round_update = max((record["summary"]["updatedAt"] for record in session_records), default=generated_at)
         hub_ok = bool(hub_read.get("ok"))
@@ -1064,9 +1078,17 @@ def main() -> None:
     parser.add_argument("--static-root", default=str(DEFAULT_STATIC_ROOT))
     parser.add_argument("--fixture-path", default=str(FIXTURE_PATH))
     parser.add_argument("--mode", choices=["live", "fixture"], default=os.environ.get("NEW_UI_EVALUATION_MODE", "live"))
+    parser.add_argument("--project-root", default=str(PROJECT_ROOT))
     args = parser.parse_args()
 
-    server = build_server(args.host, args.port, Path(args.static_root), Path(args.fixture_path), mode=args.mode)
+    server = build_server(
+        args.host,
+        args.port,
+        Path(args.static_root),
+        Path(args.fixture_path),
+        mode=args.mode,
+        project_root=configured_project_root(args.project_root),
+    )
     print(f"serving new-ui-evaluation in {args.mode} mode on http://{args.host}:{args.port}")
     server.serve_forever()
 

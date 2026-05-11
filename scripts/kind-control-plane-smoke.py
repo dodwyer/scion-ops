@@ -457,7 +457,7 @@ def ensure_web_app(*, url: str, timeout_seconds: int) -> None:
         try:
             with urllib.request.urlopen(overview_url, timeout=2) as response:
                 if 200 <= response.status < 300:
-                    body = response.read(4096).decode(errors="replace")
+                    body = response.read().decode(errors="replace")
                     try:
                         data = json.loads(body)
                     except json.JSONDecodeError:
@@ -498,7 +498,7 @@ def ensure_new_ui_eval(*, url: str, timeout_seconds: int) -> None:
         try:
             with urllib.request.urlopen(snapshot_url, timeout=2) as response:
                 if 200 <= response.status < 300:
-                    body = response.read(4096).decode(errors="replace")
+                    body = response.read().decode(errors="replace")
                     try:
                         data = json.loads(body)
                     except json.JSONDecodeError:
@@ -858,6 +858,8 @@ async def smoke(args: argparse.Namespace) -> None:
                 scion_bin,
                 "--profile",
                 args.profile,
+                "--grove",
+                "scion-ops",
                 "start",
                 agent,
                 "--broker",
@@ -905,7 +907,7 @@ async def smoke(args: argparse.Namespace) -> None:
             if agent_started and success and not args.keep_agent:
                 log(f"delete smoke agent {agent}")
                 run(
-                    [scion_bin, "delete", agent, "--hub", args.hub, "--non-interactive", "--yes"],
+                    [scion_bin, "--profile", args.profile, "--grove", "scion-ops", "delete", agent, "--hub", args.hub, "--non-interactive", "--yes"],
                     env=env,
                     category="cleanup",
                     check=False,
