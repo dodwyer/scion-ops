@@ -40,6 +40,7 @@ while [[ $# -gt 0 ]]; do
     --harness)   HARNESSES=("$2"); shift 2 ;;
     --all-harnesses) HARNESSES=(claude codex gemini opencode); shift ;;
     --skip-mcp)  BUILD_MCP=0; shift ;;
+    --skip-web-app-ui) BUILD_NEW_UI_EVAL=0; shift ;;
     --skip-new-ui-eval) BUILD_NEW_UI_EVAL=0; shift ;;
     --skip-core) BUILD_CORE=0; shift ;;
     --skip-base) BUILD_BASE=0; shift ;;
@@ -55,6 +56,7 @@ while [[ $# -gt 0 ]]; do
         base) BUILD_CORE=1; BUILD_BASE=1 ;;
         harnesses) BUILD_HARNESSES=1 ;;
         mcp) BUILD_MCP=1 ;;
+        web-app-ui) BUILD_NEW_UI_EVAL=1 ;;
         new-ui-eval) BUILD_NEW_UI_EVAL=1 ;;
         claude|codex|gemini|opencode)
           BUILD_HARNESSES=1
@@ -80,11 +82,11 @@ Usage: $(basename "$0") [options]
   --harness <name>   Build only this harness (repeatable)
   --all-harnesses    Build claude codex gemini opencode (default: claude codex gemini)
   --skip-mcp         Do not build the scion-ops MCP image
-  --skip-new-ui-eval Do not build the new UI evaluation image
+  --skip-web-app-ui  Do not build the web app UI image (scion-ops-new-ui-eval)
   --skip-core        Do not build core-base
   --skip-base        Do not build scion-base
   --skip-harnesses   Do not build harness images
-  --only <target>    Build only core, base, mcp, harnesses, all, or one harness
+  --only <target>    Build only core, base, mcp, web-app-ui, harnesses, all, or one harness
 EOF
       exit 0
       ;;

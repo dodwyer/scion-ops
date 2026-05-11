@@ -36,12 +36,6 @@ vars:
     sh: printf '%s' "${SCION_OPS_WEB_APP_PORT:-8808}"
   SCION_OPS_WEB_APP_URL:
     sh: printf 'http://%s:%s' "${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}" "${SCION_OPS_WEB_APP_PORT:-8808}"
-  SCION_OPS_NEW_UI_EVAL_PORT:
-    sh: printf '%s' "${SCION_OPS_NEW_UI_EVAL_PORT:-8880}"
-  SCION_OPS_NEW_UI_EVAL_URL:
-    sh: printf 'http://%s:%s' "${SCION_OPS_KIND_LISTEN_ADDRESS:-192.168.122.103}" "${SCION_OPS_NEW_UI_EVAL_PORT:-8880}"
-  SCION_OPS_NEW_UI_EVAL_IMAGE:
-    sh: printf '%s' "${SCION_OPS_NEW_UI_EVAL_IMAGE:-localhost/scion-ops-new-ui-eval:latest}"
   HOME:
     sh: echo "$HOME"
   GOPATH:
@@ -70,11 +64,6 @@ tasks:
     cmds:
       - bash scripts/build-images.sh --only mcp {{.CLI_ARGS}}
 
-  build:new-ui-eval:
-    desc: Build the new UI evaluation preview image.
-    cmds:
-      - docker build --tag '{{.SCION_OPS_NEW_UI_EVAL_IMAGE}}' --file image-build/new-ui-eval/Dockerfile .
-
   build:harness:
     cmds:
       - bash scripts/build-images.sh --only {{.CLI_ARGS}}
@@ -84,12 +73,11 @@ tasks:
     cmds:
       - task: kind:up
       - task: kind:workspace:status
-      - task kind:load-images -- localhost/scion-base:latest localhost/scion-ops-mcp:latest localhost/scion-claude:latest localhost/scion-codex:latest localhost/scion-gemini:latest '{{.SCION_OPS_NEW_UI_EVAL_IMAGE}}'
+      - task kind:load-images -- localhost/scion-base:latest localhost/scion-ops-mcp:latest localhost/scion-claude:latest localhost/scion-codex:latest localhost/scion-gemini:latest localhost/scion-ops-new-ui-eval:latest
       - task: kind:control-plane:apply
       - task: kind:control-plane:restart
       - task: kind:control-plane:status
       - task: kind:web-app:status
-      - task: kind:new-ui-eval:status
 
   test:
     desc: Smoke test the Kubernetes-hosted Hub, broker, MCP, and agent runtime.
@@ -186,13 +174,6 @@ tasks:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-ops-web-app
       - task: kind:web-app:status
 
-  update:new-ui-eval:
-    desc: Reload the new UI evaluation image and restart its preview deployment.
-    cmds:
-      - task kind:load-images -- '{{.SCION_OPS_NEW_UI_EVAL_IMAGE}}'
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-ops-new-ui-eval
-      - task: kind:new-ui-eval:status
-
   load:image:
     cmds:
       - task kind:load-images -- {{.CLI_ARGS}}
@@ -288,8 +269,6 @@ tasks:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-mcp --timeout=120s
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-ops-web-app
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-web-app --timeout=120s
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-ops-new-ui-eval
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-new-ui-eval --timeout=120s
 
   kind:control-plane:status:
     cmds:
@@ -297,7 +276,6 @@ tasks:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-broker --timeout=120s
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-mcp --timeout=120s
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-web-app --timeout=120s
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-new-ui-eval --timeout=120s
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' get deploy,svc,pvc,cm -l app.kubernetes.io/part-of=scion-control-plane
 
   kind:control-plane:logs:
@@ -314,7 +292,6 @@ tasks:
         SCION_OPS_KIND_HUB_URL='{{.SCION_OPS_KIND_HUB_URL}}' \
         SCION_OPS_MCP_URL='{{.SCION_OPS_MCP_URL}}' \
         SCION_OPS_WEB_APP_URL='{{.SCION_OPS_WEB_APP_URL}}' \
-        SCION_OPS_NEW_UI_EVAL_URL='{{.SCION_OPS_NEW_UI_EVAL_URL}}' \
         uv run scripts/kind-control-plane-smoke.py {{.CLI_ARGS}}
 
   kind:control-plane:delete:
@@ -378,65 +355,6 @@ tasks:
   kind:web-app:logs:
     cmds:
       - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' logs -f deploy/scion-ops-web-app
-
-  kind:new-ui-eval:load:
-    desc: Load the new UI evaluation image into kind.
-    cmds:
-      - task kind:load-images -- '{{.SCION_OPS_NEW_UI_EVAL_IMAGE}}'
-
-  kind:new-ui-eval:restart:
-    desc: Restart the new UI evaluation preview deployment.
-    cmds:
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout restart deploy/scion-ops-new-ui-eval
-      - task: kind:new-ui-eval:status
-
-  kind:new-ui-eval:status:
-    desc: Show rollout and service status for the new UI evaluation preview.
-    cmds:
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' rollout status deploy/scion-ops-new-ui-eval --timeout=120s
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' get deploy,svc -l app.kubernetes.io/name=scion-ops-new-ui-eval
-      - "printf 'New UI evaluation preview URL: %s\\n' '{{.SCION_OPS_NEW_UI_EVAL_URL}}'"
-
-  kind:new-ui-eval:logs:
-    desc: Follow logs for the new UI evaluation preview.
-    cmds:
-      - kubectl --context '{{.KIND_CONTEXT}}' -n '{{.SCION_K8S_NAMESPACE}}' logs -f deploy/scion-ops-new-ui-eval
-
-  kind:new-ui-eval:smoke:
-    desc: Smoke test the new UI evaluation preview health and live read-only endpoints.
-    cmds:
-      - |
-        PYTHONDONTWRITEBYTECODE=1 SCION_OPS_NEW_UI_EVAL_URL='{{.SCION_OPS_NEW_UI_EVAL_URL}}' python3 - <<'PY'
-        import json
-        import os
-        import sys
-        import urllib.request
-
-        base = os.environ["SCION_OPS_NEW_UI_EVAL_URL"].rstrip("/")
-        for path in ("/healthz", "/api/overview", "/api/snapshot"):
-            url = base + path
-            with urllib.request.urlopen(url, timeout=5) as response:
-                body = response.read().decode(errors="replace")
-                if response.status < 200 or response.status >= 300:
-                    raise SystemExit(f"{url} returned HTTP {response.status}")
-                if path != "/healthz":
-                    try:
-                        payload = json.loads(body)
-                    except json.JSONDecodeError as exc:
-                        raise SystemExit(f"{url} did not return JSON: {exc}") from exc
-                    if payload.get("sourceMode") != "live":
-                        raise SystemExit(f"{url} did not identify live sourceMode")
-                    if path == "/api/overview" and payload.get("mocked") is not False:
-                        raise SystemExit(f"{url} did not expose mocked=false")
-                    if path == "/api/snapshot":
-                        preview = payload.get("runtime", {}).get("previewService", {})
-                        if preview.get("liveReadsAllowed") is not True or preview.get("mutationsAllowed") is not False:
-                            raise SystemExit(f"{url} did not preserve live read-only safeguards")
-                        diagnostics = payload.get("diagnostics", {})
-                        if diagnostics.get("sourceErrors"):
-                            raise SystemExit(f"{url} reported source errors: {diagnostics['sourceErrors']}")
-                print(f"ok {url}")
-        PY
 
   kind:bootstrap:
     cmds:
