@@ -28,17 +28,41 @@
       "scope": "Live deployment, smoke, task, runtime, and docs promotion",
       "head_sha": "6dcc37c3b1d48b910cb2af59f07754d2ec2399c8",
       "handoff": ".scion-ops/sessions/20260511t192341z-3a78/findings/round-20260511t192341z-3a78-impl-claude.json"
+    },
+    "round-20260511t192341z-3a78-repair-image-codex": {
+      "branch": "round-20260511t192341z-3a78-repair-image-codex",
+      "status": "accepted",
+      "scope": "Narrow live web-app image and tooling naming repair",
+      "head_sha": "f1620f93ac21b89a70e833e67800984ca82117d5",
+      "handoff": ".scion-ops/sessions/20260511t192341z-3a78/findings/round-20260511t192341z-3a78-repair-image-codex.json"
     }
   },
   "implementation": {
-    "branch": "",
+    "branch": "round-20260511t192341z-3a78-integration",
     "base_branch": "main",
-    "integration_branch": "round-20260511t192341z-3a78-integration"
+    "integration_branch": "round-20260511t192341z-3a78-integration",
+    "head_sha": "23ac8c4bcbe30216b57e2cf0eac375c60a7882ce"
   },
   "reviews": [],
   "final_review": {},
   "verification": {
-    "status": "pending"
+    "status": "partial",
+    "passed": [
+      "python3 scripts/validate-openspec-change.py --project-root . --change make-live-1",
+      "npm test (from new-ui-evaluation)",
+      "npm run typecheck (from new-ui-evaluation)",
+      "npm run build (from new-ui-evaluation)",
+      "python3 -m unittest discover -s tests (from new-ui-evaluation)",
+      "python3 -m py_compile scripts/kind-control-plane-smoke.py",
+      "kubectl kustomize deploy/kind/control-plane rendered one scion-ops-web-app live UI with no scion-ops-new-ui-eval/new-ui-eval/web_app_hub/NiceGUI/previewService matches"
+    ],
+    "blocked": [
+      {
+        "command": "SCION_OPS_WORKSPACE_HOST_PATH=/workspace SCION_OPS_KIND_HUB_PORT=18090 SCION_OPS_MCP_PORT=8765 SCION_OPS_WEB_APP_PORT=8808 uv run scripts/kind-control-plane-smoke.py",
+        "cause": "docker_missing",
+        "summary": "No-spend kind smoke could not create the kind cluster because docker is not installed in this environment."
+      }
+    ]
   },
   "blockers": [],
   "next_actions": [

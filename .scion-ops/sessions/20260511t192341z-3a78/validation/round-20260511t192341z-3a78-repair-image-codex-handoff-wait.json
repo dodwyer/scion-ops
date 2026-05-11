@@ -1,0 +1,103 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t192341z-3a78/findings/round-20260511t192341z-3a78-repair-image-codex.json",
+  "artifact_json": {
+    "agent": "round-20260511t192341z-3a78-repair-image-codex",
+    "blockers": [],
+    "branch": "round-20260511t192341z-3a78-repair-image-codex",
+    "changed_files": [
+      "Taskfile.yml",
+      "deploy/kind/control-plane/web-app-deployment.yaml",
+      "docs/kind-control-plane.md",
+      "image-build/new-ui-eval/Dockerfile -> image-build/web-app/Dockerfile",
+      "scripts/build-images.sh"
+    ],
+    "head_sha": "825b740fb8dfd2b41e72d467898e244d9d299538",
+    "status": "completed",
+    "summary": "The live kind web-app Deployment, image build target, task image loading, and docs now use scion-ops-web-app naming. Rendered deploy/kind/control-plane kustomize has no scion-ops-new-ui-eval or new-ui-eval matches and shows image localhost/scion-ops-web-app:latest for the scion-ops-web-app Deployment.",
+    "tasks_completed": [
+      "Renamed the live web app image reference from localhost/scion-ops-new-ui-eval:latest to localhost/scion-ops-web-app:latest in the kind control-plane Deployment.",
+      "Renamed the local image build directory and build script target from new-ui-eval terminology to web-app/scion-ops-web-app terminology.",
+      "Updated kind task image loading and operator documentation to use localhost/scion-ops-web-app:latest.",
+      "Changed the container runtime adapter path to /app/web-app/adapter.py so rendered live manifests no longer contain new-ui-eval/new-ui-evaluation path references."
+    ],
+    "tests_run": [
+      "bash -n scripts/build-images.sh",
+      "bash scripts/build-images.sh --help",
+      "kubectl kustomize deploy/kind/control-plane | rg -n \"scion-ops-new-ui-eval|new-ui-eval\" || true",
+      "kubectl kustomize deploy/kind/control-plane | rg -n \"name: scion-ops-web-app|image: localhost/scion-ops-web-app:latest|scion-ops-new-ui-eval|new-ui-eval\"",
+      "rg -n \"scion-ops-new-ui-eval|image-build/new-ui-eval|BUILD_NEW_UI_EVAL|NEW_UI_EVAL_CONTEXT\" deploy/kind/control-plane image-build scripts/build-images.sh scripts/kind-scion-runtime.sh Taskfile.yml docs 2>/dev/null || true"
+    ]
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "57c81288c9b8d610859681c23f0536a5e272da3e",
+      "checked_at": "2026-05-11T19:41:06.681446Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "57c81288c9b8d610859681c23f0536a5e272da3e",
+      "checked_at": "2026-05-11T19:41:27.091651Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "57c81288c9b8d610859681c23f0536a5e272da3e",
+      "checked_at": "2026-05-11T19:41:47.550859Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "57c81288c9b8d610859681c23f0536a5e272da3e",
+      "checked_at": "2026-05-11T19:42:07.958260Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "57c81288c9b8d610859681c23f0536a5e272da3e",
+      "checked_at": "2026-05-11T19:42:28.366653Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "57c81288c9b8d610859681c23f0536a5e272da3e",
+      "checked_at": "2026-05-11T19:42:48.789011Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "57c81288c9b8d610859681c23f0536a5e272da3e",
+      "checked_at": "2026-05-11T19:43:09.217105Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "f1620f93ac21b89a70e833e67800984ca82117d5",
+      "checked_at": "2026-05-11T19:43:29.630147Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t192341z-3a78-repair-image-codex",
+  "branch_head": "f1620f93ac21b89a70e833e67800984ca82117d5",
+  "completed_at": "2026-05-11T19:43:30.200409Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}

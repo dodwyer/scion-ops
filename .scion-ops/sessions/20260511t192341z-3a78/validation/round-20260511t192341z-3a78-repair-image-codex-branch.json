@@ -1,0 +1,21 @@
+{
+  "base_branch": "round-20260511t192341z-3a78-integration",
+  "base_sha": "57c81288c9b8d610859681c23f0536a5e272da3e",
+  "branch": "round-20260511t192341z-3a78-repair-image-codex",
+  "child_sha": "57c81288c9b8d610859681c23f0536a5e272da3e",
+  "completed_at": "2026-05-11T19:40:37.930269Z",
+  "created": true,
+  "fetch": {
+    "ok": true,
+    "output": "",
+    "returncode": 0
+  },
+  "ok": true,
+  "project_root": "/workspace",
+  "push": {
+    "ok": true,
+    "output": "remote: \nremote: Create a pull request for 'round-20260511t192341z-3a78-repair-image-codex' on GitHub by visiting:        \nremote:      https://github.com/dodwyer/scion-ops/pull/new/round-20260511t192341z-3a78-repair-image-codex        \nremote: \nTo https://github.com/dodwyer/scion-ops.git\n * [new branch]      origin/round-20260511t192341z-3a78-integration -> round-20260511t192341z-3a78-repair-image-codex\n",
+    "returncode": 0
+  },
+  "reason": ""
+}
