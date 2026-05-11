@@ -73,7 +73,7 @@ tasks:
     cmds:
       - task: kind:up
       - task: kind:workspace:status
-      - task kind:load-images -- localhost/scion-base:latest localhost/scion-ops-mcp:latest localhost/scion-claude:latest localhost/scion-codex:latest localhost/scion-gemini:latest localhost/scion-ops-new-ui-eval:latest
+      - task kind:load-images -- localhost/scion-base:latest localhost/scion-ops-mcp:latest localhost/scion-claude:latest localhost/scion-codex:latest localhost/scion-gemini:latest localhost/scion-ops-web-app:latest
       - task: kind:control-plane:apply
       - task: kind:control-plane:restart
       - task: kind:control-plane:status
