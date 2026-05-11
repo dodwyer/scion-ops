@@ -6,14 +6,15 @@
   "change": "wire-new-ui-1",
   "base_branch": "main",
   "status": "running",
-  "phase": "implementing",
+  "phase": "repairing",
   "branches": {
     "steward": "round-20260511t154050z-44ce-implementation-steward",
     "implementer": "round-20260511t154050z-44ce-impl-codex",
     "secondary_implementer": "round-20260511t154050z-44ce-impl-claude",
     "final_review": "round-20260511t154050z-44ce-final-review",
     "integration": "round-20260511t154050z-44ce-integration",
-    "replacement_implementer": "round-20260511t154050z-44ce-impl-ui-codex"
+    "replacement_implementer": "round-20260511t154050z-44ce-impl-ui-codex",
+    "repair_implementer": "round-20260511t154050z-44ce-repair-live-codex"
   },
   "agents": {
     "round-20260511t154050z-44ce-impl-codex": {
@@ -39,7 +40,18 @@
     "integration_branch": "round-20260511t154050z-44ce-integration"
   },
   "reviews": [],
-  "final_review": {},
+  "final_review": {
+    "branch": "round-20260511t154050z-44ce-final-review",
+    "verdict": "request_changes",
+    "verdict_file": ".scion-ops/sessions/20260511t154050z-44ce/reviews/final-review.json",
+    "wait_diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-wait.json",
+    "classification": "implementation_defect",
+    "blocking_issues": [
+      "SSE backend emits only initial heartbeat/source status and periodic heartbeats, without live Hub/MCP/Kubernetes/git/OpenSpec watch or typed incremental operational events.",
+      "Live snapshot substitutes local session files/module existence for true read-only Hub and MCP operational API reads."
+    ],
+    "evidence": "Final reviewer found the core live push-update contract and live operational source contract incomplete on integration commit 080f1b2b2cef29ad32691d3b20c682d087658a50."
+  },
   "verification": {
     "status": "pending"
   },
@@ -48,9 +60,17 @@
       "agent": "round-20260511t154050z-44ce-impl-claude",
       "branch": "round-20260511t154050z-44ce-impl-claude",
       "cause": "artifact_timeout",
-      "status": "replacement_planned",
+      "status": "replacement_completed",
       "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-impl-claude-handoff-wait.json",
       "summary": "Secondary implementer timed out without branch movement or required handoff artifact."
+    },
+    {
+      "agent": "round-20260511t154050z-44ce-final-review",
+      "branch": "round-20260511t154050z-44ce-final-review",
+      "cause": "final_review_request_changes",
+      "status": "repair_planned",
+      "diagnostics": ".scion-ops/sessions/20260511t154050z-44ce/validation/round-20260511t154050z-44ce-final-review-wait.json",
+      "summary": "Final review requested changes for incomplete live source push updates and incomplete Hub/MCP live reads."
     }
   ],
   "next_actions": [
