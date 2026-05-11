@@ -5,16 +5,17 @@
   "kind": "implementation",
   "change": "base-framework-1",
   "base_branch": "main",
-  "status": "running",
-  "phase": "repair",
+  "status": "ready",
+  "phase": "complete",
   "branches": {
     "steward": "round-20260511t130743z-290c-implementation-steward",
     "implementer": "round-20260511t130743z-290c-impl-codex",
     "secondary_implementer": "round-20260511t130743z-290c-impl-claude",
     "deploy_repair": "round-20260511t130743z-290c-impl-deploy-repair",
     "integration_repair": "round-20260511t130743z-290c-impl-integration-repair",
-    "final_review": "round-20260511t130743z-290c-final-review-2",
+    "build_context_repair": "round-20260511t130743z-290c-impl-build-context-repair",
     "previous_final_review": "round-20260511t130743z-290c-final-review",
+    "final_review": "round-20260511t130743z-290c-final-review-2",
     "integration": "round-20260511t130743z-290c-integration"
   },
   "agents": {},
@@ -22,7 +23,7 @@
     "branch": "round-20260511t130743z-290c-integration",
     "base_branch": "main",
     "integration_branch": "round-20260511t130743z-290c-integration",
-    "integration_sha": "c4087a4079a4a88b16d53c225a697251de235b22"
+    "integration_sha": "c4087a400f4e0713c9f181b83c04e3b6642e613c"
   },
   "reviews": [
     {
@@ -30,25 +31,28 @@
       "verdict": "request_changes",
       "artifact": ".scion-ops/sessions/20260511t130743z-290c/reviews/final-review.json",
       "blocking_issues": [
-        "scripts/build-images.sh uses new-ui-evaluation/ as Docker context while image-build/new-ui-eval/Dockerfile copies repo-root-relative new-ui-evaluation paths."
+        "scripts/build-images.sh used new-ui-evaluation/ as Docker context while image-build/new-ui-eval/Dockerfile copied repo-root-relative new-ui-evaluation paths."
       ],
       "classification": "implementation_defect",
-      "evidence": "Final review found the targeted and full image build path cannot build the preview image because Docker would look for new-ui-evaluation/new-ui-evaluation/package*.json under the selected context."
+      "resolved_by": "round-20260511t130743z-290c-impl-build-context-repair"
+    },
+    {
+      "branch": "round-20260511t130743z-290c-final-review-2",
+      "verdict": "accept",
+      "artifact": ".scion-ops/sessions/20260511t130743z-290c/reviews/final-review.json",
+      "blocking_issues": [],
+      "summary": "Accept. The integration branch conforms to the approved base-framework-1 OpenSpec artifacts and includes the requested build-context repair."
     }
   ],
   "final_review": {
-    "verdict": "pending",
+    "verdict": "accept",
     "branch": "round-20260511t130743z-290c-final-review-2",
-    "previous_branch": "round-20260511t130743z-290c-final-review",
-    "previous_verdict": "request_changes",
     "artifact": ".scion-ops/sessions/20260511t130743z-290c/reviews/final-review.json",
-    "repair": {
-      "branch": "round-20260511t130743z-290c-impl-build-context-repair",
-      "summary": "Merged build context repair so scripts/build-images.sh uses repo root for image-build/new-ui-eval/Dockerfile."
-    }
+    "blocking_issues": [],
+    "summary": "The preview is additive, fixture-backed, read-only, served by a Python adapter, implemented with TypeScript/React/Vite, and deployed through separate Kubernetes Deployment/Service resources on distinct ports without changing the existing web-app Deployment or Service."
   },
   "verification": {
-    "status": "passed_before_final_review",
+    "status": "passed",
     "commands": [
       "python3 scripts/validate-openspec-change.py --project-root . --change base-framework-1",
       "python3 -m unittest discover -s tests -p 'test_*.py' (from new-ui-evaluation)",
@@ -59,20 +63,18 @@
       "bash -n scripts/build-images.sh scripts/kind-scion-runtime.sh scripts/impl-publish-handoff.sh",
       "python3 -m py_compile scripts/kind-control-plane-smoke.py new-ui-evaluation/adapter.py",
       "kubectl kustomize deploy/kind/control-plane | rg preview/current UI resource and port checks",
+      "static Docker context check for image-build/new-ui-eval/Dockerfile COPY sources",
       "task --list | rg new-ui-eval/control-plane:smoke/web-app",
       "git diff --check"
+    ],
+    "gaps": [
+      "Docker image build was not executed because Docker is unavailable in the review environment.",
+      "Live kind rollout and endpoint smoke were not executed in this environment."
     ]
   },
-  "blockers": [
-    {
-      "cause": "final_review_request_changes",
-      "classification": "implementation_defect",
-      "summary": "Preview image build context mismatch between scripts/build-images.sh and image-build/new-ui-eval/Dockerfile.",
-      "repair_branch": "round-20260511t130743z-290c-impl-build-context-repair",
-      "resolved_by": "c4087a4079a4a88b16d53c225a697251de235b22"
-    }
-  ],
+  "blockers": [],
   "next_actions": [
-    "Start final review from the repaired integration SHA"
+    "Create or return GitHub pull request for round-20260511t130743z-290c-integration",
+    "Run readiness validator with --require-ready and --require-pr"
   ]
 }

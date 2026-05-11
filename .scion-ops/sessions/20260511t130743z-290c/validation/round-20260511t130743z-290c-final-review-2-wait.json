@@ -1,0 +1,127 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t130743z-290c/reviews/final-review.json",
+  "artifact_json": {
+    "blocking_issues": [],
+    "nits": [
+      "Docker and live KIND rollout verification were not available in this review environment, so the image build and cluster smoke were verified statically and through no-spend checks only."
+    ],
+    "review_type": "final",
+    "scores": {
+      "completeness": 5,
+      "correctness": 5,
+      "style": 4
+    },
+    "spec": {
+      "change": "base-framework-1",
+      "checked_artifacts": [
+        "openspec/changes/base-framework-1/proposal.md",
+        "openspec/changes/base-framework-1/design.md",
+        "openspec/changes/base-framework-1/tasks.md",
+        "openspec/changes/base-framework-1/specs/new-ui-evaluation/spec.md",
+        "new-ui-evaluation/",
+        "docs/new-ui-evaluation.md",
+        "image-build/new-ui-eval/Dockerfile",
+        "deploy/kind/control-plane/new-ui-evaluation-deployment.yaml",
+        "deploy/kind/control-plane/new-ui-evaluation-service.yaml",
+        "deploy/kind/control-plane/kustomization.yaml",
+        "deploy/kind/cluster.yaml.tpl",
+        "Taskfile.yml",
+        "scripts/build-images.sh",
+        "scripts/kind-control-plane-smoke.py",
+        "scripts/kind-scion-runtime.sh",
+        ".scion-ops/sessions/20260511t130743z-290c/findings/round-20260511t130743z-290c-impl-build-context-repair.json"
+      ],
+      "conformance": 5,
+      "gaps": [
+        "Docker is unavailable in this environment, so the repaired scion-ops-new-ui-eval image build was not executed.",
+        "No live KIND cluster rollout or endpoint smoke was run in this environment."
+      ],
+      "operational_verification": 4,
+      "spec_completeness": 5,
+      "task_coverage": 5,
+      "unresolved_questions": []
+    },
+    "summary": "Accept. The integration branch conforms to the approved base-framework-1 OpenSpec artifacts and includes the requested build-context repair: scripts/build-images.sh now builds scion-ops-new-ui-eval from the repository root, matching image-build/new-ui-eval/Dockerfile COPY paths. The preview is additive, fixture-backed, read-only, served by a Python adapter, implemented with TypeScript/React/Vite, and deployed through separate Kubernetes Deployment/Service resources on distinct ports without changing the existing web-app Deployment or Service. Local no-spend verification passed: OpenSpec validation, shell/Python syntax checks, kustomize render, adapter unittest, npm ci, npm run typecheck, npm test, npm run build, git diff --check, and static build-context checks.",
+    "verdict": "accept"
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "c4087a400f4e0713c9f181b83c04e3b6642e613c",
+      "checked_at": "2026-05-11T13:42:40.070468Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "c4087a400f4e0713c9f181b83c04e3b6642e613c",
+      "checked_at": "2026-05-11T13:43:00.491446Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "c4087a400f4e0713c9f181b83c04e3b6642e613c",
+      "checked_at": "2026-05-11T13:43:20.926768Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "c4087a400f4e0713c9f181b83c04e3b6642e613c",
+      "checked_at": "2026-05-11T13:43:41.362715Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "c4087a400f4e0713c9f181b83c04e3b6642e613c",
+      "checked_at": "2026-05-11T13:44:01.780436Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "c4087a400f4e0713c9f181b83c04e3b6642e613c",
+      "checked_at": "2026-05-11T13:44:22.238970Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "c4087a400f4e0713c9f181b83c04e3b6642e613c",
+      "checked_at": "2026-05-11T13:44:42.631005Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "c4087a400f4e0713c9f181b83c04e3b6642e613c",
+      "checked_at": "2026-05-11T13:45:03.014810Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "cda5389c03d9618a461ca620a03b65541925918a",
+      "checked_at": "2026-05-11T13:45:23.548466Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t130743z-290c-final-review-2",
+  "branch_head": "cda5389c03d9618a461ca620a03b65541925918a",
+  "completed_at": "2026-05-11T13:45:24.088144Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
