@@ -18,7 +18,37 @@
     "final_review": "round-20260511t130743z-290c-final-review-2",
     "integration": "round-20260511t130743z-290c-integration"
   },
-  "agents": {},
+  "agents": {
+    "round-20260511t130743z-290c-impl-codex": {
+      "role": "implementer",
+      "template": "impl-codex",
+      "status": "completed",
+      "branch": "round-20260511t130743z-290c-impl-codex",
+      "handoff": ".scion-ops/sessions/20260511t130743z-290c/findings/round-20260511t130743z-290c-impl-codex.json"
+    },
+    "round-20260511t130743z-290c-impl-claude": {
+      "role": "secondary_implementer",
+      "template": "impl-claude",
+      "status": "completed",
+      "branch": "round-20260511t130743z-290c-impl-claude",
+      "handoff": ".scion-ops/sessions/20260511t130743z-290c/findings/round-20260511t130743z-290c-impl-claude.json"
+    },
+    "round-20260511t130743z-290c-impl-build-context-repair": {
+      "role": "repair_implementer",
+      "template": "impl-codex",
+      "status": "completed",
+      "branch": "round-20260511t130743z-290c-impl-build-context-repair",
+      "handoff": ".scion-ops/sessions/20260511t130743z-290c/findings/round-20260511t130743z-290c-impl-build-context-repair.json"
+    },
+    "round-20260511t130743z-290c-final-review-2": {
+      "role": "final_review",
+      "template": "final-reviewer-codex",
+      "status": "completed",
+      "verdict": "accept",
+      "branch": "round-20260511t130743z-290c-final-review-2",
+      "artifact": ".scion-ops/sessions/20260511t130743z-290c/reviews/final-review.json"
+    }
+  },
   "implementation": {
     "branch": "round-20260511t130743z-290c-integration",
     "base_branch": "main",
