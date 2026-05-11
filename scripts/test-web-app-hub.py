@@ -424,6 +424,30 @@ def test_overview_endpoint_keeps_existing_count_fields_with_new_concise_fields()
     assert "priority_attention" in overview
 
 
+def test_browser_overview_renders_priority_attention_fields():
+    html = web_app_hub.INDEX_HTML
+    assert "overview.priority_attention" in html
+    assert "Priority Attention" in html
+    assert "item.action" in html
+    assert "item.handoff" in html
+    assert "item.reason_for_handoff" in html
+    assert "item.timestamp || item.time || item.latest_update" in html
+    assert "item.status" in html
+    assert "item.source || item.kind || item.round_id" in html
+    assert "detailControl(\"Detail\", item.detail)" in html
+
+
+def test_browser_overview_renders_recent_activity_fields():
+    html = web_app_hub.INDEX_HTML
+    assert "overview.recent_activity" in html
+    assert "Recent Activity" in html
+    assert "recent.map(item => overviewItem(item))" in html
+    assert "timeline-action" in html
+    assert "timeline-handoff" in html
+    assert "timeline-reason" in html
+    assert "<details class=\"diag-section\"><summary>${esc(label)}</summary>" in html
+
+
 def test_empty_snapshot_distinguishes_no_rounds_from_source_failure():
     provider = FixtureProvider(
         hub={**healthy_hub(), "agents": []},
