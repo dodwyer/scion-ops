@@ -1,15 +1,15 @@
 {
-  "schemaVersion": "new-ui-evaluation.fixture.v1",
-  "mocked": true,
+  "schemaVersion": "scion-ops-web-app.fixture.v1",
+  "fixtureBacked": true,
   "fixtureProvenance": {
-    "source": "local preview fixtures",
+    "source": "local development fixtures",
     "generatedAt": "2026-05-11T13:07:43Z",
-    "notes": "Representative, read-only examples for evaluation only. These records are not live scion-ops state."
+    "notes": "Representative, read-only examples for local development and test fallback only. These records are not live scion-ops state."
   },
   "overview": {
-    "mocked": true,
-    "controlPlane": "evaluation-preview",
-    "summary": "Fixture-backed operator console preview",
+    "fixtureBacked": true,
+    "controlPlane": "local-fixture-fallback",
+    "summary": "Fixture-backed operator console fixture",
     "readiness": "degraded",
     "freshness": {
       "status": "stale",
@@ -26,9 +26,9 @@
     "sourceReadiness": [
       { "source": "Hub", "status": "healthy", "freshnessSeconds": 38 },
       { "source": "MCP", "status": "degraded", "freshnessSeconds": 310 },
-      { "source": "Kubernetes", "status": "mocked", "freshnessSeconds": 0 },
+      { "source": "Kubernetes", "status": "fixture", "freshnessSeconds": 0 },
       { "source": "Git", "status": "stale", "freshnessSeconds": 1820 },
-      { "source": "Model provider", "status": "mocked", "freshnessSeconds": 0 }
+      { "source": "Model provider", "status": "fixture", "freshnessSeconds": 0 }
     ],
     "attentionTarget": {
       "label": "Blocked final review",
@@ -47,7 +47,7 @@
         "id": "evt-102",
         "timestamp": "2026-05-11T12:40:00Z",
         "severity": "info",
-        "summary": "Adapter preview health checked from local fixture",
+        "summary": "Adapter fixture health checked from local fixture",
         "roundId": null
       },
       {
@@ -122,7 +122,7 @@
     },
     {
       "id": "round-empty-fixture",
-      "goal": "Empty-state evaluation record",
+      "goal": "Empty-state fixture record",
       "state": "empty",
       "phase": "not-started",
       "owner": "fixture",
@@ -140,7 +140,7 @@
     "round-20260511t091500z-117a": {
       "id": "round-20260511t091500z-117a",
       "decisions": [
-        "Keep current UI authoritative during evaluation",
+        "Keep current UI authoritative during fixture testing",
         "Require handoff artifact before final review"
       ],
       "timeline": [
@@ -161,13 +161,13 @@
         { "label": "implementation branch", "path": "round-117a-impl", "kind": "git-branch" },
         { "label": "handoff JSON", "path": ".scion-ops/.../round-117a.json", "kind": "missing" }
       ],
-      "runnerOutput": "preview fixture: validation completed; final review waiting for handoff artifact",
+      "runnerOutput": "local fixture: validation completed; final review waiting for handoff artifact",
       "relatedMessages": ["msg-1", "msg-3"],
       "rawPayloadRef": "raw-round-blocked"
     },
     "round-20260511t103010z-208b": {
       "id": "round-20260511t103010z-208b",
-      "decisions": ["Use client-side filters for evaluation tables"],
+      "decisions": ["Use client-side filters for fixture tables"],
       "timeline": [
         { "id": "tl-4", "timestamp": "2026-05-11T10:30:10Z", "actor": "steward", "kind": "started", "summary": "Round assigned" },
         { "id": "tl-5", "timestamp": "2026-05-11T12:58:00Z", "actor": "codex-impl", "kind": "progress", "summary": "Runtime cards updated in fixture UI" }
@@ -175,7 +175,7 @@
       "participants": [{ "agent": "codex-impl", "role": "implementation", "status": "active" }],
       "validationOutput": { "state": "running", "commands": ["npm test"], "summary": "Tests still running in fixture" },
       "artifacts": [{ "label": "implementation branch", "path": "round-208b-impl", "kind": "git-branch" }],
-      "runnerOutput": "preview fixture: frontend tests running",
+      "runnerOutput": "local fixture: frontend tests running",
       "relatedMessages": ["msg-2"],
       "rawPayloadRef": "raw-round-active"
     }
@@ -219,13 +219,13 @@
     "sources": [
       { "name": "Hub", "kind": "control-plane", "status": "healthy", "detail": "Fixture shows connected hub", "lastSeen": "2026-05-11T12:53:22Z" },
       { "name": "MCP", "kind": "tooling", "status": "degraded", "detail": "Fixture includes delayed response example", "lastSeen": "2026-05-11T12:49:10Z" },
-      { "name": "Kubernetes", "kind": "orchestration", "status": "mocked", "detail": "No cluster read performed", "lastSeen": null },
+      { "name": "Kubernetes", "kind": "orchestration", "status": "fixture", "detail": "No cluster read performed", "lastSeen": null },
       { "name": "Git", "kind": "source", "status": "stale", "detail": "Branch evidence intentionally stale", "lastSeen": "2026-05-11T12:23:40Z" },
-      { "name": "Model provider", "kind": "provider", "status": "mocked", "detail": "No provider call performed", "lastSeen": null },
-      { "name": "Adapter", "kind": "preview-service", "status": "healthy", "detail": "Serving local static files and fixtures", "lastSeen": "2026-05-11T12:54:00Z" }
+      { "name": "Model provider", "kind": "provider", "status": "fixture", "detail": "No provider call performed", "lastSeen": null },
+      { "name": "Adapter", "kind": "web-app-adapter", "status": "healthy", "detail": "Serving local static files and fixtures", "lastSeen": "2026-05-11T12:54:00Z" }
     ],
-    "previewService": {
-      "name": "scion-ops-new-ui-eval",
+    "liveService": {
+      "name": "scion-ops-web-app",
       "port": 8091,
       "healthPath": "/healthz",
       "fixtureOnly": true,
@@ -234,7 +234,7 @@
     }
   },
   "diagnostics": {
-    "schemaVersion": "new-ui-evaluation.fixture.v1",
+    "schemaVersion": "scion-ops-web-app.fixture.v1",
     "sourceErrors": [
       { "source": "MCP", "severity": "warning", "message": "Representative delayed tool response", "observedAt": "2026-05-11T12:52:00Z" },
       { "source": "Git", "severity": "warning", "message": "Representative stale branch evidence", "observedAt": "2026-05-11T12:20:00Z" }

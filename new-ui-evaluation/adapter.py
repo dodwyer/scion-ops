@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only live adapter for the scion-ops new UI evaluation preview."""
+"""Read-only live adapter for the scion-ops web app operator console."""
 
 from __future__ import annotations
 
@@ -27,16 +27,16 @@ ROOT = Path(__file__).resolve().parent
 
 
 def configured_project_root(raw: str | None = None) -> Path:
-    configured = (raw or os.environ.get("SCION_OPS_ROOT") or os.environ.get("NEW_UI_EVALUATION_PROJECT_ROOT") or "").strip()
+    configured = (raw or os.environ.get("SCION_OPS_ROOT") or os.environ.get("SCION_OPS_WEB_APP_PROJECT_ROOT") or "").strip()
     return Path(configured).expanduser().resolve() if configured else ROOT.parent
 
 
 PROJECT_ROOT = configured_project_root()
-FIXTURE_PATH = ROOT / "fixtures" / "preview-fixtures.json"
+FIXTURE_PATH = ROOT / "fixtures" / "local-fixtures.json"
 DEFAULT_STATIC_ROOT = ROOT / "dist"
-LIVE_SCHEMA_VERSION = "new-ui-evaluation.live.v1"
-EVENT_SCHEMA_VERSION = "new-ui-evaluation.event.v1"
-FIXTURE_SCHEMA_VERSION = "new-ui-evaluation.fixture.v1"
+LIVE_SCHEMA_VERSION = "scion-ops-web-app.live.v1"
+EVENT_SCHEMA_VERSION = "scion-ops-web-app.event.v1"
+FIXTURE_SCHEMA_VERSION = "scion-ops-web-app.fixture.v1"
 READ_ONLY_COMMAND_TIMEOUT_SECONDS = 2
 SNAPSHOT_HISTORY_LIMIT = 8
 ROUND_ID_RE = re.compile(r"(?:round-)?(?P<id>\d{8}t\d{6}z-[a-z0-9]+)", re.IGNORECASE)
@@ -54,7 +54,7 @@ API_ROUTES = {
 }
 
 READ_ONLY_MESSAGE = {
-    "error": "new-ui-evaluation is read-only",
+    "error": "scion-ops-web-app is read-only",
     "detail": "Only read-only live snapshots, event streams, and explicit fixture fallback reads are served. Mutations are disabled.",
 }
 
@@ -148,23 +148,23 @@ def load_fixtures(path: Path = FIXTURE_PATH) -> dict[str, Any]:
 
 
 def validate_fixture_safety(fixtures: dict[str, Any]) -> None:
-    runtime = fixtures.get("runtime", {}).get("previewService", {})
-    if fixtures.get("mocked") is not True:
-        raise ValueError("preview fixtures must be marked mocked=true")
+    runtime = fixtures.get("runtime", {}).get("liveService", {})
+    if fixtures.get("fixtureBacked") is not True:
+        raise ValueError("local fixture data must be marked fixtureBacked=true")
     if runtime.get("fixtureOnly") is not True:
-        raise ValueError("preview service fixtureOnly safeguard must be true")
+        raise ValueError("fixture service fixtureOnly safeguard must be true")
     if runtime.get("liveReadsAllowed") is not False:
-        raise ValueError("preview service liveReadsAllowed safeguard must be false")
+        raise ValueError("live service liveReadsAllowed safeguard must be false")
     if runtime.get("mutationsAllowed") is not False:
-        raise ValueError("preview service mutationsAllowed safeguard must be false")
+        raise ValueError("live service mutationsAllowed safeguard must be false")
 
 
 def fixture_snapshot(path: Path = FIXTURE_PATH) -> dict[str, Any]:
     fixtures = load_fixtures(path)
     generated_at = iso_now()
     source_health = [
-        source_state("Fixture", "fixture", "mocked", "Explicit local fixture fallback", generated_at, source_mode="fixture", fallback=True),
-        source_state("Adapter", "preview-service", "healthy", "Serving explicit fixture fallback", generated_at, source_mode="fixture", fallback=True),
+        source_state("Fixture", "fixture", "fixture", "Explicit local fixture fallback", generated_at, source_mode="fixture", fallback=True),
+        source_state("Adapter", "web-app-adapter", "healthy", "Serving explicit local fixture fallback", generated_at, source_mode="fixture", fallback=True),
     ]
     snapshot = {
         **fixtures,
@@ -182,7 +182,7 @@ def fixture_snapshot(path: Path = FIXTURE_PATH) -> dict[str, Any]:
             "reconnect": {"supported": False, "maxBackoffSeconds": 0},
         },
     }
-    snapshot["overview"] = {**snapshot["overview"], "sourceMode": "fixture", "mocked": True}
+    snapshot["overview"] = {**snapshot["overview"], "sourceMode": "fixture", "fixtureBacked": True}
     snapshot["diagnostics"] = {
         **snapshot["diagnostics"],
         "schemaVersion": FIXTURE_SCHEMA_VERSION,
@@ -244,7 +244,7 @@ class LiveSourceAggregator:
         snapshot = {
             "schemaVersion": LIVE_SCHEMA_VERSION,
             "sourceMode": "live",
-            "mocked": False,
+            "fixtureBacked": False,
             "generatedAt": generated_at,
             "cursor": "",
             "sources": source_health,
@@ -262,8 +262,8 @@ class LiveSourceAggregator:
             "inbox": inbox,
             "runtime": {
                 "sources": source_health,
-                "previewService": {
-                    "name": "scion-ops-new-ui-eval",
+                "liveService": {
+                    "name": "scion-ops-web-app",
                     "port": 8091,
                     "healthPath": "/healthz",
                     "fixtureOnly": False,
@@ -294,7 +294,7 @@ class LiveSourceAggregator:
         if not module_path.exists():
             return None
         try:
-            spec = importlib.util.spec_from_file_location("new_ui_eval_scion_ops", module_path)
+            spec = importlib.util.spec_from_file_location("scion_ops_web_app_scion_ops", module_path)
             if spec is None or spec.loader is None:
                 return None
             module = importlib.util.module_from_spec(spec)
@@ -489,7 +489,7 @@ class LiveSourceAggregator:
             source_state("Kubernetes", "orchestration", "healthy" if kube_ok else "degraded", "kubectl read succeeded" if kube_ok else kube_detail[:240] or "kubectl unavailable", generated_at if kube_ok else None, error=None if kube_ok else "kubectl get pods read failed"),
             source_state("Git", "source", "healthy" if git_ok and head_ok else "degraded", f"{git_detail}@{head}" if git_ok and head_ok else git_detail[:240], generated_at if git_ok and head_ok else None, error=None if git_ok and head_ok else "git read failed"),
             source_state("OpenSpec", "specs", "healthy" if openspec_ok else "degraded", "OpenSpec changes directory present" if openspec_ok else "OpenSpec changes directory missing", generated_at if openspec_ok else None, error=None if openspec_ok else "openspec/changes unavailable"),
-            source_state("Adapter", "preview-service", "healthy", "Serving live read-only snapshot and SSE contracts", generated_at),
+            source_state("Adapter", "web-app-adapter", "healthy", "Serving live read-only snapshot and SSE contracts", generated_at),
         ]
 
     def _overview(self, rounds: list[dict[str, Any]], source_health: list[dict[str, Any]], recent_activity: list[dict[str, Any]], generated_at: str) -> dict[str, Any]:
@@ -501,7 +501,7 @@ class LiveSourceAggregator:
         oldest = max((source["freshnessSeconds"] or 0 for source in source_health), default=0)
         attention = blocked[0] if blocked else (failed[0] if failed else (active[0] if active else None))
         return {
-            "mocked": False,
+            "fixtureBacked": False,
             "sourceMode": "live",
             "controlPlane": "scion-ops",
             "summary": "Live read-only operator console snapshot",
@@ -850,8 +850,8 @@ def incremental_events(previous: dict[str, Any], current: dict[str, Any]) -> lis
     return events
 
 
-class PreviewHandler(BaseHTTPRequestHandler):
-    server_version = "ScionOpsNewUiEvaluation/0.2"
+class OperatorConsoleHandler(BaseHTTPRequestHandler):
+    server_version = "ScionOpsWebApp/1.0"
 
     def do_GET(self) -> None:
         self._handle_read()
@@ -932,9 +932,10 @@ class PreviewHandler(BaseHTTPRequestHandler):
             self._json(
                 {
                     "status": "ok",
+                    "service": "scion-ops-web-app",
                     "schemaVersion": LIVE_SCHEMA_VERSION if self.mode == "live" else FIXTURE_SCHEMA_VERSION,
                     "sourceMode": self.mode,
-                    "mocked": self.mode == "fixture",
+                    "fixtureBacked": self.mode == "fixture",
                     "liveReadsAllowed": self.mode == "live",
                     "mutationsAllowed": False,
                     "streamPath": "/api/events" if self.mode == "live" else None,
@@ -959,7 +960,7 @@ class PreviewHandler(BaseHTTPRequestHandler):
             self._json(detail, head_only=head_only)
             return
         if path.startswith("/api/"):
-            self._json({"error": "unknown preview endpoint", "sourceMode": self.mode}, status=HTTPStatus.NOT_FOUND, head_only=head_only)
+            self._json({"error": "unknown live UI endpoint", "sourceMode": self.mode}, status=HTTPStatus.NOT_FOUND, head_only=head_only)
             return
         self._static(path, head_only=head_only)
 
@@ -1061,7 +1062,7 @@ def build_server(host: str, port: int, static_root: Path, fixture_path: Path, *,
         raise ValueError("mode must be live or fixture")
     if mode == "fixture":
         load_fixtures(fixture_path)
-    server = ThreadingHTTPServer((host, port), PreviewHandler)
+    server = ThreadingHTTPServer((host, port), OperatorConsoleHandler)
     server.mode = mode  # type: ignore[attr-defined]
     server.static_root = static_root  # type: ignore[attr-defined]
     server.fixture_path = fixture_path  # type: ignore[attr-defined]
@@ -1072,12 +1073,12 @@ def build_server(host: str, port: int, static_root: Path, fixture_path: Path, *,
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Serve the read-only scion-ops new UI evaluation preview.")
+    parser = argparse.ArgumentParser(description="Serve the read-only scion-ops web app operator console.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", default=8091, type=int)
     parser.add_argument("--static-root", default=str(DEFAULT_STATIC_ROOT))
     parser.add_argument("--fixture-path", default=str(FIXTURE_PATH))
-    parser.add_argument("--mode", choices=["live", "fixture"], default=os.environ.get("NEW_UI_EVALUATION_MODE", "live"))
+    parser.add_argument("--mode", choices=["live", "fixture"], default=os.environ.get("SCION_OPS_WEB_APP_MODE", "live"))
     parser.add_argument("--project-root", default=str(PROJECT_ROOT))
     args = parser.parse_args()
 
@@ -1089,7 +1090,7 @@ def main() -> None:
         mode=args.mode,
         project_root=configured_project_root(args.project_root),
     )
-    print(f"serving new-ui-evaluation in {args.mode} mode on http://{args.host}:{args.port}")
+    print(f"serving scion-ops-web-app in {args.mode} mode on http://{args.host}:{args.port}")
     server.serve_forever()
 
 

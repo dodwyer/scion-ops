@@ -5,7 +5,7 @@ import type {
   LiveConnection,
   LiveEvent,
   LiveSnapshot,
-  PreviewData,
+  OperatorData,
   RoundDetail,
   RoundSummary,
   RuntimeHealthEventPayload,
@@ -19,7 +19,7 @@ const DEFAULT_STALE_AFTER_MS = 45_000;
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { method: "GET", headers });
   if (!response.ok) {
-    throw new Error(`Preview request failed: ${response.status} ${response.statusText}`);
+    throw new Error(`Live UI request failed: ${response.status} ${response.statusText}`);
   }
   return (await response.json()) as T;
 }
@@ -29,16 +29,16 @@ export function fixtureModeRequested(search = window.location.search): boolean {
   return params.get("fixture") === "1" || params.get("mode") === "fixture";
 }
 
-export async function loadPreviewData(options: { fixtureMode?: boolean } = {}): Promise<PreviewData> {
+export async function loadOperatorData(options: { fixtureMode?: boolean } = {}): Promise<OperatorData> {
   const path = options.fixtureMode ? "/api/fixtures" : "/api/snapshot";
-  const snapshot = await getJson<Omit<PreviewData, "loadedAt">>(path);
+  const snapshot = await getJson<Omit<OperatorData, "loadedAt">>(path);
   return {
     ...snapshot,
     loadedAt: new Date().toISOString()
   };
 }
 
-export function isPreviewDataStale(data: PreviewData, nowMs = Date.now(), staleAfterMs = DEFAULT_STALE_AFTER_MS): boolean {
+export function isOperatorDataStale(data: OperatorData, nowMs = Date.now(), staleAfterMs = DEFAULT_STALE_AFTER_MS): boolean {
   if (data.sourceMode === "fixture") {
     return data.connection.status === "fallback";
   }
@@ -47,8 +47,8 @@ export function isPreviewDataStale(data: PreviewData, nowMs = Date.now(), staleA
   return Number.isFinite(lastSignalMs) && nowMs - lastSignalMs > staleAfterMs;
 }
 
-export function markPreviewDataStale(data: PreviewData, nowMs = Date.now(), staleAfterMs = DEFAULT_STALE_AFTER_MS): PreviewData {
-  if (!isPreviewDataStale(data, nowMs, staleAfterMs) || data.connection.status === "failed") {
+export function markOperatorDataStale(data: OperatorData, nowMs = Date.now(), staleAfterMs = DEFAULT_STALE_AFTER_MS): OperatorData {
+  if (!isOperatorDataStale(data, nowMs, staleAfterMs) || data.connection.status === "failed") {
     return data;
   }
   return {
@@ -67,7 +67,7 @@ export function markPreviewDataStale(data: PreviewData, nowMs = Date.now(), stal
   };
 }
 
-export function applyLiveEvent(data: PreviewData, event: LiveEvent): PreviewData {
+export function applyLiveEvent(data: OperatorData, event: LiveEvent): OperatorData {
   const cursor = event.cursor ?? event.version ?? event.eventId ?? event.id;
   const connection: LiveConnection = {
     ...data.connection,
@@ -82,7 +82,7 @@ export function applyLiveEvent(data: PreviewData, event: LiveEvent): PreviewData
     }
   };
 
-  let next: PreviewData = {
+  let next: OperatorData = {
     ...data,
     cursor: cursor ?? data.cursor,
     connection
@@ -320,7 +320,7 @@ function getSnapshotReadySnapshot(payload: unknown): LiveSnapshot | null {
   if (
     typeof snapshot.schemaVersion !== "string" ||
     typeof snapshot.sourceMode !== "string" ||
-    typeof snapshot.mocked !== "boolean" ||
+    typeof snapshot.fixtureBacked !== "boolean" ||
     typeof snapshot.generatedAt !== "string" ||
     typeof snapshot.cursor !== "string" ||
     !Array.isArray(snapshot.rounds) ||
