@@ -1,0 +1,107 @@
+{
+  "artifact": ".scion-ops/sessions/20260511t154050z-44ce/reviews/final-review-2.json",
+  "artifact_json": {
+    "blocking_issues": [
+      "Typed timeline SSE events are emitted with entityId set to the timeline entry id and payload shaped as {roundId, entry} in new-ui-evaluation/adapter.py:789, but the frontend merge path in new-ui-evaluation/src/api.ts:163-178 treats payload as the timeline entry and looks up roundDetails[event.entityId]. A real timeline update therefore cannot update the selected round detail without reload, violating the OpenSpec push-based update and live round detail scenarios.",
+      "runtime_health SSE events are emitted as aggregate payloads shaped {sources: sourceHealth[]} in new-ui-evaluation/adapter.py:811-812, but the frontend merge path in new-ui-evaluation/src/api.ts:197-206 casts the payload to a single SourceHealth and upserts it under an undefined or Adapter name. Source health changes therefore corrupt or fail to refresh runtime/source health state, which breaks the required global and per-source connection health behavior."
+    ],
+    "final_failure_classification": "integration_defect",
+    "final_failure_evidence": "The repaired backend now performs Hub/MCP read-only operational checks and emits typed incremental SSE events, but the integrated frontend event reducer does not match the emitted event payloads for timeline_entry and runtime_health. The existing tests do not cover those emitted payload shapes end to end.",
+    "nits": [],
+    "review_type": "final",
+    "scores": {
+      "completeness": 3,
+      "correctness": 3,
+      "style": 4
+    },
+    "spec": {
+      "change": "wire-new-ui-1",
+      "checked_artifacts": [
+        "openspec/changes/wire-new-ui-1/proposal.md",
+        "openspec/changes/wire-new-ui-1/design.md",
+        "openspec/changes/wire-new-ui-1/tasks.md",
+        "openspec/changes/wire-new-ui-1/specs/new-ui-evaluation/spec.md",
+        "new-ui-evaluation/adapter.py",
+        "new-ui-evaluation/src/api.ts",
+        "new-ui-evaluation/src/App.tsx",
+        "new-ui-evaluation/tests/test_adapter.py",
+        "new-ui-evaluation/src/__tests__/fixtures.test.tsx"
+      ],
+      "conformance": 3,
+      "gaps": [
+        "No frontend or integration test applies the exact backend-emitted timeline_entry payload shape.",
+        "No frontend or integration test applies the exact backend-emitted runtime_health aggregate payload shape."
+      ],
+      "operational_verification": 4,
+      "spec_completeness": 5,
+      "task_coverage": 4,
+      "unresolved_questions": []
+    },
+    "summary": "request_changes: the prior Hub/MCP live-read and backend typed-SSE blockers are substantially repaired, and validation passes, but the integrated UI still fails to apply two typed incremental event classes as emitted. This blocks PR readiness because timeline and runtime/source health changes will not reliably appear in the browser through the push path.",
+    "verdict": "request_changes"
+  },
+  "artifact_text": "",
+  "attempts": [
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1e7a015a797c668568a26debb2e0f0a93197cf",
+      "checked_at": "2026-05-11T16:27:53.175520Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1e7a015a797c668568a26debb2e0f0a93197cf",
+      "checked_at": "2026-05-11T16:28:13.629010Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1e7a015a797c668568a26debb2e0f0a93197cf",
+      "checked_at": "2026-05-11T16:28:34.038922Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1e7a015a797c668568a26debb2e0f0a93197cf",
+      "checked_at": "2026-05-11T16:28:54.442851Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1e7a015a797c668568a26debb2e0f0a93197cf",
+      "checked_at": "2026-05-11T16:29:14.876481Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": false,
+      "artifact_valid": false,
+      "branch_head": "5f1e7a015a797c668568a26debb2e0f0a93197cf",
+      "checked_at": "2026-05-11T16:29:35.275349Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    },
+    {
+      "artifact_found": true,
+      "artifact_valid": true,
+      "branch_head": "a3c0afe716b2a2fac931bd7c2d28e49e8a04bc6d",
+      "checked_at": "2026-05-11T16:29:55.686025Z",
+      "fetch_ok": true,
+      "validation_errors": []
+    }
+  ],
+  "branch": "round-20260511t154050z-44ce-final-review-2",
+  "branch_head": "a3c0afe716b2a2fac931bd7c2d28e49e8a04bc6d",
+  "completed_at": "2026-05-11T16:29:56.310760Z",
+  "ok": true,
+  "source": "review_artifact_wait"
+}
