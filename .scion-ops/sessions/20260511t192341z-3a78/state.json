@@ -17,13 +17,17 @@
   "agents": {
     "round-20260511t192341z-3a78-impl-codex": {
       "branch": "round-20260511t192341z-3a78-impl-codex",
-      "status": "branch_guard_ok",
-      "scope": "Live React/Vite adapter and frontend contract"
+      "status": "accepted",
+      "scope": "Live React/Vite adapter and frontend contract",
+      "head_sha": "a5ec5f5748c8cce02e27dbf4c658703ff52dbd19",
+      "handoff": ".scion-ops/sessions/20260511t192341z-3a78/findings/round-20260511t192341z-3a78-impl-codex.json"
     },
     "round-20260511t192341z-3a78-impl-claude": {
       "branch": "round-20260511t192341z-3a78-impl-claude",
-      "status": "branch_guard_ok",
-      "scope": "Live deployment, smoke, task, runtime, and docs promotion"
+      "status": "accepted",
+      "scope": "Live deployment, smoke, task, runtime, and docs promotion",
+      "head_sha": "6dcc37c3b1d48b910cb2af59f07754d2ec2399c8",
+      "handoff": ".scion-ops/sessions/20260511t192341z-3a78/findings/round-20260511t192341z-3a78-impl-claude.json"
     }
   },
   "implementation": {
