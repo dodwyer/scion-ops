@@ -11,7 +11,7 @@
     "steward": "round-20260511t115659z-57a1-implementation-steward",
     "implementer": "round-20260511t115659z-57a1-impl-codex",
     "secondary_implementer": "round-20260511t115659z-57a1-impl-claude",
-    "final_review": "round-20260511t115659z-57a1-final-review",
+    "final_review": "round-20260511t115659z-57a1-final-review-2",
     "integration": "round-20260511t115659z-57a1-integration"
   },
   "agents": {},
@@ -20,7 +20,17 @@
     "base_branch": "round-20260511t114424z-3da2-spec-integration",
     "integration_branch": "round-20260511t115659z-57a1-integration"
   },
-  "reviews": [],
+  "reviews": [
+    {
+      "branch": "round-20260511t115659z-57a1-final-review",
+      "verdict": "request_changes",
+      "artifact": ".scion-ops/sessions/20260511t115659z-57a1/reviews/final-review.json",
+      "blocking_issues": [
+        "Overview render did not surface computed priority_attention and recent_activity fields."
+      ],
+      "repair_branch": "round-20260511t115659z-57a1-impl-codex-overview-repair"
+    }
+  ],
   "final_review": {},
   "verification": {
     "status": "pending"
