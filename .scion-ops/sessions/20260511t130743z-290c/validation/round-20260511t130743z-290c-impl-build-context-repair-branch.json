@@ -1,0 +1,21 @@
+{
+  "base_branch": "round-20260511t130743z-290c-integration",
+  "base_sha": "7fbcc789ae0e0970bbccf7ea703b9185a426b712",
+  "branch": "round-20260511t130743z-290c-impl-build-context-repair",
+  "child_sha": "7fbcc789ae0e0970bbccf7ea703b9185a426b712",
+  "completed_at": "2026-05-11T13:38:02.583605Z",
+  "created": true,
+  "fetch": {
+    "ok": true,
+    "output": "",
+    "returncode": 0
+  },
+  "ok": true,
+  "project_root": "/workspace",
+  "push": {
+    "ok": true,
+    "output": "remote: \nremote: Create a pull request for 'round-20260511t130743z-290c-impl-build-context-repair' on GitHub by visiting:        \nremote:      https://github.com/dodwyer/scion-ops/pull/new/round-20260511t130743z-290c-impl-build-context-repair        \nremote: \nTo https://github.com/dodwyer/scion-ops.git\n * [new branch]      origin/round-20260511t130743z-290c-integration -> round-20260511t130743z-290c-impl-build-context-repair\n",
+    "returncode": 0
+  },
+  "reason": ""
+}
