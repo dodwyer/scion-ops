@@ -1,14 +1,74 @@
 {
+  "base": "main",
+  "base_commit": "2d93f109b2783b07cbf6890922533b04188ba175",
   "change": "base-framework-1",
-  "error": "steward session is not ready for a PR",
-  "gh": {},
+  "created": true,
+  "draft": false,
+  "gh": {
+    "create": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "create",
+        "--base",
+        "main",
+        "--head",
+        "round-20260511t130743z-290c-integration",
+        "--title",
+        "Implement OpenSpec: base-framework-1",
+        "--body",
+        "Created by scion-ops after successful implementation steward validation.\n\n- Session: `20260511t130743z-290c`\n- Change: `base-framework-1`\n- Head: `round-20260511t130743z-290c-integration` (`c4087a400f4e`)\n- Base: `main` (`2d93f109b278`)\n- Steward validation: passed\n- Final review: `accept`\n- Verification: `passed`\n\nVerification commands:\n- `python3 scripts/validate-openspec-change.py --project-root . --change base-framework-1`\n- `python3 -m unittest discover -s tests -p 'test_*.py' (from new-ui-evaluation)`\n- `npm ci (from new-ui-evaluation)`\n- `npm run typecheck (from new-ui-evaluation)`\n- `npm test (from new-ui-evaluation)`\n- `npm run build (from new-ui-evaluation)`\n- `bash -n scripts/build-images.sh scripts/kind-scion-runtime.sh scripts/impl-publish-handoff.sh`\n- `python3 -m py_compile scripts/kind-control-plane-smoke.py new-ui-evaluation/adapter.py`\n- `kubectl kustomize deploy/kind/control-plane | rg preview/current UI resource and port checks`\n- `static Docker context check for image-build/new-ui-eval/Dockerfile COPY sources`\n- `task --list | rg new-ui-eval/control-plane:smoke/web-app`\n- `git diff --check`"
+      ],
+      "ok": true,
+      "output": "Warning: 2 uncommitted changes\nhttps://github.com/dodwyer/scion-ops/pull/143\n",
+      "returncode": 0
+    },
+    "list": {
+      "command": [
+        "/usr/bin/gh",
+        "pr",
+        "list",
+        "--head",
+        "round-20260511t130743z-290c-integration",
+        "--base",
+        "main",
+        "--state",
+        "all",
+        "--json",
+        "number,url,state,title,baseRefName,headRefName",
+        "--limit",
+        "1"
+      ],
+      "ok": true,
+      "output": "[]\n",
+      "returncode": 0
+    }
+  },
+  "head": "round-20260511t130743z-290c-integration",
+  "head_commit": "c4087a400f4e0713c9f181b83c04e3b6642e613c",
   "kind": "implementation",
-  "ok": false,
+  "ok": true,
+  "pr": {
+    "base": "main",
+    "head": "round-20260511t130743z-290c-integration",
+    "title": "Implement OpenSpec: base-framework-1",
+    "url": "https://github.com/dodwyer/scion-ops/pull/143"
+  },
+  "pr_url": "https://github.com/dodwyer/scion-ops/pull/143",
   "project_root": "/workspace",
   "session_id": "20260511t130743z-290c",
   "source": "steward_pr_finalizer",
+  "state_recording": {
+    "pr_path": "/workspace/.scion-ops/sessions/20260511t130743z-290c/pr.json",
+    "state_path": "/workspace/.scion-ops/sessions/20260511t130743z-290c/state.json"
+  },
   "validation": {
-    "agent_harnesses": {},
+    "agent_harnesses": {
+      "round-20260511t130743z-290c-final-review-2": "codex-exec",
+      "round-20260511t130743z-290c-impl-build-context-repair": "codex-exec",
+      "round-20260511t130743z-290c-impl-claude": "claude",
+      "round-20260511t130743z-290c-impl-codex": "codex-exec"
+    },
     "branch": {
       "base_branch": "main",
       "base_commit": "2d93f109b2783b07cbf6890922533b04188ba175",
@@ -18,14 +78,9 @@
       "resolved_ref": "origin/round-20260511t130743z-290c-integration"
     },
     "change": "base-framework-1",
-    "errors": [
-      {
-        "message": "ready implementation sessions must record this agent with a successful completion status (missing)",
-        "path": "state.agents.implementer"
-      }
-    ],
+    "errors": [],
     "kind": "implementation",
-    "ok": false,
+    "ok": true,
     "openspec_validation": {
       "change": "base-framework-1",
       "change_path": "openspec/changes/base-framework-1",
@@ -46,7 +101,37 @@
     "project_root": "/workspace",
     "session_id": "20260511t130743z-290c",
     "state": {
-      "agents": {},
+      "agents": {
+        "round-20260511t130743z-290c-final-review-2": {
+          "artifact": ".scion-ops/sessions/20260511t130743z-290c/reviews/final-review.json",
+          "branch": "round-20260511t130743z-290c-final-review-2",
+          "role": "final_review",
+          "status": "completed",
+          "template": "final-reviewer-codex",
+          "verdict": "accept"
+        },
+        "round-20260511t130743z-290c-impl-build-context-repair": {
+          "branch": "round-20260511t130743z-290c-impl-build-context-repair",
+          "handoff": ".scion-ops/sessions/20260511t130743z-290c/findings/round-20260511t130743z-290c-impl-build-context-repair.json",
+          "role": "repair_implementer",
+          "status": "completed",
+          "template": "impl-codex"
+        },
+        "round-20260511t130743z-290c-impl-claude": {
+          "branch": "round-20260511t130743z-290c-impl-claude",
+          "handoff": ".scion-ops/sessions/20260511t130743z-290c/findings/round-20260511t130743z-290c-impl-claude.json",
+          "role": "secondary_implementer",
+          "status": "completed",
+          "template": "impl-claude"
+        },
+        "round-20260511t130743z-290c-impl-codex": {
+          "branch": "round-20260511t130743z-290c-impl-codex",
+          "handoff": ".scion-ops/sessions/20260511t130743z-290c/findings/round-20260511t130743z-290c-impl-codex.json",
+          "role": "implementer",
+          "status": "completed",
+          "template": "impl-codex"
+        }
+      },
       "base_branch": "main",
       "blockers": [],
       "branches": {
@@ -128,30 +213,5 @@
     "state_path": "/workspace/.scion-ops/sessions/20260511t130743z-290c/state.json",
     "state_source": "/workspace/.scion-ops/sessions/20260511t130743z-290c/state.json",
     "warnings": []
-  },
-  "validation_result": {
-    "command": [
-      "/usr/bin/python3",
-      "/workspace/scripts/validate-steward-session.py",
-      "--project-root",
-      "/workspace",
-      "--session-id",
-      "20260511t130743z-290c",
-      "--kind",
-      "implementation",
-      "--json",
-      "--require-ready",
-      "--change",
-      "base-framework-1",
-      "--branch",
-      "round-20260511t130743z-290c-integration",
-      "--base-branch",
-      "main",
-      "--state-branch",
-      "round-20260511t130743z-290c-implementation-steward"
-    ],
-    "ok": false,
-    "output": "{\n  \"agent_harnesses\": {},\n  \"branch\": {\n    \"base_branch\": \"main\",\n    \"base_commit\": \"2d93f109b2783b07cbf6890922533b04188ba175\",\n    \"base_resolved_ref\": \"origin/main\",\n    \"branch\": \"round-20260511t130743z-290c-integration\",\n    \"commit\": \"c4087a400f4e0713c9f181b83c04e3b6642e613c\",\n    \"resolved_ref\": \"origin/round-20260511t130743z-290c-integration\"\n  },\n  \"change\": \"base-framework-1\",\n  \"errors\": [\n    {\n      \"message\": \"ready implementation sessions must record this agent with a successful completion status (missing)\",\n      \"path\": \"state.agents.implementer\"\n    }\n  ],\n  \"kind\": \"implementation\",\n  \"ok\": false,\n  \"openspec_validation\": {\n    \"change\": \"base-framework-1\",\n    \"change_path\": \"openspec/changes/base-framework-1\",\n    \"errors\": [],\n    \"ok\": true,\n    \"project_root\": \"/workspace\",\n    \"required_files\": {\n      \"design.md\": \"openspec/changes/base-framework-1/design.md\",\n      \"proposal.md\": \"openspec/changes/base-framework-1/proposal.md\",\n      \"tasks.md\": \"openspec/changes/base-framework-1/tasks.md\"\n    },\n    \"spec_files\": [\n      \"openspec/changes/base-framework-1/specs/new-ui-evaluation/spec.md\"\n    ],\n    \"warnings\": []\n  },\n  \"openspec_validation_source\": \"worktree\",\n  \"project_root\": \"/workspace\",\n  \"session_id\": \"20260511t130743z-290c\",\n  \"state\": {\n    \"agents\": {},\n    \"base_branch\": \"main\",\n    \"blockers\": [],\n    \"branches\": {\n      \"build_context_repair\": \"round-20260511t130743z-290c-impl-build-context-repair\",\n      \"deploy_repair\": \"round-20260511t130743z-290c-impl-deploy-repair\",\n      \"final_review\": \"round-20260511t130743z-290c-final-review-2\",\n      \"implementer\": \"round-20260511t130743z-290c-impl-codex\",\n      \"integration\": \"round-20260511t130743z-290c-integration\",\n      \"integration_repair\": \"round-20260511t130743z-290c-impl-integration-repair\",\n      \"previous_final_review\": \"round-20260511t130743z-290c-final-review\",\n      \"secondary_implementer\": \"round-20260511t130743z-290c-impl-claude\",\n      \"steward\": \"round-20260511t130743z-290c-implementation-steward\"\n    },\n    \"change\": \"base-framework-1\",\n    \"final_review\": {\n      \"artifact\": \".scion-ops/sessions/20260511t130743z-290c/reviews/final-review.json\",\n      \"blocking_issues\": [],\n      \"branch\": \"round-20260511t130743z-290c-final-review-2\",\n      \"summary\": \"The preview is additive, fixture-backed, read-only, served by a Python adapter, implemented with TypeScript/React/Vite, and deployed through separate Kubernetes Deployment/Service resources on distinct ports without changing the existing web-app Deployment or Service.\",\n      \"verdict\": \"accept\"\n    },\n    \"implementation\": {\n      \"base_branch\": \"main\",\n      \"branch\": \"round-20260511t130743z-290c-integration\",\n      \"integration_branch\": \"round-20260511t130743z-290c-integration\",\n      \"integration_sha\": \"c4087a400f4e0713c9f181b83c04e3b6642e613c\"\n    },\n    \"kind\": \"implementation\",\n    \"next_actions\": [\n      \"Create or return GitHub pull request for round-20260511t130743z-290c-integration\",\n      \"Run readiness validator with --require-ready and --require-pr\"\n    ],\n    \"phase\": \"complete\",\n    \"reviews\": [\n      {\n        \"artifact\": \".scion-ops/sessions/20260511t130743z-290c/reviews/final-review.json\",\n        \"blocking_issues\": [\n          \"scripts/build-images.sh used new-ui-evaluation/ as Docker context while image-build/new-ui-eval/Dockerfile copied repo-root-relative new-ui-evaluation paths.\"\n        ],\n        \"branch\": \"round-20260511t130743z-290c-final-review\",\n        \"classification\": \"implementation_defect\",\n        \"resolved_by\": \"round-20260511t130743z-290c-impl-build-context-repair\",\n        \"verdict\": \"request_changes\"\n      },\n      {\n        \"artifact\": \".scion-ops/sessions/20260511t130743z-290c/reviews/final-review.json\",\n        \"blocking_issues\": [],\n        \"branch\": \"round-20260511t130743z-290c-final-review-2\",\n        \"summary\": \"Accept. The integration branch conforms to the approved base-framework-1 OpenSpec artifacts and includes the requested build-context repair.\",\n        \"verdict\": \"accept\"\n      }\n    ],\n    \"round_id\": \"20260511t130743z-290c\",\n    \"session_id\": \"20260511t130743z-290c\",\n    \"status\": \"ready\",\n    \"verification\": {\n      \"commands\": [\n        \"python3 scripts/validate-openspec-change.py --project-root . --change base-framework-1\",\n        \"python3 -m unittest discover -s tests -p 'test_*.py' (from new-ui-evaluation)\",\n        \"npm ci (from new-ui-evaluation)\",\n        \"npm run typecheck (from new-ui-evaluation)\",\n        \"npm test (from new-ui-evaluation)\",\n        \"npm run build (from new-ui-evaluation)\",\n        \"bash -n scripts/build-images.sh scripts/kind-scion-runtime.sh scripts/impl-publish-handoff.sh\",\n        \"python3 -m py_compile scripts/kind-control-plane-smoke.py new-ui-evaluation/adapter.py\",\n        \"kubectl kustomize deploy/kind/control-plane | rg preview/current UI resource and port checks\",\n        \"static Docker context check for image-build/new-ui-eval/Dockerfile COPY sources\",\n        \"task --list | rg new-ui-eval/control-plane:smoke/web-app\",\n        \"git diff --check\"\n      ],\n      \"gaps\": [\n        \"Docker image build was not executed because Docker is unavailable in the review environment.\",\n        \"Live kind rollout and endpoint smoke were not executed in this environment.\"\n      ],\n      \"status\": \"passed\"\n    },\n    \"version\": 1\n  },\n  \"state_path\": \"/workspace/.scion-ops/sessions/20260511t130743z-290c/state.json\",\n  \"state_source\": \"/workspace/.scion-ops/sessions/20260511t130743z-290c/state.json\",\n  \"warnings\": []\n}\n",
-    "returncode": 1
   }
 }

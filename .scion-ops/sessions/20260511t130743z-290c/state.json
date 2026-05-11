@@ -104,7 +104,25 @@
   },
   "blockers": [],
   "next_actions": [
-    "Create or return GitHub pull request for round-20260511t130743z-290c-integration",
-    "Run readiness validator with --require-ready and --require-pr"
-  ]
+    "Review pull request https://github.com/dodwyer/scion-ops/pull/143"
+  ],
+  "pull_request": {
+    "source": "steward_pr_finalizer",
+    "session_id": "20260511t130743z-290c",
+    "kind": "implementation",
+    "change": "base-framework-1",
+    "head": "round-20260511t130743z-290c-integration",
+    "base": "main",
+    "head_commit": "c4087a400f4e0713c9f181b83c04e3b6642e613c",
+    "base_commit": "2d93f109b2783b07cbf6890922533b04188ba175",
+    "created": true,
+    "draft": false,
+    "pr": {
+      "url": "https://github.com/dodwyer/scion-ops/pull/143",
+      "head": "round-20260511t130743z-290c-integration",
+      "base": "main",
+      "title": "Implement OpenSpec: base-framework-1"
+    },
+    "pr_url": "https://github.com/dodwyer/scion-ops/pull/143"
+  }
 }
