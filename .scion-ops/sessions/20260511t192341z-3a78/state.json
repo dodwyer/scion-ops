@@ -6,7 +6,7 @@
   "change": "make-live-1",
   "base_branch": "main",
   "status": "running",
-  "phase": "starting",
+  "phase": "implementing",
   "branches": {
     "steward": "round-20260511t192341z-3a78-implementation-steward",
     "implementer": "round-20260511t192341z-3a78-impl-codex",
@@ -14,7 +14,18 @@
     "final_review": "round-20260511t192341z-3a78-final-review",
     "integration": "round-20260511t192341z-3a78-integration"
   },
-  "agents": {},
+  "agents": {
+    "round-20260511t192341z-3a78-impl-codex": {
+      "branch": "round-20260511t192341z-3a78-impl-codex",
+      "status": "branch_guard_ok",
+      "scope": "Live React/Vite adapter and frontend contract"
+    },
+    "round-20260511t192341z-3a78-impl-claude": {
+      "branch": "round-20260511t192341z-3a78-impl-claude",
+      "status": "branch_guard_ok",
+      "scope": "Live deployment, smoke, task, runtime, and docs promotion"
+    }
+  },
   "implementation": {
     "branch": "",
     "base_branch": "main",
