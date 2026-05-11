@@ -3,6 +3,9 @@ export type Status =
   | "degraded"
   | "stale"
   | "mocked"
+  | "live"
+  | "reconnecting"
+  | "fallback"
   | "blocked"
   | "active"
   | "completed"
@@ -15,6 +18,8 @@ export type Status =
   | "accepted";
 
 export type Severity = "info" | "warning" | "critical";
+export type SourceMode = "live" | "fixture";
+export type ConnectionStatus = "live" | "reconnecting" | "stale" | "fallback" | "failed";
 
 export interface FixtureProvenance {
   source: string;
@@ -22,8 +27,39 @@ export interface FixtureProvenance {
   notes: string;
 }
 
+export interface SourceHealth {
+  name: string;
+  source?: string;
+  kind: string;
+  status: Status;
+  detail: string;
+  lastSeen: string | null;
+  lastSuccessfulUpdate?: string | null;
+  freshnessSeconds?: number | null;
+  stale?: boolean;
+  sourceMode?: SourceMode;
+  fallback?: boolean;
+  error?: string | null;
+}
+
+export interface LiveConnection {
+  status: ConnectionStatus;
+  transport: "sse" | "fixture" | "websocket" | "polling" | "none" | string;
+  lastEventId: string | null;
+  lastHeartbeatAt: string | null;
+  reconnect: {
+    supported: boolean;
+    maxBackoffSeconds: number;
+    resumeParam?: string;
+    attempt?: number;
+    nextDelaySeconds?: number;
+  };
+  error?: string | null;
+}
+
 export interface OverviewPayload {
-  mocked: true;
+  mocked: boolean;
+  sourceMode?: SourceMode;
   controlPlane: string;
   summary: string;
   readiness: Status;
@@ -66,6 +102,8 @@ export interface RoundSummary {
   startedAt: string | null;
   updatedAt: string;
   latestEvent: string;
+  source?: string;
+  sourceMode?: SourceMode;
 }
 
 export interface RoundDetail {
@@ -78,6 +116,7 @@ export interface RoundDetail {
   runnerOutput: string;
   relatedMessages: string[];
   rawPayloadRef: string;
+  sourceMode?: SourceMode;
 }
 
 export interface InboxMessage {
@@ -90,16 +129,11 @@ export interface InboxMessage {
   title: string;
   context: string;
   readOnly: boolean;
+  sourceMode?: SourceMode;
 }
 
 export interface RuntimePayload {
-  sources: Array<{
-    name: string;
-    kind: string;
-    status: Status;
-    detail: string;
-    lastSeen: string | null;
-  }>;
+  sources: SourceHealth[];
   previewService: {
     name: string;
     port: number;
@@ -107,18 +141,30 @@ export interface RuntimePayload {
     fixtureOnly: boolean;
     liveReadsAllowed: boolean;
     mutationsAllowed: boolean;
+    sourceMode?: SourceMode;
+    streamPath?: string;
+    snapshotPath?: string;
   };
 }
 
 export interface DiagnosticsPayload {
   schemaVersion: string;
+  sourceMode?: SourceMode;
+  generatedAt?: string;
   sourceErrors: Array<{ source: string; severity: Severity; message: string; observedAt: string }>;
+  sourceHealth?: SourceHealth[];
   rawPayloads: Record<string, unknown>;
 }
 
 export interface PreviewFixtures {
   schemaVersion: string;
-  mocked: true;
+  sourceMode?: SourceMode;
+  mocked: boolean;
+  generatedAt?: string;
+  cursor?: string;
+  sources?: SourceHealth[];
+  sourceHealth?: SourceHealth[];
+  connection?: LiveConnection;
   fixtureProvenance: FixtureProvenance;
   overview: OverviewPayload;
   rounds: RoundSummary[];
@@ -128,6 +174,68 @@ export interface PreviewFixtures {
   diagnostics: DiagnosticsPayload;
 }
 
-export interface PreviewData extends PreviewFixtures {
+export interface LiveSnapshot {
+  schemaVersion: string;
+  sourceMode: SourceMode;
+  mocked: boolean;
+  generatedAt: string;
+  cursor: string;
+  sources: SourceHealth[];
+  sourceHealth: SourceHealth[];
+  connection: LiveConnection;
+  fixtureProvenance?: FixtureProvenance;
+  overview: OverviewPayload;
+  rounds: RoundSummary[];
+  roundDetails: Record<string, RoundDetail>;
+  inbox: InboxMessage[];
+  runtime: RuntimePayload;
+  diagnostics: DiagnosticsPayload;
+}
+
+export interface PreviewData extends LiveSnapshot {
   loadedAt: string;
+}
+
+export interface LiveEvent<TPayload = unknown> {
+  schemaVersion: string;
+  type:
+    | "heartbeat"
+    | "snapshot_ready"
+    | "source_status"
+    | "round_updated"
+    | "timeline_entry"
+    | "inbox_item"
+    | "runtime_health"
+    | "diagnostic"
+    | "stale"
+    | "fallback"
+    | "fatal"
+    | "round"
+    | "round_summary"
+    | "round_removed"
+    | "round_detail"
+    | "inbox"
+    | "activity"
+    | "diagnostics"
+    | string;
+  id: string;
+  eventId?: string;
+  entityId?: string | null;
+  source: string;
+  timestamp: string;
+  version?: string;
+  cursor?: string;
+  payload: TPayload;
+  sourceStatus?: Status | string | null;
+  stale?: boolean;
+  error?: string | null;
+}
+
+export interface TimelineEntryEventPayload {
+  roundId: string;
+  entry: RoundDetail["timeline"][number];
+}
+
+export interface RuntimeHealthEventPayload {
+  sources: SourceHealth[];
 }

@@ -1,0 +1,24 @@
+{
+  "agent": "round-20260511t154050z-44ce-repair-live-codex",
+  "blockers": [],
+  "branch": "round-20260511t154050z-44ce-repair-live-codex",
+  "changed_files": [
+    "docs/new-ui-evaluation.md",
+    "new-ui-evaluation/adapter.py",
+    "new-ui-evaluation/tests/test_adapter.py",
+    "openspec/changes/wire-new-ui-1/tasks.md"
+  ],
+  "head_sha": "2a083fb9a65d889da85c0bd266dfc3057fceb331",
+  "status": "completed",
+  "summary": "Repaired the backend live adapter so snapshots prefer real read-only Hub/MCP operational reads when available and clearly mark fallback metadata when degraded. Reworked the SSE stream to poll read-only snapshots and emit stable typed incremental events for operational changes instead of only startup events and heartbeats. Branch pushed to origin.",
+  "tasks_completed": [
+    "Changed /api/snapshot live source health to read Hub through the read-only MCP/Hub operational API and MCP through an HTTP operational probe, with local .scion-ops session metadata labeled as degraded fallback only.",
+    "Added content cursors and read-only snapshot diffing for /api/events so the SSE stream emits typed incremental events for round, timeline, inbox, runtime health, diagnostic, source status, stale, and fallback changes.",
+    "Added backend tests that simulate Hub/MCP operational reads and source changes, proving typed SSE incremental events are emitted without snapshot replacement semantics.",
+    "Updated the new UI evaluation docs and OpenSpec task list for the repair."
+  ],
+  "tests_run": [
+    "cd new-ui-evaluation && python3 -m py_compile adapter.py tests/test_adapter.py",
+    "cd new-ui-evaluation && python3 -m unittest discover -s tests"
+  ]
+}

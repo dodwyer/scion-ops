@@ -22,6 +22,9 @@ spec:
         - name: new-ui-eval
           image: localhost/scion-ops-new-ui-eval:latest
           imagePullPolicy: IfNotPresent
+          env:
+            - name: NEW_UI_EVALUATION_MODE
+              value: live
           ports:
             - containerPort: 8080
               name: http
