@@ -13,6 +13,7 @@
     "secondary_implementer": "round-20260511t154050z-44ce-impl-claude",
     "final_review": "round-20260511t154050z-44ce-final-review",
     "final_review_repair": "round-20260511t154050z-44ce-final-review-2",
+    "final_review_repair_2": "round-20260511t154050z-44ce-final-review-3",
     "integration": "round-20260511t154050z-44ce-integration",
     "replacement_implementer": "round-20260511t154050z-44ce-impl-ui-codex",
     "repair_implementer": "round-20260511t154050z-44ce-repair-live-codex",
