@@ -1,0 +1,43 @@
+{
+  "review_type": "final",
+  "scores": {
+    "correctness": 3,
+    "completeness": 3,
+    "style": 4
+  },
+  "verdict": "request_changes",
+  "blocking_issues": [
+    "Reconnect recovery still loses changes that occur while the browser is disconnected. The client reconnects with the latest cursor in new-ui-evaluation/src/App.tsx:107-111, but the server's /api/events path in new-ui-evaluation/adapter.py:916-934 uses that cursor only to suppress snapshot_ready and then treats the current snapshot as its new baseline. It does not replay incremental_events from the supplied cursor or emit/apply a safe replacement snapshot. A changed round/timeline/inbox state present at reconnect time therefore produces only a heartbeat until a later change occurs, violating the approved Graceful Reconnect And Resume and Evaluation Verification requirements."
+  ],
+  "final_failure_classification": "implementation_defect",
+  "final_failure_evidence": "The prior timeline_entry and runtime_health frontend reducer mismatches are fixed: api.ts now reads timeline_entry payload.roundId/payload.entry and runtime_health payload.sources, and the frontend tests cover both backend-emitted shapes. However, a direct adapter check shows incremental_events(first, second) emits round_updated, timeline_entry, and inbox_item, while event_batch(second, cursor=\"live:first\") emits only heartbeat. Because reconnect uses the stale cursor without replay or safe snapshot recovery, operator-visible live data can remain stale after stream interruption.",
+  "nits": [],
+  "spec": {
+    "change": "wire-new-ui-1",
+    "conformance": 3,
+    "spec_completeness": 5,
+    "task_coverage": 4,
+    "operational_verification": 4,
+    "checked_artifacts": [
+      "openspec/changes/wire-new-ui-1/proposal.md",
+      "openspec/changes/wire-new-ui-1/design.md",
+      "openspec/changes/wire-new-ui-1/tasks.md",
+      "openspec/changes/wire-new-ui-1/specs/new-ui-evaluation/spec.md",
+      "new-ui-evaluation/adapter.py",
+      "new-ui-evaluation/src/api.ts",
+      "new-ui-evaluation/src/App.tsx",
+      "new-ui-evaluation/src/types.ts",
+      "new-ui-evaluation/src/__tests__/fixtures.test.tsx",
+      "new-ui-evaluation/tests/test_adapter.py",
+      "deploy/kind/control-plane/new-ui-evaluation-deployment.yaml",
+      "scripts/kind-control-plane-smoke.py",
+      "docs/new-ui-evaluation.md"
+    ],
+    "unresolved_questions": [],
+    "gaps": [
+      "No frontend or adapter test simulates a stream interruption where source state changes before reconnect, then verifies cursor replay or safe snapshot recovery.",
+      "Kind smoke checks only initial snapshot and one SSE heartbeat; it does not verify reconnect/resume behavior against changed live data."
+    ]
+  },
+  "summary": "request_changes: the previously reported timeline_entry and runtime_health reducer mismatches are repaired and covered by tests, and OpenSpec validation, adapter tests, Vitest tests, and the frontend production build pass. PR readiness is still blocked because reconnect uses a cursor but neither replays missed changes nor recovers from a safe snapshot, so live UI state can silently miss round, timeline, inbox, or runtime updates after an SSE interruption."
+}
